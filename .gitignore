@@ -1,0 +1,5 @@
+_site/
+testflight/
+__pycache__/
+*.pyc
+.DS_Store
