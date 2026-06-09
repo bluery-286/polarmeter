@@ -15,8 +15,9 @@ from typing import Any
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
-DEFAULT_PROBE = WORKSPACE / 'testflight/free-provider-probe-report-latest.json'
-DEFAULT_OUTPUT = WORKSPACE / 'testflight/free-cache-snapshot-latest.json'
+DEFAULT_PROBE = PROJECT / 'testflight/free-provider-probe-report-latest.json'
+DEFAULT_OUTPUT = PROJECT / 'testflight/free-cache-snapshot-latest.json'
+DEFAULT_NEWS_PROBE = PROJECT / 'testflight/news-rss-probe-latest.json'
 
 
 def utc_now() -> str:
@@ -24,6 +25,12 @@ def utc_now() -> str:
 
 
 def load_probe(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def load_news_probe(path: Path | None) -> dict[str, Any] | None:
+    if not path or not path.exists():
+        return None
     return json.loads(path.read_text(encoding='utf-8'))
 
 
@@ -69,7 +76,44 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
     }
 
 
-def build_snapshot(probe: dict[str, Any]) -> dict[str, Any]:
+def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
+    if not news_probe:
+        return {
+            'status': 'unavailable',
+            'items': [],
+            'sourcePolicy': 'public_rss_headline_cache_only',
+            'bodyScrapingEnabled': False,
+            'imageScrapingEnabled': False,
+        }
+    items = news_probe.get('items') if isinstance(news_probe.get('items'), list) else []
+    return {
+        'status': news_probe.get('status') or ('ok' if items else 'unavailable'),
+        'generatedAt': news_probe.get('generatedAt'),
+        'sourcePolicy': 'public_rss_headline_cache_only',
+        'bodyScrapingEnabled': False,
+        'imageScrapingEnabled': False,
+        'paidProviderEnabled': False,
+        'clientDirectProviderCalls': False,
+        'items': [
+            {
+                'headline': item.get('headline'),
+                'sourceName': item.get('sourceName'),
+                'publishedAt': item.get('publishedAt'),
+                'url': item.get('url'),
+                'impactTarget': item.get('impactTarget') or 'market',
+                'impactTone': item.get('impactTone') or 'neutral',
+                'tags': item.get('tags') or ['뉴스'],
+                'sourceId': item.get('sourceId'),
+                'provider': item.get('provider') or 'public-rss',
+                'licenseNote': item.get('licenseNote') or 'public RSS headline cache only; no body or image scraping',
+            }
+            for item in items[:6]
+            if isinstance(item, dict) and item.get('headline') and item.get('url')
+        ],
+    }
+
+
+def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = None) -> dict[str, Any]:
     providers = provider_items(probe)
     signals = {
         signal['key']: choose_signal(signal, providers)
@@ -93,17 +137,19 @@ def build_snapshot(probe: dict[str, Any]) -> dict[str, Any]:
             for provider in probe.get('providers', [])
         },
         'signals': signals,
+        'news': cached_news(news_probe),
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--probe', type=Path, default=DEFAULT_PROBE)
+    parser.add_argument('--news-probe', type=Path, default=DEFAULT_NEWS_PROBE)
     parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
 
-    snapshot = build_snapshot(load_probe(args.probe))
+    snapshot = build_snapshot(load_probe(args.probe), load_news_probe(args.news_probe))
     args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if args.json:
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))

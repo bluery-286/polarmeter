@@ -82,6 +82,7 @@ def main() -> int:
         'output': str(args.output),
         'snapshotStatus': summary.get('snapshotStatus'),
         'okSignals': summary.get('okSignals'),
+        'okNewsCount': summary.get('okNewsCount'),
         'publicUrls': {
             'snapshot': 'market-snapshot-latest.json',
             'manifest': 'market-snapshot-manifest.json',

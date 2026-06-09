@@ -22,6 +22,7 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
 TOOLS = WORKSPACE / 'tools'
 DEFAULT_REPORT = WORKSPACE / 'testflight/free-provider-probe-report-latest.json'
+DEFAULT_NEWS_REPORT = WORKSPACE / 'testflight/news-rss-probe-latest.json'
 DEFAULT_SNAPSHOT = WORKSPACE / 'testflight/free-cache-snapshot-latest.json'
 DEFAULT_FIXTURE = WORKSPACE / 'testflight/free-cache-experiment.json'
 DEFAULT_PUBLIC_SNAPSHOT_NAME = 'market-snapshot-latest.json'
@@ -84,11 +85,21 @@ def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: d
         if bad_refs:
             raise AssertionError(f'{screen_key} has unlicensed refs in free-cache mode: {bad_refs[:3]}')
 
+    news = snapshot.get('news') or {}
+    if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
+        raise AssertionError('cached news must keep paid/client-direct policies false')
+    if news.get('bodyScrapingEnabled') is not False or news.get('imageScrapingEnabled') is not False:
+        raise AssertionError('cached news must not include body/image scraping')
+    for item in news.get('items') or []:
+        if item.get('body') or item.get('imageUrl'):
+            raise AssertionError('cached news item must not contain article body or imageUrl')
+
 
 def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, Any]:
     signals = snapshot.get('signals', {})
     ok_signals = sorted(k for k, v in signals.items() if isinstance(v, dict) and v.get('status') == 'ok')
     blocked_signals = sorted(k for k, v in signals.items() if isinstance(v, dict) and v.get('status') not in {'ok', None})
+    news = snapshot.get('news') or {}
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
@@ -98,6 +109,8 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'clientDirectProviderCalls': False,
         'cacheControl': 'public, max-age=300, stale-while-revalidate=1800',
         'okSignals': ok_signals,
+        'okNewsCount': len(news.get('items') or []),
+        'newsStatus': news.get('status') or 'unavailable',
         'blockedOrUnavailableSignals': blocked_signals,
         'notes': [
             'Public artifact contains normalized delayed/free data only.',
@@ -112,6 +125,8 @@ def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
         'generatedAt': manifest.get('generatedAt'),
         'snapshotStatus': manifest.get('snapshotStatus'),
         'okSignalCount': len(manifest.get('okSignals') or []),
+        'okNewsCount': manifest.get('okNewsCount') or 0,
+        'newsStatus': manifest.get('newsStatus') or 'unavailable',
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
     }
@@ -135,6 +150,7 @@ def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapsho
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--report', type=Path, default=DEFAULT_REPORT)
+    parser.add_argument('--news-report', type=Path, default=DEFAULT_NEWS_REPORT)
     parser.add_argument('--snapshot', type=Path, default=DEFAULT_SNAPSHOT)
     parser.add_argument('--fixture', type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument('--skip-fixture', action='store_true', help='Only update provider report and normalized snapshot')
@@ -144,7 +160,8 @@ def main() -> int:
     args = parser.parse_args()
 
     run([sys.executable, str(TOOLS / 'polarmeter_free_provider_probe.py'), '--json'], stdout_path=args.report)
-    run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--output', str(args.snapshot)])
+    run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report)])
+    run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot)])
     if not args.skip_fixture:
         run([sys.executable, str(TOOLS / 'polarmeter_free_cache_fixture.py'), '--snapshot', str(args.snapshot), '--output', str(args.fixture)])
 
@@ -160,11 +177,13 @@ def main() -> int:
     summary = {
         'ok': True,
         'report': str(args.report),
+        'newsReport': str(args.news_report),
         'snapshot': str(args.snapshot),
         'fixture': None if args.skip_fixture else str(args.fixture),
         'reportStatus': report.get('status'),
         'snapshotStatus': snapshot.get('status'),
         'okSignals': sorted(k for k, v in snapshot.get('signals', {}).items() if v.get('status') == 'ok'),
+        'okNewsCount': len((snapshot.get('news') or {}).get('items') or []),
         'publicArtifacts': public_artifacts,
     }
     if args.json:

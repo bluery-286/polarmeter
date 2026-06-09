@@ -40,6 +40,15 @@ def main() -> int:
             raise AssertionError(f'public snapshot leaked forbidden token(s): {leaked}')
         if snapshot.get('paidProviderEnabled') is not False or snapshot.get('clientDirectProviderCalls') is not False:
             raise AssertionError('snapshot policy fields must be false')
+        news = snapshot.get('news') or {}
+        if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
+            raise AssertionError('cached news policy fields must be false')
+        if news.get('bodyScrapingEnabled') is not False or news.get('imageScrapingEnabled') is not False:
+            raise AssertionError('cached news must not scrape body/images')
+        if len(news.get('items') or []) <= 0:
+            raise AssertionError('pages snapshot must include cached RSS headlines for B1 QA')
+        if manifest.get('okNewsCount', 0) <= 0:
+            raise AssertionError('manifest must expose cached news count')
     print('PolarMeter GitHub Pages smoke: PASS')
     return 0
 
