@@ -12,26 +12,28 @@ Static policy/support site for PolarMeter TestFlight/App Store preparation.
 
 ## Temporary support email
 
-Current beta contact: `kkack286@gmai.com`
-
-This is a temporary 1st-beta contact and is expected to change before public launch.
+Current beta contact: `kkack286@gmail.com`
 
 ## Recommended GitHub Pages settings
 
-- Repository: TBD, recommended `polarmeter`
+- Repository: TBD, recommended `polarmeter-site` or `polarmeter`
 - Visibility: public if using free GitHub Pages
 - Source: GitHub Actions
 - Workflow draft: `testflight/github-actions-polarmeter-cache-pages.yml`
 
-Expected URLs after publish, depending on repo name:
+Expected URLs after publish with custom subdomain:
+
+- `https://polarmeter.polarbearworks.com/`
+- `https://polarmeter.polarbearworks.com/privacy.html`
+- `https://polarmeter.polarbearworks.com/terms.html`
+- `https://polarmeter.polarbearworks.com/support.html`
+- `https://polarmeter.polarbearworks.com/market-snapshot-latest.json`
+- `https://polarmeter.polarbearworks.com/market-snapshot-manifest.json`
+- `https://polarmeter.polarbearworks.com/health.json`
+
+Fallback GitHub Pages URL before custom domain:
 
 - `https://<account>.github.io/polarmeter/`
-- `https://<account>.github.io/polarmeter/privacy.html`
-- `https://<account>.github.io/polarmeter/terms.html`
-- `https://<account>.github.io/polarmeter/support.html`
-- `https://<account>.github.io/polarmeter/market-snapshot-latest.json`
-- `https://<account>.github.io/polarmeter/market-snapshot-manifest.json`
-- `https://<account>.github.io/polarmeter/health.json`
 
 ## Cache artifacts
 
