@@ -21,8 +21,8 @@ from typing import Any
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
 TOOLS = WORKSPACE / 'tools'
-DEFAULT_SITE = WORKSPACE / 'github-pages-site'
-DEFAULT_OUTPUT = WORKSPACE / '_site'
+DEFAULT_SITE = PROJECT / 'github-pages-site'
+DEFAULT_OUTPUT = PROJECT / '_site'
 PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
 
 
@@ -63,6 +63,10 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('health.json must be ok for current Pages payload')
     if summary.get('snapshotStatus') not in {'ok', 'partial'}:
         raise AssertionError(f"unexpected snapshot status for pages payload: {summary.get('snapshotStatus')}")
+    if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
+        raise AssertionError('manifest must expose news TTL and next refresh metadata')
+    if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
+        raise AssertionError('manifest news schedule metadata mismatch')
 
 
 def main() -> int:

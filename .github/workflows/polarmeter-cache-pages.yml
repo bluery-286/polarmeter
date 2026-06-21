@@ -3,8 +3,10 @@ name: PolarMeter Cache Pages
 on:
   workflow_dispatch:
   schedule:
+    # Weekdays: every 30 minutes. UTC schedule; app displays provider dataAsOf.
     - cron: '*/30 * * * 1-5'
-    - cron: '0 */6 * * 0,6'
+    # Weekends: hourly so overseas/geopolitics headlines do not sit stale.
+    - cron: '0 * * * 0,6'
 
 permissions:
   contents: read

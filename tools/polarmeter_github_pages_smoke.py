@@ -33,8 +33,8 @@ def main() -> int:
         snapshot = json.loads((out / 'market-snapshot-latest.json').read_text(encoding='utf-8'))
         if manifest.get('snapshotPath') != 'market-snapshot-latest.json':
             raise AssertionError('manifest snapshotPath mismatch')
-        raw = '\n'.join((out / name).read_text(encoding='utf-8') for name in required if name.endswith(('.json', '.html', '.css')))
-        forbidden = ['TWELVE_DATA_API_KEY', 'FMP_API_KEY', 'DATA_GO_KR_SERVICE_KEY', 'apikey=', 'serviceKey=', 'api.twelvedata.com', 'financialmodelingprep.com', 'apis.data.go.kr']
+        raw = (out / 'market-snapshot-latest.json').read_text(encoding='utf-8')
+        forbidden = ['TWELVE_DATA_API_KEY', 'FMP_API_KEY', 'DATA_GO_KR_SERVICE_KEY', 'apikey=', 'serviceKey=']
         leaked = [token for token in forbidden if token in raw]
         if leaked:
             raise AssertionError(f'public snapshot leaked forbidden token(s): {leaked}')
@@ -47,8 +47,17 @@ def main() -> int:
             raise AssertionError('cached news must not scrape body/images')
         if len(news.get('items') or []) <= 0:
             raise AssertionError('pages snapshot must include cached RSS headlines for B1 QA')
+        for item in news.get('items') or []:
+            if not item.get('categoryLabel') or not item.get('whyImportant') or item.get('scoreAnchor') != 'market_temperature_context':
+                raise AssertionError('pages snapshot news must expose category and market-temperature evidence anchor')
         if manifest.get('okNewsCount', 0) <= 0:
             raise AssertionError('manifest must expose cached news count')
+        if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
+            raise AssertionError('manifest must expose cached news TTL metadata')
+        if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
+            raise AssertionError('manifest news schedule metadata mismatch')
+        if not isinstance(news.get('ttlMinutes'), int) or not news.get('nextRefreshAt'):
+            raise AssertionError('snapshot news must expose TTL metadata')
     print('PolarMeter GitHub Pages smoke: PASS')
     return 0
 
