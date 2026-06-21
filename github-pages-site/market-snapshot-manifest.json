@@ -1,22 +1,28 @@
 {
   "mode": "free_cache_experiment",
-  "generatedAt": "2026-06-21T16:10:00.700602Z",
+  "generatedAt": "2026-06-21T23:02:59.361168Z",
   "snapshotPath": "market-snapshot-latest.json",
   "snapshotStatus": "partial",
   "paidProviderEnabled": false,
   "clientDirectProviderCalls": false,
   "cacheControl": "public, max-age=300, stale-while-revalidate=1800",
   "okSignals": [
+    "dxy",
+    "eem",
+    "iwm",
     "kodex200",
     "kosdaq",
     "kospi",
     "kr_samsung",
-    "tiger200"
+    "sp500",
+    "tiger200",
+    "us10y",
+    "vix"
   ],
   "okNewsCount": 10,
   "newsStatus": "ok",
   "newsTtlMinutes": 60,
-  "newsNextRefreshAt": "2026-06-21T17:10:00.638754Z",
+  "newsNextRefreshAt": "2026-06-22T00:02:59.294550Z",
   "newsRecommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
   "dataQuality": {
     "policy": "core_signal_fallback_chain_v1",
@@ -54,34 +60,36 @@
       ]
     },
     "coreOkSignals": [
+      "dxy",
       "kospi",
+      "sp500",
+      "us10y",
       "usd_krw",
       "vix",
       "wti"
     ],
-    "coreCoverageRatio": 0.571,
+    "coreCoverageRatio": 1.0,
     "normalTemperatureAllowed": false,
-    "displayMode": "collecting",
+    "displayMode": "limited",
     "groupStatus": {
       "kr_index": "ok",
       "fx": "stale",
-      "us_index": "missing",
-      "volatility": "stale",
+      "us_index": "ok",
+      "volatility": "ok",
       "commodity": "stale",
-      "rate": "missing",
-      "dollar": "missing"
+      "rate": "ok",
+      "dollar": "ok"
     },
     "displayBadge": {
       "kr_index": null
     }
   },
   "blockedOrUnavailableSignals": [
+    "gold",
     "nasdaq100",
     "smh",
     "soxx",
-    "sp500",
     "usd_krw",
-    "vix",
     "wti"
   ],
   "notes": [

@@ -40,6 +40,11 @@ def main() -> int:
             raise AssertionError(f'public snapshot leaked forbidden token(s): {leaked}')
         if snapshot.get('paidProviderEnabled') is not False or snapshot.get('clientDirectProviderCalls') is not False:
             raise AssertionError('snapshot policy fields must be false')
+        data_quality = snapshot.get('dataQuality') or {}
+        if data_quality.get('coreCoverageRatio') != 1.0:
+            raise AssertionError(f"pages snapshot must keep full core coverage, got {data_quality.get('coreCoverageRatio')}")
+        if data_quality.get('displayMode') == 'collecting':
+            raise AssertionError('pages snapshot must not publish collecting mode')
         news = snapshot.get('news') or {}
         if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
             raise AssertionError('cached news policy fields must be false')

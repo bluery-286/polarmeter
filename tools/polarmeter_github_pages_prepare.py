@@ -63,6 +63,11 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('health.json must be ok for current Pages payload')
     if summary.get('snapshotStatus') not in {'ok', 'partial'}:
         raise AssertionError(f"unexpected snapshot status for pages payload: {summary.get('snapshotStatus')}")
+    data_quality = snapshot.get('dataQuality') or {}
+    if data_quality.get('coreCoverageRatio') != 1.0:
+        raise AssertionError(f"public snapshot must keep full core coverage, got {data_quality.get('coreCoverageRatio')}")
+    if data_quality.get('displayMode') == 'collecting':
+        raise AssertionError('public snapshot must not publish collecting mode')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':

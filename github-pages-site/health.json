@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "generatedAt": "2026-06-21T16:10:00.700602Z",
+  "generatedAt": "2026-06-21T23:02:59.361168Z",
   "snapshotStatus": "partial",
-  "okSignalCount": 5,
+  "okSignalCount": 11,
   "okNewsCount": 10,
   "newsStatus": "ok",
   "dataQuality": {
@@ -41,22 +41,25 @@
       ]
     },
     "coreOkSignals": [
+      "dxy",
       "kospi",
+      "sp500",
+      "us10y",
       "usd_krw",
       "vix",
       "wti"
     ],
-    "coreCoverageRatio": 0.571,
+    "coreCoverageRatio": 1.0,
     "normalTemperatureAllowed": false,
-    "displayMode": "collecting",
+    "displayMode": "limited",
     "groupStatus": {
       "kr_index": "ok",
       "fx": "stale",
-      "us_index": "missing",
-      "volatility": "stale",
+      "us_index": "ok",
+      "volatility": "ok",
       "commodity": "stale",
-      "rate": "missing",
-      "dollar": "missing"
+      "rate": "ok",
+      "dollar": "ok"
     },
     "displayBadge": {
       "kr_index": null
