@@ -1,30 +1,23 @@
 {
   "mode": "free_cache_experiment",
-  "generatedAt": "2026-06-12T14:31:09.000529Z",
+  "generatedAt": "2026-06-21T16:10:00.700602Z",
   "snapshotPath": "market-snapshot-latest.json",
-  "snapshotStatus": "ok",
+  "snapshotStatus": "partial",
   "paidProviderEnabled": false,
   "clientDirectProviderCalls": false,
   "cacheControl": "public, max-age=300, stale-while-revalidate=1800",
   "okSignals": [
-    "dxy",
-    "eem",
-    "iwm",
     "kodex200",
     "kosdaq",
     "kospi",
     "kr_samsung",
-    "nasdaq100",
-    "sp500",
-    "tiger200",
-    "us10y",
-    "usd_krw",
-    "vix",
-    "vix_aux",
-    "wti"
+    "tiger200"
   ],
   "okNewsCount": 10,
   "newsStatus": "ok",
+  "newsTtlMinutes": 60,
+  "newsNextRefreshAt": "2026-06-21T17:10:00.638754Z",
+  "newsRecommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
   "dataQuality": {
     "policy": "core_signal_fallback_chain_v1",
     "coreSignals": [
@@ -47,8 +40,7 @@
         "nasdaq100"
       ],
       "volatility": [
-        "vix",
-        "vix_aux"
+        "vix"
       ],
       "commodity": [
         "wti",
@@ -62,216 +54,35 @@
       ]
     },
     "coreOkSignals": [
-      "dxy",
       "kospi",
-      "sp500",
-      "us10y",
       "usd_krw",
       "vix",
       "wti"
     ],
-    "coreCoverageRatio": 1.0,
-    "normalTemperatureAllowed": true,
-    "displayMode": "normal",
+    "coreCoverageRatio": 0.571,
+    "normalTemperatureAllowed": false,
+    "displayMode": "collecting",
     "groupStatus": {
       "kr_index": "ok",
-      "fx": "ok",
-      "us_index": "ok",
-      "volatility": "ok",
-      "commodity": "ok",
-      "rate": "ok",
-      "dollar": "ok"
-    },
-    "groupDetails": {
-      "kr_index": {
-        "kospi": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "kosdaq": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "fx": {
-        "usd_krw": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "us_index": {
-        "sp500": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "nasdaq100": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "volatility": {
-        "vix": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "vix_aux": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "commodity": {
-        "wti": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "gold": {
-          "status": "stale",
-          "qualityStatus": "stale_last_known_good",
-          "qualityReason": "changePct_suspect>3.0"
-        }
-      },
-      "rate": {
-        "us10y": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "dollar": {
-        "dxy": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      }
+      "fx": "stale",
+      "us_index": "missing",
+      "volatility": "stale",
+      "commodity": "stale",
+      "rate": "missing",
+      "dollar": "missing"
     },
     "displayBadge": {
       "kr_index": null
-    },
-    "rules": {
-      "fallbackOrder": "primary -> secondary -> current_suspect_with_warning -> last_known_good -> unavailable_state",
-      "paidProviderEnabled": false,
-      "clientDirectProviderCalls": false,
-      "sanityRanges": {
-        "kospi": {
-          "minPrice": 1000,
-          "maxPrice": 12000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 10.0,
-          "requiresChangePct": true
-        },
-        "kosdaq": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 10.0,
-          "requiresChangePct": true
-        },
-        "kodex200": {
-          "minPrice": 20000,
-          "maxPrice": 200000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 8.0,
-          "requiresChangePct": true
-        },
-        "tiger200": {
-          "minPrice": 20000,
-          "maxPrice": 200000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 8.0,
-          "requiresChangePct": true
-        },
-        "sp500": {
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 7.0,
-          "requiresChangePct": true
-        },
-        "nasdaq100": {
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 7.0,
-          "requiresChangePct": true
-        },
-        "usd_krw": {
-          "suspectAbsChangePct": 2.0,
-          "rejectAbsChangePct": 3.0,
-          "requiresChangePct": false
-        },
-        "us10y": {
-          "minPrice": 1.0,
-          "maxPrice": 8.0,
-          "suspectAbsChangePct": 8.0,
-          "rejectAbsChangePct": 15.0,
-          "requiresChangePct": false
-        },
-        "dxy": {
-          "minPrice": 70.0,
-          "maxPrice": 140.0,
-          "suspectAbsChangePct": 3.0,
-          "rejectAbsChangePct": 5.0,
-          "requiresChangePct": false
-        },
-        "vix_aux": {
-          "suspectAbsChangePct": 12.0,
-          "rejectAbsChangePct": 20.0,
-          "requiresChangePct": false
-        },
-        "wti": {
-          "suspectAbsChangePct": 8.0,
-          "rejectAbsChangePct": 12.0,
-          "requiresChangePct": false
-        },
-        "gold": {
-          "suspectAbsChangePct": 3.0,
-          "rejectAbsChangePct": 5.0,
-          "requiresChangePct": false
-        },
-        "soxx": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "smh": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "iwm": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "eem": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        }
-      },
-      "fxOfficialProvider": "bok-ecos-free",
-      "volatilityPrimary": [
-        "vix"
-      ],
-      "volatilitySupplementary": [
-        "vix_aux"
-      ],
-      "commodityPrimary": [
-        "wti"
-      ],
-      "commoditySupplementary": [
-        "gold"
-      ],
-      "vixRateLimitPolicy": "show_stale_value_with_low_confidence_and_vixy_supplement"
     }
   },
   "blockedOrUnavailableSignals": [
-    "gold",
+    "nasdaq100",
     "smh",
-    "soxx"
+    "soxx",
+    "sp500",
+    "usd_krw",
+    "vix",
+    "wti"
   ],
   "notes": [
     "Public artifact contains normalized delayed/free data only.",

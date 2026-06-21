@@ -1,11 +1,10 @@
 {
   "mode": "free_cache_experiment",
-  "generatedAt": "2026-06-12T14:31:09.000529Z",
-  "status": "ok",
+  "generatedAt": "2026-06-21T16:10:00.700602Z",
+  "status": "partial",
   "paidProviderEnabled": false,
   "clientDirectProviderCalls": false,
   "defaultTtlMinutes": 30,
-  "probeStatus": "ok",
   "dataQuality": {
     "policy": "core_signal_fallback_chain_v1",
     "coreSignals": [
@@ -28,8 +27,7 @@
         "nasdaq100"
       ],
       "volatility": [
-        "vix",
-        "vix_aux"
+        "vix"
       ],
       "commodity": [
         "wti",
@@ -43,868 +41,321 @@
       ]
     },
     "coreOkSignals": [
-      "dxy",
       "kospi",
-      "sp500",
-      "us10y",
       "usd_krw",
       "vix",
       "wti"
     ],
-    "coreCoverageRatio": 1.0,
-    "normalTemperatureAllowed": true,
-    "displayMode": "normal",
+    "coreCoverageRatio": 0.571,
+    "normalTemperatureAllowed": false,
+    "displayMode": "collecting",
     "groupStatus": {
       "kr_index": "ok",
-      "fx": "ok",
-      "us_index": "ok",
-      "volatility": "ok",
-      "commodity": "ok",
-      "rate": "ok",
-      "dollar": "ok"
-    },
-    "groupDetails": {
-      "kr_index": {
-        "kospi": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "kosdaq": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "fx": {
-        "usd_krw": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "us_index": {
-        "sp500": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "nasdaq100": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "volatility": {
-        "vix": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "vix_aux": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "commodity": {
-        "wti": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        },
-        "gold": {
-          "status": "stale",
-          "qualityStatus": "stale_last_known_good",
-          "qualityReason": "changePct_suspect>3.0"
-        }
-      },
-      "rate": {
-        "us10y": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      },
-      "dollar": {
-        "dxy": {
-          "status": "ok",
-          "qualityStatus": "ok",
-          "qualityReason": null
-        }
-      }
+      "fx": "stale",
+      "us_index": "missing",
+      "volatility": "stale",
+      "commodity": "stale",
+      "rate": "missing",
+      "dollar": "missing"
     },
     "displayBadge": {
       "kr_index": null
-    },
-    "rules": {
-      "fallbackOrder": "primary -> secondary -> current_suspect_with_warning -> last_known_good -> unavailable_state",
-      "paidProviderEnabled": false,
-      "clientDirectProviderCalls": false,
-      "sanityRanges": {
-        "kospi": {
-          "minPrice": 1000,
-          "maxPrice": 12000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 10.0,
-          "requiresChangePct": true
-        },
-        "kosdaq": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 10.0,
-          "requiresChangePct": true
-        },
-        "kodex200": {
-          "minPrice": 20000,
-          "maxPrice": 200000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 8.0,
-          "requiresChangePct": true
-        },
-        "tiger200": {
-          "minPrice": 20000,
-          "maxPrice": 200000,
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 8.0,
-          "requiresChangePct": true
-        },
-        "sp500": {
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 7.0,
-          "requiresChangePct": true
-        },
-        "nasdaq100": {
-          "suspectAbsChangePct": 5.0,
-          "rejectAbsChangePct": 7.0,
-          "requiresChangePct": true
-        },
-        "usd_krw": {
-          "suspectAbsChangePct": 2.0,
-          "rejectAbsChangePct": 3.0,
-          "requiresChangePct": false
-        },
-        "us10y": {
-          "minPrice": 1.0,
-          "maxPrice": 8.0,
-          "suspectAbsChangePct": 8.0,
-          "rejectAbsChangePct": 15.0,
-          "requiresChangePct": false
-        },
-        "dxy": {
-          "minPrice": 70.0,
-          "maxPrice": 140.0,
-          "suspectAbsChangePct": 3.0,
-          "rejectAbsChangePct": 5.0,
-          "requiresChangePct": false
-        },
-        "vix_aux": {
-          "suspectAbsChangePct": 12.0,
-          "rejectAbsChangePct": 20.0,
-          "requiresChangePct": false
-        },
-        "wti": {
-          "suspectAbsChangePct": 8.0,
-          "rejectAbsChangePct": 12.0,
-          "requiresChangePct": false
-        },
-        "gold": {
-          "suspectAbsChangePct": 3.0,
-          "rejectAbsChangePct": 5.0,
-          "requiresChangePct": false
-        },
-        "soxx": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "smh": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "iwm": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        },
-        "eem": {
-          "suspectAbsChangePct": 6.0,
-          "rejectAbsChangePct": 9.0,
-          "requiresChangePct": false
-        }
-      },
-      "fxOfficialProvider": "bok-ecos-free",
-      "volatilityPrimary": [
-        "vix"
-      ],
-      "volatilitySupplementary": [
-        "vix_aux"
-      ],
-      "commodityPrimary": [
-        "wti"
-      ],
-      "commoditySupplementary": [
-        "gold"
-      ],
-      "vixRateLimitPolicy": "show_stale_value_with_low_confidence_and_vixy_supplement"
-    }
-  },
-  "sources": {
-    "bok-ecos-free": {
-      "status": "missing_key",
-      "message": "BOK_API_KEY/ECOS_API_KEY not set"
-    },
-    "public-chart-delayed": {
-      "status": "ok",
-      "message": "Public delayed chart worker-side fetch; app receives normalized snapshot only"
-    },
-    "twelvedata-free": {
-      "status": "partial",
-      "message": null
-    },
-    "fmp-free": {
-      "status": "partial",
-      "message": null
-    },
-    "data-go-kr-free": {
-      "status": "ok",
-      "message": null
-    },
-    "data-go-kr-index-free": {
-      "status": "ok",
-      "message": "data.go.kr 15094807 금융위원회_지수시세정보"
-    },
-    "data-go-kr-etf-free": {
-      "status": "ok",
-      "message": "data.go.kr 15094806 금융위원회_증권상품시세정보"
     }
   },
   "signals": {
     "sp500": {
       "key": "sp500",
       "label": "S&P500/SPY",
-      "value": "739.605",
-      "change": "1.84499",
-      "changePct": "0.25008000",
-      "status": "ok",
-      "freshnessStatus": "delayed",
+      "value": "746.59003",
+      "change": null,
+      "changePct": null,
+      "status": "partial",
+      "freshnessStatus": "partial",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:SPY",
-      "fetchedAt": "2026-06-12T14:31:09.000271Z",
-      "dataAsOf": "2026-06-12T13:30:00Z",
+      "fetchedAt": "2026-06-21T16:10:00.700501Z",
+      "dataAsOf": "2026-06-21T16:10:00.700403Z",
       "ttlMinutes": 30,
-      "valuePolicy": "show",
+      "valuePolicy": "hide",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": true,
-      "qualityStatus": "ok",
-      "qualityReason": null,
+      "qualityStatus": "partial",
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000404Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": null
     },
     "nasdaq100": {
       "key": "nasdaq100",
       "label": "Nasdaq100/QQQ",
-      "value": "717.96",
-      "change": "0.84000488",
-      "changePct": "0.11713589",
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "twelvedata-free",
-      "sourceId": "twelvedata-free:QQQ",
-      "fetchedAt": "2026-06-12T14:31:09.000413Z",
-      "dataAsOf": "2026-06-12T13:30:00Z",
+      "value": null,
+      "changePct": null,
+      "status": "invalid",
+      "freshnessStatus": "invalid",
+      "provider": "free-provider-poc",
+      "sourceId": "free-provider-poc:nasdaq100",
+      "fetchedAt": null,
+      "dataAsOf": null,
       "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
+      "valuePolicy": "hide",
+      "licenseNote": "free provider key/coverage not verified yet",
       "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "delayed_market_data",
-        "displayBadge": "지연 시세",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000417Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "qualityStatus": "invalid"
     },
     "vix": {
       "key": "vix",
-      "label": "CBOE VIX",
-      "value": 18.97,
-      "change": -0.47,
-      "changePct": -2.4177,
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "fmp-free",
-      "sourceId": "fmp-free:^VIX",
-      "fetchedAt": "2026-06-12T14:31:09.000423Z",
-      "dataAsOf": "2026-06-12T14:30:46Z",
+      "label": "VIX proxy",
+      "value": "21.96000",
+      "change": null,
+      "changePct": null,
+      "status": "stale",
+      "freshnessStatus": "stale",
+      "provider": "twelvedata-free",
+      "sourceId": "twelvedata-free:VIXY",
+      "fetchedAt": "2026-06-21T16:10:00.700524Z",
+      "dataAsOf": "2026-06-21T16:09:34.530866Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": true,
-      "qualityStatus": "ok",
-      "qualityReason": null,
+      "qualityStatus": "stale_last_known_good",
       "reliability": {
-        "sourceClass": "volatility_index",
-        "displayBadge": "지연 시세",
-        "confidencePolicy": "normal"
+        "sourceClass": "stale_last_known_good",
+        "displayBadge": "지연된 값 · 참고만",
+        "confidencePolicy": "low_on_provider_rate_limit"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000426Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 404: Not Found"
-        },
-        {
-          "provider": "fmp-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "vix_aux": {
-      "key": "vix_aux",
-      "label": "VIX futures ETF proxy/VIXY",
-      "value": "24.065",
-      "change": "-0.34499985",
-      "changePct": "-1.41335",
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "twelvedata-free",
-      "sourceId": "twelvedata-free:VIXY",
-      "fetchedAt": "2026-06-12T14:31:09.000429Z",
-      "dataAsOf": "2026-06-12T13:30:00Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "volatility_futures_proxy",
-        "displayBadge": "VIXY 보조 지표",
-        "confidencePolicy": "supplementary_only"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000431Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:09:34.530869Z",
+      "staleSource": "last_known_good"
     },
     "usd_krw": {
       "key": "usd_krw",
       "label": "USD/KRW",
-      "value": "1519.33321",
-      "change": "3.18036",
-      "changePct": "0.20976513",
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "twelvedata-free",
-      "sourceId": "twelvedata-free:USD/KRW",
-      "fetchedAt": "2026-06-12T14:31:09.000434Z",
-      "dataAsOf": "2026-06-11T21:00:00Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": true,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "market_rate",
-        "displayBadge": "참고용 (시장환율)",
-        "confidencePolicy": "low_until_official_fx"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000436Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "us10y": {
-      "key": "us10y",
-      "label": "US 10Y Treasury Yield",
-      "value": 4.495,
-      "change": 0.03200017929077159,
-      "changePct": 0.7170105439458957,
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "public-chart-delayed",
-      "sourceId": "public-chart-delayed:^TNX",
-      "fetchedAt": "2026-06-12T14:31:09.000439Z",
-      "dataAsOf": "2026-06-12T14:15:24Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "public_rate_index",
-        "displayBadge": "지연 금리",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000441Z",
-      "fallbackChain": [
-        {
-          "provider": "public-chart-delayed",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "dxy": {
-      "key": "dxy",
-      "label": "US Dollar Index",
-      "value": 99.794,
-      "change": -0.06600061035156557,
-      "changePct": -0.06609314034464756,
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "public-chart-delayed",
-      "sourceId": "public-chart-delayed:DX-Y.NYB",
-      "fetchedAt": "2026-06-12T14:31:09.000443Z",
-      "dataAsOf": "2026-06-12T14:20:39Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "public_dollar_index",
-        "displayBadge": "지연 달러지수",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000445Z",
-      "fallbackChain": [
-        {
-          "provider": "public-chart-delayed",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "wti": {
-      "key": "wti",
-      "label": "WTI proxy/USO",
-      "value": "128.74",
-      "change": "-0.090001831",
-      "changePct": "-0.069860925",
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "twelvedata-free",
-      "sourceId": "twelvedata-free:USO",
-      "fetchedAt": "2026-06-12T14:31:09.000448Z",
-      "dataAsOf": "2026-06-12T13:30:00Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": true,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "delayed_market_data",
-        "displayBadge": "지연 시세",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000450Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "gold": {
-      "key": "gold",
-      "label": "Gold proxy/GLD",
-      "value": "374.57999",
-      "change": "-16.20001",
-      "changePct": "-4.14556",
+      "value": "1529.76028",
+      "change": null,
+      "changePct": null,
       "status": "stale",
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
-      "sourceId": "twelvedata-free:GLD",
-      "fetchedAt": "2026-06-12T14:31:09.000459Z",
-      "dataAsOf": "2026-06-10T13:30:00Z",
+      "sourceId": "twelvedata-free:USD/KRW",
+      "fetchedAt": "2026-06-21T16:10:00.700533Z",
+      "dataAsOf": "2026-06-21T16:09:34.530873Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
+      "coreSignal": true,
       "qualityStatus": "stale_last_known_good",
-      "qualityReason": "changePct_suspect>3.0",
+      "reliability": {
+        "sourceClass": "market_rate",
+        "displayBadge": "참고용 환율",
+        "confidencePolicy": "low_until_official_fx"
+      },
+      "lastSuccessfulAt": "2026-06-21T16:09:34.530875Z",
+      "staleSource": "last_known_good"
+    },
+    "wti": {
+      "key": "wti",
+      "label": "WTI proxy",
+      "value": "89.46000",
+      "change": null,
+      "changePct": null,
+      "status": "stale",
+      "freshnessStatus": "stale",
+      "provider": "twelvedata-free",
+      "sourceId": "twelvedata-free:CL",
+      "fetchedAt": "2026-06-21T16:10:00.700539Z",
+      "dataAsOf": "2026-06-21T16:09:34.530878Z",
+      "ttlMinutes": 30,
+      "valuePolicy": "show",
+      "licenseNote": "free/delayed provider via cache server",
+      "coreSignal": true,
+      "qualityStatus": "stale_last_known_good",
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-11T11:52:20.402906Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 429: Too Many Requests"
-        },
-        {
-          "provider": "fmp-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 402: Payment Required"
-        }
-      ],
+      "lastSuccessfulAt": "2026-06-21T16:09:34.530881Z",
       "staleSource": "last_known_good"
     },
     "soxx": {
       "key": "soxx",
       "label": "SOXX",
-      "value": "541.51001",
-      "change": "-20.63000",
-      "changePct": "-3.66991",
+      "value": "639.10999",
+      "change": null,
+      "changePct": null,
       "status": "stale",
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:SOXX",
-      "fetchedAt": "2026-06-12T14:31:09.000467Z",
-      "dataAsOf": "2026-06-10T13:30:00Z",
+      "fetchedAt": "2026-06-21T16:10:00.700544Z",
+      "dataAsOf": "2026-06-21T16:09:34.530883Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "stale_last_known_good",
-      "qualityReason": "HTTP Error 402: Payment Required",
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-11T11:52:20.402913Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 429: Too Many Requests"
-        },
-        {
-          "provider": "fmp-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 402: Payment Required"
-        }
-      ],
+      "lastSuccessfulAt": "2026-06-21T16:09:34.530885Z",
       "staleSource": "last_known_good"
     },
     "smh": {
       "key": "smh",
       "label": "SMH",
-      "value": "570.90997",
-      "change": "-20.10004",
-      "changePct": "-3.40096",
+      "value": "659",
+      "change": null,
+      "changePct": null,
       "status": "stale",
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:SMH",
-      "fetchedAt": "2026-06-12T14:31:09.000473Z",
-      "dataAsOf": "2026-06-10T13:30:00Z",
+      "fetchedAt": "2026-06-21T16:10:00.700548Z",
+      "dataAsOf": "2026-06-21T16:09:34.530888Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "stale_last_known_good",
-      "qualityReason": "HTTP Error 402: Payment Required",
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-11T11:52:20.402918Z",
-      "fallbackChain": [
-        {
-          "provider": "twelvedata-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 429: Too Many Requests"
-        },
-        {
-          "provider": "fmp-free",
-          "status": "error",
-          "quality": "unavailable",
-          "reason": "HTTP Error 402: Payment Required"
-        }
-      ],
+      "lastSuccessfulAt": "2026-06-21T16:09:34.530890Z",
       "staleSource": "last_known_good"
-    },
-    "iwm": {
-      "key": "iwm",
-      "label": "Russell 2000/IWM",
-      "value": 294.01,
-      "change": 3.599996337890616,
-      "changePct": 1.2396254579712047,
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "public-chart-delayed",
-      "sourceId": "public-chart-delayed:IWM",
-      "fetchedAt": "2026-06-12T14:31:09.000476Z",
-      "dataAsOf": "2026-06-12T14:30:41Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "diversification_index_etf",
-        "displayBadge": "지연 ETF",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000478Z",
-      "fallbackChain": [
-        {
-          "provider": "public-chart-delayed",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
-    },
-    "eem": {
-      "key": "eem",
-      "label": "Emerging Markets/EEM",
-      "value": 67.705,
-      "change": 0.2049999999999983,
-      "changePct": 0.30370370370370114,
-      "status": "ok",
-      "freshnessStatus": "delayed",
-      "provider": "public-chart-delayed",
-      "sourceId": "public-chart-delayed:EEM",
-      "fetchedAt": "2026-06-12T14:31:09.000480Z",
-      "dataAsOf": "2026-06-12T14:30:39Z",
-      "ttlMinutes": 30,
-      "valuePolicy": "show",
-      "licenseNote": "free/delayed provider via cache server",
-      "coreSignal": false,
-      "qualityStatus": "ok",
-      "qualityReason": null,
-      "reliability": {
-        "sourceClass": "diversification_index_etf",
-        "displayBadge": "지연 ETF",
-        "confidencePolicy": "normal"
-      },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000484Z",
-      "fallbackChain": [
-        {
-          "provider": "public-chart-delayed",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
     },
     "kr_samsung": {
       "key": "kr_samsung",
       "label": "삼성전자",
-      "value": "299000",
-      "change": "-3500",
-      "changePct": "-1.16",
+      "value": "362500",
+      "change": "16000",
+      "changePct": "4.62",
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-free",
       "sourceId": "data-go-kr-free:005930",
-      "fetchedAt": "2026-06-12T14:31:09.000487Z",
-      "dataAsOf": "20260611",
+      "fetchedAt": "2026-06-21T16:10:00.700554Z",
+      "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "ok",
-      "qualityReason": null,
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000489Z",
-      "fallbackChain": [
-        {
-          "provider": "data-go-kr-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:10:00.700556Z"
     },
     "kospi": {
       "key": "kospi",
       "label": "KOSPI",
-      "value": "7763.95",
-      "change": "33.13",
-      "changePct": ".43",
+      "value": "9063.84",
+      "change": "199.6",
+      "changePct": "2.25",
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-index-free",
       "sourceId": "data-go-kr-index-free:코스피",
-      "fetchedAt": "2026-06-12T14:31:09.000493Z",
-      "dataAsOf": "20260611",
+      "fetchedAt": "2026-06-21T16:10:00.700562Z",
+      "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": true,
       "qualityStatus": "ok",
-      "qualityReason": null,
       "reliability": {
         "sourceClass": "delayed_market_data",
-        "displayBadge": "지연 시세",
+        "displayBadge": "공공 지연",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000494Z",
-      "fallbackChain": [
-        {
-          "provider": "data-go-kr-index-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:10:00.700563Z"
     },
     "kosdaq": {
       "key": "kosdaq",
       "label": "KOSDAQ",
-      "value": "996.93",
-      "change": "45.3",
-      "changePct": "4.76",
+      "value": "1000.93",
+      "change": "-31.03",
+      "changePct": "-3.01",
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-index-free",
       "sourceId": "data-go-kr-index-free:코스닥",
-      "fetchedAt": "2026-06-12T14:31:09.000497Z",
-      "dataAsOf": "20260611",
+      "fetchedAt": "2026-06-21T16:10:00.700567Z",
+      "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "ok",
-      "qualityReason": null,
       "reliability": {
         "sourceClass": "delayed_market_data",
-        "displayBadge": "지연 시세",
+        "displayBadge": "공공 지연",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000499Z",
-      "fallbackChain": [
-        {
-          "provider": "data-go-kr-index-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:10:00.700568Z"
     },
     "kodex200": {
       "key": "kodex200",
       "label": "KODEX 200",
-      "value": "123850",
-      "change": "55",
-      "changePct": ".04",
+      "value": "146945",
+      "change": "4890",
+      "changePct": "3.44",
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-etf-free",
       "sourceId": "data-go-kr-etf-free:069500",
-      "fetchedAt": "2026-06-12T14:31:09.000502Z",
-      "dataAsOf": "20260611",
+      "fetchedAt": "2026-06-21T16:10:00.700572Z",
+      "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "ok",
-      "qualityReason": null,
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000503Z",
-      "fallbackChain": [
-        {
-          "provider": "data-go-kr-etf-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:10:00.700573Z"
     },
     "tiger200": {
       "key": "tiger200",
       "label": "TIGER 200",
-      "value": "123910",
-      "change": "80",
-      "changePct": ".06",
+      "value": "146705",
+      "change": "4825",
+      "changePct": "3.4",
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-etf-free",
       "sourceId": "data-go-kr-etf-free:102110",
-      "fetchedAt": "2026-06-12T14:31:09.000507Z",
-      "dataAsOf": "20260611",
+      "fetchedAt": "2026-06-21T16:10:00.700579Z",
+      "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": false,
       "qualityStatus": "ok",
-      "qualityReason": null,
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-12T14:31:09.000508Z",
-      "fallbackChain": [
-        {
-          "provider": "data-go-kr-etf-free",
-          "status": "ok",
-          "quality": "ok",
-          "reason": null
-        }
-      ]
+      "lastSuccessfulAt": "2026-06-21T16:10:00.700581Z"
     }
   },
   "news": {
     "status": "ok",
-    "generatedAt": "2026-06-12T14:31:08.950007Z",
+    "generatedAt": "2026-06-21T16:10:00.638742Z",
+    "ttlMinutes": 60,
+    "nextRefreshAt": "2026-06-21T17:10:00.638754Z",
+    "recommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
     "sourcePolicy": "public_rss_headline_cache_only",
     "bodyScrapingEnabled": false,
     "imageScrapingEnabled": false,
@@ -912,252 +363,119 @@
     "clientDirectProviderCalls": false,
     "items": [
       {
-        "headline": "전쟁 끝? 기대감에 증시 ‘불기둥’…\"사자\" 돌아온 외국인",
-        "displayHeadline": "전쟁 끝? 기대감에 증시 ‘불기둥’…\"사자\" 돌아온 외국인",
-        "originalHeadline": null,
-        "sourceName": "JTBC",
-        "publishedAt": "2026-06-12T11:58:00Z",
-        "url": "https://news.google.com/rss/articles/CBMiVEFVX3lxTE9EWG9EVWVuaUJKbTdmZEN1dUFsQmhGNWtyMkVOOWdBQW9BRjQ5MzhYNjFNbERtdWdRSkNMV1ZZTTVFeWs2OFRuemw5Z0gtc0kzeFZ3Vw?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
+        "headline": "US stock market today: Wall Street rebounds as oil slides after US-Iran deal; S&P 500, Nasdaq rise over 1%",
+        "displayHeadline": "이란·중동 긴장으로 유가와 시장 위험선호를 함께 점검",
+        "originalHeadline": "US stock market today: Wall Street rebounds as oil slides after US-Iran deal; S&P 500, Nasdaq rise over 1%",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "MSN",
+        "publishedAt": "2026-06-21T04:41:12Z",
+        "url": "https://news.google.com/rss/articles/CBMikANBVV95cUxNN2Y2TmVJcExSZ2hUZjBGTWR2ZlFMelBKNkZRTVhvSmJqVWY0VjlkdFllMVdOLVRYNVkzNTRBYVJwUHVnWTZZdmpqY1ltc0d3cVIyXzlSMzZjOFNBUXZLYU40eGVYUWFaNHk3dEZtS25BYmk3aWdmM3QtelFHNE8tWEVKd0lYX3h4dlZ6OXI3SUF1MmpGelNScW40b2NaVnRsekFFRFhyWE80YVhCdzdLRGRDVFlORi11aW5VeXhDY3BmWEVlUER1OWtxTHVIZVBnNXMtQmYzRDBWY0MtWVRvS0dhS2hTZHF0QVpUR2RhZmJwRU1SbFpZUzBZcm5hWEZfdHhSRXJQZm4xMmVXVVRZYWJVbkxiTEhaNUJoMHZIX3NaUkZGRWQyVXFBRlEwXzh4eGZJU1VjSE5lRkdtZ2NSTUJIc1l5WkRoNWZtMUROX2lRQUFDWkJOYXJFOTJMRzVfLUV3X3o0b0RWS1B3bFViZnR0WUhpb21iOXdMNUpaVlFFbHJBR2JWeHBmZmdOaTly?oc=5",
+        "impactTarget": "us",
+        "impactTone": "positive",
+        "category": "macro",
+        "categoryLabel": "매크로",
         "tags": [
+          "매크로",
           "지수",
           "정책",
           "공급망"
         ],
         "relatedFactors": [
-          "indices",
-          "news",
-          "macro"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 1.0,
-        "priorityTier": "CRITICAL",
-        "critical": true,
-        "criticalReason": "critical_keyword",
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "코스피, 4.63% 급등 마감…′팔천피′ 탈환",
-        "displayHeadline": "코스피, 4.63% 급등 마감…′팔천피′ 탈환",
-        "originalHeadline": null,
-        "sourceName": "연합뉴스TV",
-        "publishedAt": "2026-06-12T10:01:15Z",
-        "url": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTE5kN0VRUmlCc05ya1JNNUJxUU9nSm5CZ2F3MGlmUV9sdVB2ZGc2WVN1U2s2MU95TWZDTzJuN0N1OEZFUDg5ajl1MmlCOGVwMUtsUnhXc0dBVWpOM0EwcUtMYnFYVXkyZHM?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "positive",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
+          "macro",
           "indices",
           "news"
         ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "whyImportant": "환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 1.0,
-        "priorityTier": "CRITICAL",
-        "critical": true,
-        "criticalReason": "large_market_move",
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "S&P 500, Nasdaq, Dow End Higher After Trump Signals Iran Deal Coming Soon — ADBE, INTC, AMC, GOOGL, ORCL In Focus",
-        "displayHeadline": "트럼프가 이란 합의를 시사하자 S&P500·나스닥·다우 상승 마감",
-        "originalHeadline": "S&P 500, Nasdaq, Dow End Higher After Trump Signals Iran Deal Coming Soon — ADBE, INTC, AMC, GOOGL, ORCL In Focus",
-        "sourceName": "Yahoo Finance RSS",
-        "publishedAt": "2026-06-11T22:48:00Z",
-        "url": "https://stocktwits.com/news-articles/markets/equity/s-and-p-500-nasdaq-dow-end-higher-after-trump-signals-usiran-deal-coming-soon/cZKcdYVR7PT?.tsrc=rss",
-        "impactTarget": "us",
-        "impactTone": "positive",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수",
-          "정책",
-          "공급망"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news",
-          "macro"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.793,
+        "qualityScore": 0.834,
         "priorityTier": "CRITICAL",
         "critical": true,
         "criticalReason": "critical_keyword",
-        "sourceId": "rss:yahoo-finance:us-market",
+        "sourceId": "rss:google-news:market-context-us-major",
         "region": "US",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "SK하이닉스 반도체 생산 공장 또 화재‥4천여 명 대피",
-        "displayHeadline": "SK하이닉스 반도체 생산 공장 또 화재‥4천여 명 대피",
+        "headline": "[외환-주간] 연준발 강달러는 언제까지…물가·이란·당국에 시선 |",
+        "displayHeadline": "[외환-주간] 연준발 강달러는 언제까지…물가·이란·당국에 시선 |",
         "originalHeadline": null,
-        "sourceName": "MBC 뉴스",
-        "publishedAt": "2026-06-12T11:32:24Z",
-        "url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE1QQVR4eXZoRU5ZSW9FTUtzMWRhY21DcmhZU19nYnJnbkYxNXZvbjJJY2hUNmhEa0I3Ukc1R0owWGpQdGg4eEUxM3pGa2hTc2tTdl8xS3hnYVNma3o5MGtTVkRnQkYxd2NRT0lENFc2cTBsNHZNdEhuUg?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "semiconductor_bridge",
-        "categoryLabel": "반도체",
-        "tags": [
-          "반도체"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.838,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "코스피 불장에 증권사 3개월 만에 순이익 4.3조 거둬",
-        "displayHeadline": "코스피 불장에 증권사 3개월 만에 순이익 4.3조 거둬",
-        "originalHeadline": null,
-        "sourceName": "MBC 뉴스",
-        "publishedAt": "2026-06-12T10:34:04Z",
-        "url": "https://news.google.com/rss/articles/CBMidEFVX3lxTFA0Z2xJTTlVYkNrVEM3UjFzRzlFOElMbVpsWW5fMnhWMEg1YzRxenVSbWFtVlZKcG53UHZuNHN3UDBHMnNfWklVcWdVZmpmTXJ3SkVLNGVsanBqek5DclhNV3dhQVJtVzJNWHptbEU0cFJMYjFk0gF0QVVfeXFMTzdUaVJhRHJ2VExnaGZaN2VUVjU1OE1wZmVVdFJqTVRiYzhFMGo0RFFpM2NhZzBObTRZOXV1b0RuY0ZQb29KMDQtVmxTN2h5dDdpMkpqdFlJb2ZBMHVTaGlSTmxtMllQYmdpa24xTTU5Um1kaGg?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.818,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "코스피 거래대금 4배 폭증…증권사, 한 분기 만에 작년 순익 절반 벌어",
-        "displayHeadline": "코스피 거래대금 4배 폭증…증권사, 한 분기 만에 작년 순익 절반 벌어",
-        "originalHeadline": null,
-        "sourceName": "매일경제 마켓",
-        "publishedAt": "2026-06-12T13:00:33Z",
-        "url": "https://news.google.com/rss/articles/CBMiUkFVX3lxTE4wQnZEZUQzc1J0amlWNXI0Z2h0b2dtYS1xTDItb01FMXRtNVhOVnM5S1ROUHJOTlJsOTFTYzI0MEdURV9ZUENENUlnT2xZbUktc0E?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.789,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "사이드카 반복된 한 주…외국인 귀환에 변동성 잦아드나",
-        "displayHeadline": "사이드카 반복된 한 주…외국인 귀환에 변동성 잦아드나",
-        "originalHeadline": null,
-        "sourceName": "v.daum.net",
-        "publishedAt": "2026-06-12T12:53:02Z",
-        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE9icmllMURhRW45aFI2b25nYlkyMGJvbFNfZHZZZElfQ0dwYW1Hc1NIT01qUFNjS2hkSVFqNEYwQy15NDE0b0tVSGlaTHBUUEk?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.786,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "[기자수첩] 반도체 협력사 '풍요 속 빈곤'",
-        "displayHeadline": "[기자수첩] 반도체 협력사 '풍요 속 빈곤'",
-        "originalHeadline": null,
-        "sourceName": "디일렉",
-        "publishedAt": "2026-06-12T12:03:31Z",
-        "url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTE1HU1ZhOWloXzNTdi04TEZHbnR6ZEJkdGVFd0JBZUl2RjJNd3ZjejFBZUc5MFg4U1h2Um0zcmp2UmNkMWM5VVVWRXBsNUdjVDhiVHhNTFNrUWJ3eng3OWkwSkVkbWVqQQ?oc=5",
+        "language": "ko",
+        "translationNote": null,
+        "sourceName": "연합인포맥스",
+        "publishedAt": "2026-06-21T04:09:02Z",
+        "url": "https://news.google.com/rss/articles/CBMidEFVX3lxTE9GOHdXVmVUN3ZBNUVweGVHUHhGLVpmc3VVcFloXy1lT1piaVotOG5lQ09XbnFXR012alJvYWpqTDJaOWhpYnhwTWxJWU9fNUhWbVNXdUw4eWdhTHlQcmYzdDRlT1BqQmNfeHhQT2l2WlFhcTJu?oc=5",
         "impactTarget": "bridge",
         "impactTone": "neutral",
-        "category": "semiconductor_bridge",
-        "categoryLabel": "반도체",
+        "category": "central_bank",
+        "categoryLabel": "중앙은행",
         "tags": [
-          "반도체"
+          "금리",
+          "매크로",
+          "정책",
+          "공급망"
         ],
         "relatedFactors": [
-          "indices",
+          "macro",
           "news"
         ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
+        "whyImportant": "중앙은행·금리 신호는 성장주와 환율, 위험 선호를 동시에 흔드는 핵심 변수입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.769,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
+        "qualityScore": 0.806,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
         "sourceId": "rss:google-news:market-context-kr",
         "region": "KR",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "‘스페이스X’ 오늘 나스닥 상장…역대 최대 흥행 뒤엔 ‘불안’ 왜",
-        "displayHeadline": "‘스페이스X’ 오늘 나스닥 상장…역대 최대 흥행 뒤엔 ‘불안’ 왜",
-        "originalHeadline": null,
-        "sourceName": "중앙일보",
-        "publishedAt": "2026-06-12T07:52:27Z",
-        "url": "https://news.google.com/rss/articles/CBMiVkFVX3lxTE93VlhTNTN2SmsyOV9vNDdwR2xlNkVCaVBHR3JVd05NZmNfQzZWWUFmaXVtVU5HT1JqRmhwMFRhcDJaUzhiSnh6X1NaYm9nUHdYUTAxem5R?oc=5",
+        "headline": "S&P 500, Dow, Nasdaq Futures Climb As Trump Says Iran Ceasefire Holds Despite Fresh Hormuz Tensions: IREN, CRWV, CAPR, TTD Stocks In Focus",
+        "displayHeadline": "이란·중동 이슈 속 미국 지수 선물과 유가 리스크 점검",
+        "originalHeadline": "S&P 500, Dow, Nasdaq Futures Climb As Trump Says Iran Ceasefire Holds Despite Fresh Hormuz Tensions: IREN, CRWV, CAPR, TTD Stocks In Focus",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "Stocktwits",
+        "publishedAt": "2026-06-20T18:03:58Z",
+        "url": "https://news.google.com/rss/articles/CBMi8AFBVV95cUxNSUtDRkE3TjE0b2RGYVNOZkV0MURRZGh1eEhSWlNUaUcydWZhQUZ4dGhjaFAxSnpyQ25PRV94dnhENkdtZHZlNUZUdml5cUt0UXBzQWI4NVRiZTNDWlZmMjdOcXRjQTlQRW44NDNJR0VOZmhiZVZuampUWDM4bi00Z1lXMzljTGZhVEwtb2tSSlNtblZpOUFoWFFrVEwtbmFSLWxnRTBOWGhLc3dIbTZ4MU50Um1nTm5WZHdDVk9WemJGbzBVbDVvN0VRdTJBeXNJY2ZpMWJ4M2VFUFdtVkRiRkVsWWJFN1hpd3JUUGtyQno?oc=5",
         "impactTarget": "us",
-        "impactTone": "neutral",
+        "impactTone": "positive",
+        "category": "market_event",
+        "categoryLabel": "시장이벤트",
+        "tags": [
+          "지수",
+          "정책",
+          "공급망"
+        ],
+        "relatedFactors": [
+          "indices",
+          "news",
+          "macro"
+        ],
+        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.763,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
+        "sourceId": "rss:google-news:market-context-us-major",
+        "region": "US",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "Dow, S&P 500, Nasdaq Futures Edge Higher As Investors Brace For Mag 7 Earnings Kickoff: Why HOOD, ENPH, STX, NOK Are In Focus",
+        "displayHeadline": "S&P500·나스닥·다우 상승 흐름이 미국장 온도에 미치는 영향 점검",
+        "originalHeadline": "Dow, S&P 500, Nasdaq Futures Edge Higher As Investors Brace For Mag 7 Earnings Kickoff: Why HOOD, ENPH, STX, NOK Are In Focus",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "Stocktwits",
+        "publishedAt": "2026-06-20T20:44:51Z",
+        "url": "https://news.google.com/rss/articles/CBMi3gFBVV95cUxOMGhxTjFJbDVicDRjc0dVUUZXNU1ENkw4Y2Z5OUF0dU5NZmpzSnNmaDZuUHNnMW5WcXFDaEdrRjljTlJva3J6aXlxUWpqX2R2Q0ZkeHhwUU5ZTktieVU0ZFY2SFhkeHAyTkZrSFZXeVE1T3l5NTF0d29zSzU2cENXU21jQjVKbUVTMnYwV0tGYlNCNmFtLWJxZ3F2bU9xQzBrcUVMSU5DUDZGNnFYWHdsQVpiXy0xazdMel9RZURuSDdSMlI1dFZybkJmTEk5R0sxc3BpazdVb19zdjFMZVE?oc=5",
+        "impactTarget": "us",
+        "impactTone": "positive",
         "category": "market_event",
         "categoryLabel": "시장이벤트",
         "tags": [
@@ -1169,7 +487,70 @@
         ],
         "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.682,
+        "qualityScore": 0.759,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
+        "sourceId": "rss:google-news:market-context-us-major",
+        "region": "US",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "Asian stocks steady, oil lower as US and Iran sign peace deal",
+        "displayHeadline": "이란·중동 긴장으로 유가와 시장 위험선호를 함께 점검",
+        "originalHeadline": "Asian stocks steady, oil lower as US and Iran sign peace deal",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "DD India",
+        "publishedAt": "2026-06-20T16:51:24Z",
+        "url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxPbkJ5M3kySjZrZmUzZFBFUXdza2pWSDZSNG5uRW9RTHVjS1JXRlViRFhFWEZSZGJQbThQNnBuWEJORWJ4ZTFOLW5PR1d0QmNGbHF3ZlU0cldWS1VVa2ViM1BoXzloTmxRLWdDUHF3bGd0UDFmc1ItSHY2eFl2NHlKemxaVFdndkpPaFRESkZxbVRMODVLRWc?oc=5",
+        "impactTarget": "bridge",
+        "impactTone": "negative",
+        "category": "macro",
+        "categoryLabel": "매크로",
+        "tags": [
+          "매크로",
+          "정책",
+          "공급망"
+        ],
+        "relatedFactors": [
+          "macro",
+          "news"
+        ],
+        "whyImportant": "환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.749,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
+        "sourceId": "rss:google-news:market-context-us-major",
+        "region": "US",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "환율·채권, 원·달러 환율 1500원대 박스권 장세",
+        "displayHeadline": "환율·채권, 원·달러 환율 1500원대 박스권 장세",
+        "originalHeadline": null,
+        "language": "ko",
+        "translationNote": null,
+        "sourceName": "한국경제",
+        "publishedAt": "2026-06-21T08:35:06Z",
+        "url": "https://news.google.com/rss/articles/CBMiVEFVX3lxTE9TZ3dIZE5kMWRBRVVRMnJNTElRZnV1N1BZZE5QRGRBcXJTczZVSjRhai1DQ0h6eWt4VkhGVkdPNlMtamJVZ1NaWmY5ZlBkY19fZ3BNTNIBVEFVX3lxTE9TZ3dIZE5kMWRBRVVRMnJNTElRZnV1N1BZZE5QRGRBcXJTczZVSjRhai1DQ0h6eWt4VkhGVkdPNlMtamJVZ1NaWmY5ZlBkY19fZ3BNTA?oc=5",
+        "impactTarget": "kr",
+        "impactTone": "neutral",
+        "category": "macro",
+        "categoryLabel": "매크로",
+        "tags": [
+          "매크로"
+        ],
+        "relatedFactors": [
+          "macro"
+        ],
+        "whyImportant": "환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.755,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
@@ -1179,12 +560,14 @@
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "외국인 귀환에 ′팔천피′ 탈환…′천스닥′도 회복",
-        "displayHeadline": "외국인 귀환에 ′팔천피′ 탈환…′천스닥′도 회복",
+        "headline": "[자막뉴스] \"한국 증시 위험하다\" 전문가 경고...사상 최고 코스피의 불안한 민낯",
+        "displayHeadline": "[자막뉴스] \"한국 증시 위험하다\" 전문가 경고...사상 최고 코스피의 불안한 민낯",
         "originalHeadline": null,
-        "sourceName": "연합뉴스TV",
-        "publishedAt": "2026-06-12T10:43:33Z",
-        "url": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTFB1ZHBRMlB2Y1R4Nk1qWGZGTGJsUVB2T0lRcXU5ckJ4TDNuZXB5TEhreEw2ekVoV2R1STRDWTdpZVVHOTFmVlY0U0k2QWpsTXEzdUlQazVqVW5QQWN5QS1wdXU1cXEtbWM?oc=5",
+        "language": "ko",
+        "translationNote": null,
+        "sourceName": "YTN",
+        "publishedAt": "2026-06-21T10:33:00Z",
+        "url": "https://news.google.com/rss/articles/CBMiXkFVX3lxTE1YZEVEV3FFam1GUWJWNFJ4VlZZeHgyWWlnN3RfbHJFRHhaWmhKUE9ZMm55MFBZeHRWeGg2dlBFQ0Jmc1h3X2NYTzgyZzBVaV9mR1RPcC1GYjk3X1FKSFE?oc=5",
         "impactTarget": "kr",
         "impactTone": "neutral",
         "category": "market_event",
@@ -1198,7 +581,99 @@
         ],
         "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.741,
+        "qualityScore": 0.822,
+        "priorityTier": "STANDARD",
+        "critical": false,
+        "criticalReason": null,
+        "sourceId": "rss:google-news:market-context-kr",
+        "region": "KR",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "Wall Street edges higher ahead of Federal Reserve rate decision, Broadcom jumps 4.4%, Applied Materials surges 8.6%",
+        "displayHeadline": "연준·미국 금리 흐름이 증시에 주는 부담 확인",
+        "originalHeadline": "Wall Street edges higher ahead of Federal Reserve rate decision, Broadcom jumps 4.4%, Applied Materials surges 8.6%",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "MSN",
+        "publishedAt": "2026-06-20T22:31:21Z",
+        "url": "https://news.google.com/rss/articles/CBMi9gFBVV95cUxPc0FxcjcwaHBQX3lLRmxqb2pIWFkzb0VkVXljVHdTNjl0bDRISUp2WE9ud1lIOFBTWHdsVkRFMHp4MkdRYVpidkVMRlZubTVBTWJMYW52X2RfN0oxV3dkdnNhYlZIWlZhR1ZsUG9GRVVhM0tuWFJmMjU2OHhKbmlyMEtpT201cDVPOGZjS01keXhTYVlobVpsNWRQa3V1VUYxbXFWVlVSVVU5Q2ZJYzZ0UUVFRDV2eGs4Q20yWlYtU1ctOGxzdjAxSWdWQ1UxeFE2eFVSVHgxQTBZdTZ6cHF1S01YVXpPem1XSTQ4VEtnVDZfRkJhckE?oc=5",
+        "impactTarget": "us",
+        "impactTone": "positive",
+        "category": "central_bank",
+        "categoryLabel": "중앙은행",
+        "tags": [
+          "금리"
+        ],
+        "relatedFactors": [
+          "macro"
+        ],
+        "whyImportant": "중앙은행·금리 신호는 성장주와 환율, 위험 선호를 동시에 흔드는 핵심 변수입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.642,
+        "priorityTier": "STANDARD",
+        "critical": false,
+        "criticalReason": null,
+        "sourceId": "rss:google-news:market-context-us-major",
+        "region": "US",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "\"코스피는 세계 1등, 코스닥은 꼴찌\"…17.5%p 벌어진 '두 개의 한국 증시'",
+        "displayHeadline": "\"코스피는 세계 1등, 코스닥은 꼴찌\"…17.5%p 벌어진 '두 개의 한국 증시'",
+        "originalHeadline": null,
+        "language": "ko",
+        "translationNote": null,
+        "sourceName": "v.daum.net",
+        "publishedAt": "2026-06-20T21:02:40Z",
+        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE1Xc09qWFEwREw1WVVWWHBQNmozbUJSeG0yeFctdHhRekx5LVpvVWpvb0E5M05oOS1IczFNdW9IUVBOa3F3Mk1DSEZqMXM1Nlk?oc=5",
+        "impactTarget": "kr",
+        "impactTone": "neutral",
+        "category": "market_event",
+        "categoryLabel": "시장이벤트",
+        "tags": [
+          "지수"
+        ],
+        "relatedFactors": [
+          "indices",
+          "news"
+        ],
+        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.641,
+        "priorityTier": "STANDARD",
+        "critical": false,
+        "criticalReason": null,
+        "sourceId": "rss:google-news:market-context-kr",
+        "region": "KR",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "“계좌가 녹아내린다” 코스피는 신났지?…코스닥은 ‘와르르’ [투자360]",
+        "displayHeadline": "“계좌가 녹아내린다” 코스피는 신났지?…코스닥은 ‘와르르’ [투자360]",
+        "originalHeadline": null,
+        "language": "ko",
+        "translationNote": null,
+        "sourceName": "v.daum.net",
+        "publishedAt": "2026-06-21T10:41:53Z",
+        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE1qcEdzbUhDbTU2R3VuS3FERjZfX0RDZHZDVzAxV2I2ck5wQktlYVFUay1ERkZqZDdSTW91WVB0djJpaC11aTN6SUxJMmF0Vlk?oc=5",
+        "impactTarget": "kr",
+        "impactTone": "neutral",
+        "category": "market_event",
+        "categoryLabel": "시장이벤트",
+        "tags": [
+          "지수"
+        ],
+        "relatedFactors": [
+          "indices",
+          "news"
+        ],
+        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.758,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,

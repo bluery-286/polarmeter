@@ -99,6 +99,12 @@ MARKET_LINKAGE_PATTERNS = [
     re.compile(r'(외국인\s*(투자자|기관)|기관\s*(순매수|순매도)|순매수|순매도|급락|급등|폭락|반등|하락|상승|서킷브레이커|사이드카)', re.I),
 ]
 
+FOREIGN_FLOW_MARKET_PATTERN = re.compile(
+    r'((외국인|기관)\s*(투자자|순매수|순매도|매수세|매도세|수급|자금)'
+    r'|(외국인|기관).{0,8}(순매수|순매도|매수세|매도세|수급))',
+    re.I,
+)
+
 MAGNITUDE_PATTERNS = [
     re.compile(r'\d+(?:\.\d+)?\s*(%|bp|bps|조|억|달러|원|원/달러|p|포인트)', re.I),
     re.compile(r'(급등|급락|폭등|폭락|돌파|최대|최저|사상|역대|긴급|충격|랠리|selloff|plunge|surge|record)', re.I),
@@ -119,6 +125,14 @@ CIVIC_LIFESTYLE_POLICY_PATTERNS = [
     re.compile(r'(가스비\s*할인|전기료\s*지원|전기요금\s*지원|난방비\s*지원)', re.I),
 ]
 
+LOCAL_WELFARE_DONATION_PATTERNS = [
+    re.compile(r'(이웃\s*돕기|불우\s*이웃|취약\s*계층|저소득층|독거\s*노인|사랑의\s*열매|적십자)', re.I),
+    re.compile(r'(성금|후원금|후원\s*물품|물품\s*기탁|쌀\s*기탁|연탄|김장|장학금|자원봉사|나눔\s*행사)', re.I),
+    re.compile(r'(복지관|복지\s*센터|외국인\s*센터|주민\s*센터|행정복지\s*센터|군청|구청|새마을)', re.I),
+    re.compile(r'([가-힣]+읍|[가-힣]+면|[가-힣]+군).{0,20}(기탁|성금|후원|나눔|봉사)', re.I),
+    re.compile(r'(기탁|성금|후원|나눔|봉사).{0,20}([가-힣]+읍|[가-힣]+면|[가-힣]+군)', re.I),
+]
+
 CIVIC_POLICY_MARKET_OVERRIDE_PATTERNS = [
     re.compile(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|SP500|VIX|증시|주가|상장|실적|매출|영업이익|가이던스|컨센서스)', re.I),
     re.compile(r'(소비\s*지수|소매\s*판매|내수|CPI|물가|인플레이션|유통업|숙박업|항공주|여행주|면세점|수혜\s*섹터)', re.I),
@@ -129,6 +143,10 @@ CIVIC_POLICY_MARKET_OVERRIDE_PATTERNS = [
 
 def is_civic_lifestyle_policy(text: str) -> bool:
     return any(pattern.search(text) for pattern in CIVIC_LIFESTYLE_POLICY_PATTERNS)
+
+
+def is_local_welfare_donation(text: str) -> bool:
+    return any(pattern.search(text) for pattern in LOCAL_WELFARE_DONATION_PATTERNS)
 
 
 def has_civic_policy_market_override(text: str) -> bool:
@@ -149,9 +167,26 @@ def market_impact_components(headline: str, source_name: str, matched_rules: lis
     has_magnitude = any(pattern.search(text) for pattern in MAGNITUDE_PATTERNS)
     has_listed_company_context = any(pattern.search(text) for pattern in LISTED_COMPANY_MARKET_CONTEXT_PATTERNS)
     single_brand_event = any(pattern.search(text) for pattern in SINGLE_BRAND_EVENT_PATTERNS)
+    local_welfare_donation = is_local_welfare_donation(text)
     civic_lifestyle_policy = is_civic_lifestyle_policy(text)
     civic_market_override = has_civic_policy_market_override(text)
     categories = {rule['category'] for rule in matched_rules}
+
+    if local_welfare_donation:
+        return {
+            'marketLinkage': 0.0,
+            'breadth': 0.0,
+            'magnitude': 0.0,
+            'timeSensitivity': 0.0,
+            'sourceQualityPenalty': -40,
+            'investmentAdvicePenalty': 0,
+            'marketImpactScore': 0.0,
+            'hasListedCompanyContext': has_listed_company_context,
+            'singleBrandEvent': single_brand_event,
+            'civicLifestylePolicy': civic_lifestyle_policy,
+            'civicPolicyMarketOverride': civic_market_override,
+            'localWelfareDonation': True,
+        }
 
     if 'central_bank' in categories or 'macro' in categories:
         market_linkage = 90 if has_market_linkage else 78
@@ -212,6 +247,7 @@ def market_impact_components(headline: str, source_name: str, matched_rules: lis
         'singleBrandEvent': single_brand_event,
         'civicLifestylePolicy': civic_lifestyle_policy,
         'civicPolicyMarketOverride': civic_market_override,
+        'localWelfareDonation': local_welfare_donation,
     }
 
 ENGLISH_HEADLINE_PATTERNS = [
@@ -297,7 +333,7 @@ MARKET_RELEVANCE_RULES = [
     {
         'category': 'market_event',
         'label': '시장이벤트',
-        'keywords': ['코스피', 'kospi', '코스닥', '나스닥', 's&p', 'sp500', 's&p500', 'vix', '급락', '폭락', '급등', '반등', '상승', '하락', '외국인', '기관', '순매수', '순매도', 'sidecar', '서킷브레이커'],
+        'keywords': ['코스피', 'kospi', '코스닥', '나스닥', 's&p', 'sp500', 's&p500', 'vix', '급락', '폭락', '급등', '반등', '상승', '하락', '순매수', '순매도', 'sidecar', '서킷브레이커'],
         'tags': ['지수'],
         'target': 'market',
         'relatedFactors': ['indices', 'news'],
@@ -541,11 +577,22 @@ def headline_tone(headline: str) -> str:
 
 def target_from_headline(headline: str, default_target: str) -> str:
     text = headline.lower()
-    if any(token in headline for token in ['코스피', '코스닥', '원/달러', '원·달러', '원달러', '환율', '외국인', '기관', '삼성전자', '하이닉스', '韓반도체']):
+    if (
+        any(token in headline for token in ['코스피', '코스닥', '원/달러', '원·달러', '원달러', '환율', '삼성전자', '하이닉스', '韓반도체'])
+        or FOREIGN_FLOW_MARKET_PATTERN.search(headline)
+    ):
         return 'kr'
     if any(token in text for token in ['s&p', 'sp500', 'nasdaq', 'qqq', 'spy', 'fed', 'fomc', 'treasury', 'dow']) or any(token in headline for token in ['나스닥', '뉴욕증시']):
         return 'us'
     return default_target
+
+
+def rule_matches_headline(rule: dict[str, Any], headline: str, headline_lower: str) -> bool:
+    if any(keyword.lower() in headline_lower for keyword in rule['keywords']):
+        return True
+    if rule['category'] == 'market_event' and FOREIGN_FLOW_MARKET_PATTERN.search(headline):
+        return True
+    return False
 
 
 def classify_relevance(headline: str, source_name: str, published_at: str | None) -> tuple[dict[str, Any] | None, str]:
@@ -561,6 +608,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'PERSONAL_FINANCE_NOT_MARKET_TEMPERATURE'
     if '반도체' in headline and any(hint in headline_lower for hint in ['집값', '부동산', '아파트', 'gtx']):
         return None, 'REAL_ESTATE_NOT_MARKET_TEMPERATURE'
+    if is_local_welfare_donation(f'{headline} {source_name}'):
+        return None, 'LOCAL_WELFARE_DONATION_NOT_MARKET_TEMPERATURE'
     if is_civic_lifestyle_policy(headline) and not has_civic_policy_market_override(headline):
         return None, 'CIVIC_LIFESTYLE_POLICY_NOT_MARKET_TEMPERATURE'
     published_dt = parse_utc(published_at)
@@ -572,7 +621,7 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
 
     matched_rules = []
     for rule in MARKET_RELEVANCE_RULES:
-        if any(keyword.lower() in headline_lower for keyword in rule['keywords']):
+        if rule_matches_headline(rule, headline, headline_lower):
             matched_rules.append(rule)
     if not matched_rules:
         return None, 'MARKET_IMPACT_LOW'
