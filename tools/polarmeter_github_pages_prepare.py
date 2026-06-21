@@ -34,6 +34,46 @@ def copy_site(site_dir: Path, output_dir: Path) -> None:
     (output_dir / '.nojekyll').write_text('', encoding='utf-8')
 
 
+def read_public_files(output_dir: Path) -> dict[str, str]:
+    payload = {}
+    for name in PUBLIC_FILES:
+        path = output_dir / name
+        if path.exists():
+            payload[name] = path.read_text(encoding='utf-8')
+    return payload
+
+
+def restore_public_files(output_dir: Path, payload: dict[str, str]) -> None:
+    for name, text in payload.items():
+        (output_dir / name).write_text(text, encoding='utf-8')
+
+
+def public_payload_is_publishable(output_dir: Path) -> bool:
+    try:
+        health = json.loads((output_dir / 'health.json').read_text(encoding='utf-8'))
+        snapshot = json.loads((output_dir / 'market-snapshot-latest.json').read_text(encoding='utf-8'))
+    except Exception:
+        return False
+    data_quality = snapshot.get('dataQuality') or {}
+    return (
+        health.get('ok') is True
+        and data_quality.get('coreCoverageRatio') == 1.0
+        and data_quality.get('displayMode') != 'collecting'
+        and len((snapshot.get('news') or {}).get('items') or []) > 0
+    )
+
+
+def summary_from_public_payload(output_dir: Path, summary: dict[str, Any], *, reused_existing: bool) -> dict[str, Any]:
+    manifest = json.loads((output_dir / 'market-snapshot-manifest.json').read_text(encoding='utf-8'))
+    return {
+        **summary,
+        'snapshotStatus': manifest.get('snapshotStatus'),
+        'okSignals': manifest.get('okSignals') or [],
+        'okNewsCount': manifest.get('okNewsCount') or 0,
+        'usedExistingPublicSnapshot': reused_existing,
+    }
+
+
 def run_worker(output_dir: Path) -> dict[str, Any]:
     cmd = [
         sys.executable,
@@ -82,7 +122,13 @@ def main() -> int:
     args = parser.parse_args()
 
     copy_site(args.site, args.output)
+    baseline_public_files = read_public_files(args.output)
     summary = run_worker(args.output)
+    if not public_payload_is_publishable(args.output) and baseline_public_files:
+        restore_public_files(args.output, baseline_public_files)
+        summary = summary_from_public_payload(args.output, summary, reused_existing=True)
+    else:
+        summary = summary_from_public_payload(args.output, summary, reused_existing=False)
     assert_pages_contract(args.output, summary)
 
     payload = {
@@ -92,6 +138,7 @@ def main() -> int:
         'snapshotStatus': summary.get('snapshotStatus'),
         'okSignals': summary.get('okSignals'),
         'okNewsCount': summary.get('okNewsCount'),
+        'usedExistingPublicSnapshot': summary.get('usedExistingPublicSnapshot') is True,
         'publicUrls': {
             'snapshot': 'market-snapshot-latest.json',
             'manifest': 'market-snapshot-manifest.json',
