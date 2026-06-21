@@ -80,6 +80,12 @@ EXCLUDED_HEADLINE_HINTS = [
     'median earner needs',
     'outperforming the broader market',
     'these stocks instead',
+    'roth ira',
+    'social security',
+    'tax breaks',
+    'annuity',
+    'retirement',
+    'dividend stocks',
     '주요공시',
     'ipo',
     'm&a',
@@ -140,6 +146,43 @@ CIVIC_POLICY_MARKET_OVERRIDE_PATTERNS = [
     re.compile(r'(외국인\s*(투자자|기관)|순매수|순매도|기관\s*(순매수|순매도))', re.I),
 ]
 
+RETAIL_FUEL_PRICE_PATTERNS = [
+    re.compile(r'(주유소|기름값|휘발유|경유|유류세|유류비|운전자)', re.I),
+]
+
+RETAIL_FUEL_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(WTI|브렌트|Brent|원유\s*선물|정유주|에너지주|OPEC|호르무즈|중동|이란|CPI|물가|인플레이션)', re.I),
+]
+
+SINGLE_COMPANY_LISTING_PATTERNS = [
+    re.compile(r'(이전\s*상장|이전상장|상장\s*예비\s*심사|상장예비심사|상장\s*예심|코스피\s*이전)', re.I),
+]
+
+LISTING_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(코스닥\s*지수|코스닥시장\s*전체|지수\s*편출입|수급\s*충격|외국인\s*수급|기관\s*수급)', re.I),
+]
+
+SCIENCE_TECH_NONMARKET_PATTERNS = [
+    re.compile(r'(DNA|유전자|연구진|논문|실험|기술\s*개발|개발했다|제조\s*혁신|바이오\s*제조|물에서)', re.I),
+]
+
+SCIENCE_TECH_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(실적|매출|영업이익|수출|가이던스|컨센서스|주가|증시|ETF|SOXX|SMH|엔비디아|NVIDIA|삼성전자|하이닉스|마이크론)', re.I),
+]
+
+LOW_IMPACT_POLICY_NOISE_PATTERNS = [
+    re.compile(r'(산지\s*전용|인허가|허가\s*완화)', re.I),
+]
+
+LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(주가|증시|수급|실적|매출|영업이익|수출|관세|공급망|대규모\s*투자|투자\s*계획)', re.I),
+]
+
+THEME_OR_OPINION_NOISE_PATTERNS = [
+    re.compile(r'(더\s*오른다|매력도\s*높아지는|시점\s*올\s*것|코스닥의\s*봄|내\s*계좌|개미들|감감무소식|ETF는\s*감감무소식)', re.I),
+    re.compile(r'(Prediction:|Could\s+Crush|Should\s+You\s+Actually|Smarter\s+Buy|Best\s+.+\s+To\s+Buy)', re.I),
+]
+
 
 def is_civic_lifestyle_policy(text: str) -> bool:
     return any(pattern.search(text) for pattern in CIVIC_LIFESTYLE_POLICY_PATTERNS)
@@ -151,6 +194,34 @@ def is_local_welfare_donation(text: str) -> bool:
 
 def has_civic_policy_market_override(text: str) -> bool:
     return any(pattern.search(text) for pattern in CIVIC_POLICY_MARKET_OVERRIDE_PATTERNS)
+
+
+def is_retail_fuel_price_story(text: str) -> bool:
+    return any(pattern.search(text) for pattern in RETAIL_FUEL_PRICE_PATTERNS) and not any(
+        pattern.search(text) for pattern in RETAIL_FUEL_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_single_company_listing_story(text: str) -> bool:
+    return any(pattern.search(text) for pattern in SINGLE_COMPANY_LISTING_PATTERNS) and not any(
+        pattern.search(text) for pattern in LISTING_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_science_tech_nonmarket_story(text: str) -> bool:
+    return any(pattern.search(text) for pattern in SCIENCE_TECH_NONMARKET_PATTERNS) and not any(
+        pattern.search(text) for pattern in SCIENCE_TECH_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_theme_or_opinion_noise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in THEME_OR_OPINION_NOISE_PATTERNS)
+
+
+def is_low_impact_policy_noise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in LOW_IMPACT_POLICY_NOISE_PATTERNS) and not any(
+        pattern.search(text) for pattern in LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS
+    )
 
 LISTED_COMPANY_MARKET_CONTEXT_PATTERNS = [
     re.compile(r'(실적|매출|영업이익|수출|가이던스|어닝|컨센서스|업종|섹터|주가|증시|코스피|코스닥|상승|하락|급등|급락)', re.I),
@@ -306,6 +377,11 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'tech\s+rebound\s+lifts\s+wall\s+street.*asia.*europe', re.I), '기술주 반등에 미국 증시 선물 강세, 아시아 혼조·유럽 상승'),
     (re.compile(r's&p\s*500.*nasdaq.*dow.*end\s+higher.*trump\s+signals\s+iran\s+deal', re.I), '트럼프가 이란 합의를 시사하자 S&P500·나스닥·다우 상승 마감'),
     (re.compile(r'us\s+stock\s+market\s+today.*dow\s+jumps.*s&p\s*500.*nasdaq\s+rebound', re.I), '다우 상승, S&P500·나스닥 반등 — 반도체주 회복세'),
+    (re.compile(r'us\s+stock\s+market\s+today.*wall\s+street\s+rebounds.*oil\s+slides.*s&p\s*500.*nasdaq\s+rise', re.I), '유가 하락과 이란 긴장 완화 속 S&P500·나스닥 반등'),
+    (re.compile(r'u\.s\.\s+and\s+iran\s+begin\s+peace\s+talks.*strait\s+of\s+hormuz', re.I), '미·이란 대화와 호르무즈 불확실성이 유가를 흔드는지 점검'),
+    (re.compile(r'oil\s+rises\s+amid\s+uncertainty\s+over\s+strait\s+of\s+hormuz', re.I), '호르무즈 불확실성에 국제유가 상승, 물가 부담 재점검'),
+    (re.compile(r'while\s+the\s+world\s+scrambles\s+for\s+oil.*china\s+sits\s+on\s+full\s+tanks', re.I), '중국 원유 재고가 글로벌 유가 부담을 완화할지 점검'),
+    (re.compile(r'mines,\s+logistics\s+and\s+deep\s+uncertainty\s+threaten\s+a\s+middle\s+east\s+oil\s+rebound', re.I), '중동 원유 공급 회복을 막는 물류·불확실성 점검'),
     (re.compile(r'iran\s+war\s+gets\s+hot\s+again.*trump.*iran.*oil', re.I), '이란 전쟁 긴장 재고조와 원유 리스크 점검'),
     (re.compile(r'exchange-traded\s+funds\s+rise.*us\s+equities\s+advance', re.I), '미국 증시 상승에 ETF 전반 강세'),
     (re.compile(r'stocks\s+supported\s+by\s+a\s+rebound\s+in\s+chipmakers\s+and\s+ai\s+stocks', re.I), '반도체·AI주 반등이 증시를 지지'),
@@ -319,7 +395,7 @@ MARKET_RELEVANCE_RULES = [
         'tags': ['금리'],
         'target': 'bridge',
         'relatedFactors': ['macro'],
-        'why': '중앙은행·금리 신호는 성장주와 환율, 위험 선호를 동시에 흔드는 핵심 변수입니다.',
+        'why': '금리가 높아지면 돈 빌리는 부담이 커져 주식에는 부담이 됩니다. 그래서 금리 뉴스는 미국·한국 온도에 같이 영향을 줍니다.',
     },
     {
         'category': 'macro',
@@ -328,7 +404,7 @@ MARKET_RELEVANCE_RULES = [
         'tags': ['매크로'],
         'target': 'bridge',
         'relatedFactors': ['macro'],
-        'why': '환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.',
+        'why': '환율·물가·고용·유가는 돈의 흐름과 기업 비용을 바꿉니다. 숫자가 크게 바뀌면 시장 분위기도 흔들릴 수 있어요.',
     },
     {
         'category': 'market_event',
@@ -337,7 +413,7 @@ MARKET_RELEVANCE_RULES = [
         'tags': ['지수'],
         'target': 'market',
         'relatedFactors': ['indices', 'news'],
-        'why': '지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.',
+        'why': '대표 지수와 외국인 수급은 시장이 실제로 오르는지 밀리는지 보여주는 직접 신호입니다.',
     },
     {
         'category': 'semiconductor_bridge',
@@ -346,16 +422,16 @@ MARKET_RELEVANCE_RULES = [
         'tags': ['반도체'],
         'target': 'bridge',
         'relatedFactors': ['indices', 'news'],
-        'why': '반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.',
+        'why': '반도체는 미국 기술주와 한국 대표주를 잇는 업종입니다. 이쪽 뉴스는 두 시장 온도 차이를 설명할 때 씁니다.',
     },
     {
         'category': 'geopolitics_supply',
         'label': '정책·공급망',
-        'keywords': ['관세', '수출규제', '중동', '이란', '휴전', '종전', '합의', '전쟁', '제재', '공급망', '에너지', '원유', 'iran', 'ceasefire', 'truce', 'war risk', 'airstrike', 'escalation'],
+        'keywords': ['관세', '수출규제', '중동', '이란', '휴전', '종전', '합의', '전쟁', '제재', '공급망', '에너지', '원유', 'iran', 'ceasefire', 'truce', 'war risk', 'airstrike', 'escalation', 'hormuz', 'middle east', 'strait'],
         'tags': ['정책', '공급망'],
         'target': 'global',
         'relatedFactors': ['macro', 'news'],
-        'why': '정책·지정학·공급망 충격은 위험 선호와 비용 부담을 바꾸는 외부 변수입니다.',
+        'why': '전쟁·제재·공급망 이슈는 유가와 비용, 위험 선호를 바꿉니다. 시장이 갑자기 조심스러워질 수 있는 배경입니다.',
     },
 ]
 
@@ -400,6 +476,18 @@ DEFAULT_FEEDS = [
         'label': 'Google News RSS — global macro translated',
         'region': 'US',
         'url': google_news_url('Fed FOMC Treasury yield dollar index VIX oil Iran Middle East markets when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
+    },
+    {
+        'sourceId': 'rss:cnbc:finance',
+        'label': 'CNBC Finance',
+        'region': 'US',
+        'url': 'https://www.cnbc.com/id/10000664/device/rss/rss.html',
+    },
+    {
+        'sourceId': 'rss:nytimes:business',
+        'label': 'New York Times Business',
+        'region': 'US',
+        'url': 'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
     },
     {
         'sourceId': 'rss:yahoo-finance:us-market',
@@ -547,7 +635,7 @@ def looks_suspicious_headline(title: str) -> bool:
     # for a small preview card unless we add source consensus later.
     if re.search(r'(코스피|코스닥)[^\n]{0,24}([5-9](?:\.\d+)?)%[^\n]{0,12}(급등|급락|폭등|폭락)', title):
         return True
-    if any(token in title for token in ['8천피', '8천선', '8000선', '8,000선', '7% 넘게 급등']):
+    if any(token in title for token in ['8천피', '8천선', '8000선', '8,000선', '9천피', '9천선', '9000선', '9,000선', '1만피', '1만선', '10000선', '10,000선', '7% 넘게 급등']):
         return True
     # Avoid user-facing wording that our investment-action text guard flags.
     if any(token in title for token in ['매수', '매도', '추격매수']):
@@ -587,8 +675,20 @@ def target_from_headline(headline: str, default_target: str) -> str:
     return default_target
 
 
+def keyword_matches_headline(keyword: str, headline_lower: str) -> bool:
+    normalized = keyword.lower()
+    if not normalized:
+        return False
+    # Short English tokens such as "ai", "fed", "oil", or "rate" must match as
+    # words. Plain substring matching lets unrelated words pass the market filter.
+    if re.fullmatch(r'[a-z0-9&./\s+-]+', normalized):
+        pattern = r'(?<![a-z0-9])' + re.escape(normalized).replace(r'\ ', r'\s+') + r'(?![a-z0-9])'
+        return re.search(pattern, headline_lower, re.I) is not None
+    return normalized in headline_lower
+
+
 def rule_matches_headline(rule: dict[str, Any], headline: str, headline_lower: str) -> bool:
-    if any(keyword.lower() in headline_lower for keyword in rule['keywords']):
+    if any(keyword_matches_headline(keyword, headline_lower) for keyword in rule['keywords']):
         return True
     if rule['category'] == 'market_event' and FOREIGN_FLOW_MARKET_PATTERN.search(headline):
         return True
@@ -598,6 +698,7 @@ def rule_matches_headline(rule: dict[str, Any], headline: str, headline_lower: s
 def classify_relevance(headline: str, source_name: str, published_at: str | None) -> tuple[dict[str, Any] | None, str]:
     source_lower = source_name.lower()
     headline_lower = headline.lower()
+    full_text = f'{headline} {source_name}'
     if any(hint.lower() in source_lower for hint in EXCLUDED_SOURCE_HINTS):
         return None, 'SOURCE_LOW_RELEVANCE'
     if any(hint.lower() in headline_lower for hint in EXCLUDED_HEADLINE_HINTS):
@@ -608,10 +709,20 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'PERSONAL_FINANCE_NOT_MARKET_TEMPERATURE'
     if '반도체' in headline and any(hint in headline_lower for hint in ['집값', '부동산', '아파트', 'gtx']):
         return None, 'REAL_ESTATE_NOT_MARKET_TEMPERATURE'
-    if is_local_welfare_donation(f'{headline} {source_name}'):
+    if is_local_welfare_donation(full_text):
         return None, 'LOCAL_WELFARE_DONATION_NOT_MARKET_TEMPERATURE'
     if is_civic_lifestyle_policy(headline) and not has_civic_policy_market_override(headline):
         return None, 'CIVIC_LIFESTYLE_POLICY_NOT_MARKET_TEMPERATURE'
+    if is_retail_fuel_price_story(full_text):
+        return None, 'RETAIL_FUEL_PRICE_NOT_MARKET_TEMPERATURE'
+    if is_single_company_listing_story(full_text):
+        return None, 'SINGLE_COMPANY_LISTING_NOT_MARKET_TEMPERATURE'
+    if is_science_tech_nonmarket_story(full_text):
+        return None, 'SCIENCE_TECH_NOT_MARKET_TEMPERATURE'
+    if is_low_impact_policy_noise(full_text):
+        return None, 'LOW_IMPACT_POLICY_NOT_MARKET_TEMPERATURE'
+    if is_theme_or_opinion_noise(full_text):
+        return None, 'OPINION_OR_THEME_NOT_DIRECT_MARKET_TEMPERATURE'
     published_dt = parse_utc(published_at)
     if not published_dt:
         return None, 'MISSING_PUBLISHED_AT'

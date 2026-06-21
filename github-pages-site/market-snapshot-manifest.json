@@ -1,6 +1,6 @@
 {
   "mode": "free_cache_experiment",
-  "generatedAt": "2026-06-21T23:02:59.361168Z",
+  "generatedAt": "2026-06-21T23:37:20.408926Z",
   "snapshotPath": "market-snapshot-latest.json",
   "snapshotStatus": "partial",
   "paidProviderEnabled": false,
@@ -14,15 +14,13 @@
     "kosdaq",
     "kospi",
     "kr_samsung",
-    "sp500",
     "tiger200",
-    "us10y",
-    "vix"
+    "us10y"
   ],
   "okNewsCount": 10,
   "newsStatus": "ok",
   "newsTtlMinutes": 60,
-  "newsNextRefreshAt": "2026-06-22T00:02:59.294550Z",
+  "newsNextRefreshAt": "2026-06-22T00:37:20.352982Z",
   "newsRecommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
   "dataQuality": {
     "policy": "core_signal_fallback_chain_v1",
@@ -74,8 +72,8 @@
     "groupStatus": {
       "kr_index": "ok",
       "fx": "stale",
-      "us_index": "ok",
-      "volatility": "ok",
+      "us_index": "stale",
+      "volatility": "stale",
       "commodity": "stale",
       "rate": "ok",
       "dollar": "ok"
@@ -89,7 +87,9 @@
     "nasdaq100",
     "smh",
     "soxx",
+    "sp500",
     "usd_krw",
+    "vix",
     "wti"
   ],
   "notes": [

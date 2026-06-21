@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "generatedAt": "2026-06-21T23:02:59.361168Z",
+  "generatedAt": "2026-06-21T23:37:20.408926Z",
   "snapshotStatus": "partial",
-  "okSignalCount": 11,
+  "okSignalCount": 9,
   "okNewsCount": 10,
   "newsStatus": "ok",
   "dataQuality": {
@@ -55,8 +55,8 @@
     "groupStatus": {
       "kr_index": "ok",
       "fx": "stale",
-      "us_index": "ok",
-      "volatility": "ok",
+      "us_index": "stale",
+      "volatility": "stale",
       "commodity": "stale",
       "rate": "ok",
       "dollar": "ok"

@@ -1,6 +1,6 @@
 {
   "mode": "free_cache_experiment",
-  "generatedAt": "2026-06-21T23:02:59.361168Z",
+  "generatedAt": "2026-06-21T23:37:20.408926Z",
   "status": "partial",
   "paidProviderEnabled": false,
   "clientDirectProviderCalls": false,
@@ -55,8 +55,8 @@
     "groupStatus": {
       "kr_index": "ok",
       "fx": "stale",
-      "us_index": "ok",
-      "volatility": "ok",
+      "us_index": "stale",
+      "volatility": "stale",
       "commodity": "stale",
       "rate": "ok",
       "dollar": "ok"
@@ -72,23 +72,24 @@
       "value": 746.74,
       "change": 5.78,
       "changePct": 0.78007,
-      "status": "ok",
-      "freshnessStatus": "delayed",
+      "status": "stale",
+      "freshnessStatus": "stale",
       "provider": "fmp-free",
       "sourceId": "fmp-free:SPY",
-      "fetchedAt": "2026-06-21T23:02:59.361029Z",
+      "fetchedAt": "2026-06-21T23:37:20.408677Z",
       "dataAsOf": "2026-06-18T20:00:00Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": true,
-      "qualityStatus": "ok",
+      "qualityStatus": "stale_last_known_good",
       "reliability": {
         "sourceClass": "delayed_market_data",
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361033Z"
+      "lastSuccessfulAt": "2026-06-21T23:09:08.688080Z",
+      "staleSource": "last_known_good"
     },
     "nasdaq100": {
       "key": "nasdaq100",
@@ -113,23 +114,24 @@
       "value": 16.78,
       "change": 0.38,
       "changePct": 2.31707,
-      "status": "ok",
-      "freshnessStatus": "delayed",
+      "status": "stale",
+      "freshnessStatus": "stale",
       "provider": "fmp-free",
       "sourceId": "fmp-free:^VIX",
-      "fetchedAt": "2026-06-21T23:02:59.361050Z",
+      "fetchedAt": "2026-06-21T23:37:20.408808Z",
       "dataAsOf": "2026-06-19T15:30:01Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
       "coreSignal": true,
-      "qualityStatus": "ok",
+      "qualityStatus": "stale_last_known_good",
       "reliability": {
-        "sourceClass": "volatility_index",
-        "displayBadge": "지연 시세",
-        "confidencePolicy": "normal"
+        "sourceClass": "stale_last_known_good",
+        "displayBadge": "지연된 값 · 참고만",
+        "confidencePolicy": "low_on_provider_rate_limit"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361052Z"
+      "lastSuccessfulAt": "2026-06-21T23:09:08.688097Z",
+      "staleSource": "last_known_good"
     },
     "usd_krw": {
       "key": "usd_krw",
@@ -141,7 +143,7 @@
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:USD/KRW",
-      "fetchedAt": "2026-06-21T23:02:59.361061Z",
+      "fetchedAt": "2026-06-21T23:37:20.408818Z",
       "dataAsOf": "2026-06-21T16:10:29.102175Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -166,7 +168,7 @@
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:^TNX",
-      "fetchedAt": "2026-06-21T23:02:59.361069Z",
+      "fetchedAt": "2026-06-21T23:37:20.408827Z",
       "dataAsOf": "2026-06-18T18:59:53Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -178,20 +180,20 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361070Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408829Z"
     },
     "dxy": {
       "key": "dxy",
       "label": "US Dollar Index",
-      "value": 100.849,
-      "change": -0.0009984741210899983,
-      "changePct": -0.0009900586377759983,
+      "value": 100.843,
+      "change": -0.006998474121090226,
+      "changePct": -0.00693948857409858,
       "status": "ok",
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:DX-Y.NYB",
-      "fetchedAt": "2026-06-21T23:02:59.361074Z",
-      "dataAsOf": "2026-06-21T22:52:31Z",
+      "fetchedAt": "2026-06-21T23:37:20.408834Z",
+      "dataAsOf": "2026-06-21T23:26:48Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
       "licenseNote": "free/delayed provider via cache server",
@@ -202,7 +204,7 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361075Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408836Z"
     },
     "wti": {
       "key": "wti",
@@ -214,7 +216,7 @@
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:CL",
-      "fetchedAt": "2026-06-21T23:02:59.361082Z",
+      "fetchedAt": "2026-06-21T23:37:20.408842Z",
       "dataAsOf": "2026-06-21T16:10:29.102180Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -256,7 +258,7 @@
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:SOXX",
-      "fetchedAt": "2026-06-21T23:02:59.361093Z",
+      "fetchedAt": "2026-06-21T23:37:20.408852Z",
       "dataAsOf": "2026-06-21T16:10:29.102185Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -281,7 +283,7 @@
       "freshnessStatus": "stale",
       "provider": "twelvedata-free",
       "sourceId": "twelvedata-free:SMH",
-      "fetchedAt": "2026-06-21T23:02:59.361099Z",
+      "fetchedAt": "2026-06-21T23:37:20.408857Z",
       "dataAsOf": "2026-06-21T16:10:29.102190Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -306,7 +308,7 @@
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:IWM",
-      "fetchedAt": "2026-06-21T23:02:59.361103Z",
+      "fetchedAt": "2026-06-21T23:37:20.408862Z",
       "dataAsOf": "2026-06-18T20:00:00Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -318,7 +320,7 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361105Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408863Z"
     },
     "eem": {
       "key": "eem",
@@ -330,7 +332,7 @@
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:EEM",
-      "fetchedAt": "2026-06-21T23:02:59.361108Z",
+      "fetchedAt": "2026-06-21T23:37:20.408867Z",
       "dataAsOf": "2026-06-18T20:00:00Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -342,7 +344,7 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361111Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408869Z"
     },
     "kr_samsung": {
       "key": "kr_samsung",
@@ -354,7 +356,7 @@
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-free",
       "sourceId": "data-go-kr-free:005930",
-      "fetchedAt": "2026-06-21T23:02:59.361115Z",
+      "fetchedAt": "2026-06-21T23:37:20.408874Z",
       "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -366,7 +368,7 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361116Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408875Z"
     },
     "kospi": {
       "key": "kospi",
@@ -378,7 +380,7 @@
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:^KS11",
-      "fetchedAt": "2026-06-21T23:02:59.361120Z",
+      "fetchedAt": "2026-06-21T23:37:20.408879Z",
       "dataAsOf": "2026-06-19T09:05:40Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -390,7 +392,7 @@
         "displayBadge": "종가 기준",
         "confidencePolicy": "normal_with_fallback_to_public_close"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361128Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408886Z"
     },
     "kosdaq": {
       "key": "kosdaq",
@@ -402,7 +404,7 @@
       "freshnessStatus": "delayed",
       "provider": "public-chart-delayed",
       "sourceId": "public-chart-delayed:^KQ11",
-      "fetchedAt": "2026-06-21T23:02:59.361132Z",
+      "fetchedAt": "2026-06-21T23:37:20.408890Z",
       "dataAsOf": "2026-06-19T09:05:40Z",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -414,7 +416,7 @@
         "displayBadge": "종가 기준",
         "confidencePolicy": "normal_with_fallback_to_public_close"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361136Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408894Z"
     },
     "kodex200": {
       "key": "kodex200",
@@ -426,7 +428,7 @@
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-etf-free",
       "sourceId": "data-go-kr-etf-free:069500",
-      "fetchedAt": "2026-06-21T23:02:59.361140Z",
+      "fetchedAt": "2026-06-21T23:37:20.408898Z",
       "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -438,7 +440,7 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361142Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408899Z"
     },
     "tiger200": {
       "key": "tiger200",
@@ -450,7 +452,7 @@
       "freshnessStatus": "delayed",
       "provider": "data-go-kr-etf-free",
       "sourceId": "data-go-kr-etf-free:102110",
-      "fetchedAt": "2026-06-21T23:02:59.361145Z",
+      "fetchedAt": "2026-06-21T23:37:20.408903Z",
       "dataAsOf": "20260618",
       "ttlMinutes": 30,
       "valuePolicy": "show",
@@ -462,14 +464,14 @@
         "displayBadge": "지연 시세",
         "confidencePolicy": "normal"
       },
-      "lastSuccessfulAt": "2026-06-21T23:02:59.361146Z"
+      "lastSuccessfulAt": "2026-06-21T23:37:20.408904Z"
     }
   },
   "news": {
     "status": "ok",
-    "generatedAt": "2026-06-21T23:02:59.294539Z",
+    "generatedAt": "2026-06-21T23:37:20.352973Z",
     "ttlMinutes": 60,
-    "nextRefreshAt": "2026-06-22T00:02:59.294550Z",
+    "nextRefreshAt": "2026-06-22T00:37:20.352982Z",
     "recommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
     "sourcePolicy": "public_rss_headline_cache_only",
     "bodyScrapingEnabled": false,
@@ -479,7 +481,7 @@
     "items": [
       {
         "headline": "US stock market today: Wall Street rebounds as oil slides after US-Iran deal; S&P 500, Nasdaq rise over 1%",
-        "displayHeadline": "이란·중동 긴장으로 유가와 시장 위험선호를 함께 점검",
+        "displayHeadline": "유가 하락과 이란 긴장 완화 속 S&P500·나스닥 반등",
         "originalHeadline": "US stock market today: Wall Street rebounds as oil slides after US-Iran deal; S&P 500, Nasdaq rise over 1%",
         "language": "en",
         "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
@@ -501,7 +503,7 @@
           "indices",
           "news"
         ],
-        "whyImportant": "환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.",
+        "whyImportant": "환율·물가·고용·유가는 돈의 흐름과 기업 비용을 바꿉니다. 숫자가 크게 바뀌면 시장 분위기도 흔들릴 수 있어요.",
         "scoreAnchor": "market_temperature_context",
         "qualityScore": 0.789,
         "priorityTier": "CRITICAL",
@@ -513,35 +515,67 @@
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "국제유가 급락했는데…주유소 기름값 왜 그대로일까",
-        "displayHeadline": "국제유가 급락했는데…주유소 기름값 왜 그대로일까",
+        "headline": "전쟁 물러서자 금리 돌아왔다…금값 흔든 진짜 주인은?",
+        "displayHeadline": "전쟁 물러서자 금리 돌아왔다…금값 흔든 진짜 주인은?",
         "originalHeadline": null,
         "language": "ko",
         "translationNote": null,
-        "sourceName": "더스쿠프",
-        "publishedAt": "2026-06-21T21:12:10Z",
-        "url": "https://news.google.com/rss/articles/CBMibkFVX3lxTE5rUFpyS0FEcDFxcnJweHlhYXU2ek1RT3ZKajdGRjJVTEoxeUtteWQ5U1JmbkZMa0xtUjN6QzBxYU9kRHhVMzRYVTZrdzFMQ0ZnUUE4b1FTOXlIcHlmUG1RLTVzWm5TN0ZxOHZHTGV3?oc=5",
+        "sourceName": "지디넷코리아",
+        "publishedAt": "2026-06-21T23:10:03Z",
+        "url": "https://news.google.com/rss/articles/CBMiVkFVX3lxTFBvNHJLNm4wc29FRWIxc2VNeDRJZ2V2SWh0RWxHYloxZHpqRmhpUUl5ZTRyMUtyTXBnOENBcWszY0lRby1ZMFBPaEpBM0pKWGlwalJhX29n?oc=5",
         "impactTarget": "bridge",
-        "impactTone": "negative",
-        "category": "macro",
-        "categoryLabel": "매크로",
+        "impactTone": "neutral",
+        "category": "central_bank",
+        "categoryLabel": "중앙은행",
         "tags": [
-          "매크로",
-          "지수"
+          "금리",
+          "정책",
+          "공급망"
         ],
         "relatedFactors": [
           "macro",
-          "indices",
           "news"
         ],
-        "whyImportant": "환율·물가·고용·유가 같은 매크로 변수는 시장 온도의 배경 압력입니다.",
+        "whyImportant": "금리가 높아지면 돈 빌리는 부담이 커져 주식에는 부담이 됩니다. 그래서 금리 뉴스는 미국·한국 온도에 같이 영향을 줍니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.839,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
+        "qualityScore": 0.976,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
         "sourceId": "rss:google-news:market-context-kr",
         "region": "KR",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "U.S. and Iran begin peace talks amid conflicting claims over Strait of Hormuz",
+        "displayHeadline": "미·이란 대화와 호르무즈 불확실성이 유가를 흔드는지 점검",
+        "originalHeadline": "U.S. and Iran begin peace talks amid conflicting claims over Strait of Hormuz",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "CNBC Finance",
+        "publishedAt": "2026-06-21T12:16:26Z",
+        "url": "https://www.cnbc.com/2026/06/20/iran-reportedly-closes-strait-of-hormuz-again-raising-doubt-over-talks.html",
+        "impactTarget": "global",
+        "impactTone": "neutral",
+        "category": "geopolitics_supply",
+        "categoryLabel": "정책·공급망",
+        "tags": [
+          "정책",
+          "공급망"
+        ],
+        "relatedFactors": [
+          "macro",
+          "news"
+        ],
+        "whyImportant": "전쟁·제재·공급망 이슈는 유가와 비용, 위험 선호를 바꿉니다. 시장이 갑자기 조심스러워질 수 있는 배경입니다.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.786,
+        "priorityTier": "CRITICAL",
+        "critical": true,
+        "criticalReason": "critical_keyword",
+        "sourceId": "rss:cnbc:finance",
+        "region": "US",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
@@ -565,71 +599,9 @@
           "indices",
           "news"
         ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "whyImportant": "대표 지수와 외국인 수급은 시장이 실제로 오르는지 밀리는지 보여주는 직접 신호입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.821,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "[마켓 프리뷰] 1만피 향하는 코스피 '숨고르기'…몸집 커지는 삼전닉스",
-        "displayHeadline": "[마켓 프리뷰] 1만피 향하는 코스피 '숨고르기'…몸집 커지는 삼전닉스",
-        "originalHeadline": null,
-        "language": "ko",
-        "translationNote": null,
-        "sourceName": "v.daum.net",
-        "publishedAt": "2026-06-21T22:31:11Z",
-        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE5teGhlMWVmRzE2bTU4X1dYdVdIUWVIN0Y1SGtkYkNWNmdlZVNWOWllU1NHZDBtVHFDYUg0al9tVG0zV3lkMUhjV19YUUVWdFk?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.827,
-        "priorityTier": "STANDARD",
-        "critical": false,
-        "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
-        "provider": "public-rss",
-        "licenseNote": "public RSS headline cache only; no body or image scraping"
-      },
-      {
-        "headline": "코스피 이전 속도조절?…알테오젠의 복잡해진 이전상장 셈법",
-        "displayHeadline": "코스피 이전 속도조절?…알테오젠의 복잡해진 이전상장 셈법",
-        "originalHeadline": null,
-        "language": "ko",
-        "translationNote": null,
-        "sourceName": "팜이데일리",
-        "publishedAt": "2026-06-21T21:00:09Z",
-        "url": "https://news.google.com/rss/articles/CBMibkFVX3lxTE5JclhqQnBnVEFvUURQeVNlR0VEckpNVzh3NEdNQUtIdy1VTU83OEhmSDdxTkpGeVIwTmc2Mk1OQU9oMWlwT3JnRnptR2VrQmMyYU13ZmtaMUtGTW54MmNlS29ENjcyVkJmYnpHN3VR?oc=5",
-        "impactTarget": "kr",
-        "impactTone": "neutral",
-        "category": "market_event",
-        "categoryLabel": "시장이벤트",
-        "tags": [
-          "지수"
-        ],
-        "relatedFactors": [
-          "indices",
-          "news"
-        ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
-        "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.806,
+        "qualityScore": 0.813,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
@@ -658,9 +630,9 @@
           "indices",
           "news"
         ],
-        "whyImportant": "지수 급변과 수급 변화는 오늘 시장 온도를 설명하는 직접 트리거입니다.",
+        "whyImportant": "대표 지수와 외국인 수급은 시장이 실제로 오르는지 밀리는지 보여주는 직접 신호입니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.683,
+        "qualityScore": 0.675,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
@@ -670,107 +642,140 @@
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "변기업체서 반도체 기업으로…日토토, 7600억원 투자 결정",
-        "displayHeadline": "변기업체서 반도체 기업으로…日토토, 7600억원 투자 결정",
-        "originalHeadline": null,
-        "language": "ko",
-        "translationNote": null,
-        "sourceName": "마켓인",
-        "publishedAt": "2026-06-21T22:20:05Z",
-        "url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE9zTnA4Zks3aU1FYnRMaTNjOERlZzMtOEg1OWFlMm1VMkU4Y01NaEhHbVV4aEoyVm1DMm9YLWd5dGxvdWZ4NGptek1zX1lVWE5PZkpyWlRCVUhlWjBLcHNRd2pVd1owemxVZkFON2ZPZ3djckE?oc=5",
+        "headline": "Oil Rises Amid Uncertainty Over Strait of Hormuz",
+        "displayHeadline": "호르무즈 불확실성에 국제유가 상승, 물가 부담 재점검",
+        "originalHeadline": "Oil Rises Amid Uncertainty Over Strait of Hormuz",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "New York Times Business",
+        "publishedAt": "2026-06-21T22:12:06Z",
+        "url": "https://www.nytimes.com/2026/06/21/business/oil-rises-amid-uncertainty-over-strait-of-hormuz.html",
         "impactTarget": "bridge",
-        "impactTone": "neutral",
-        "category": "semiconductor_bridge",
-        "categoryLabel": "반도체",
+        "impactTone": "positive",
+        "category": "macro",
+        "categoryLabel": "매크로",
         "tags": [
-          "반도체"
+          "매크로",
+          "정책",
+          "공급망"
         ],
         "relatedFactors": [
-          "indices",
+          "macro",
           "news"
         ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
+        "whyImportant": "환율·물가·고용·유가는 돈의 흐름과 기업 비용을 바꿉니다. 숫자가 크게 바뀌면 시장 분위기도 흔들릴 수 있어요.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.782,
+        "qualityScore": 0.805,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
+        "sourceId": "rss:nytimes:business",
+        "region": "US",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "반도체칩으로 물에서 DNA 만든다…바이오 제조 혁신",
-        "displayHeadline": "반도체칩으로 물에서 DNA 만든다…바이오 제조 혁신",
-        "originalHeadline": null,
-        "language": "ko",
-        "translationNote": null,
-        "sourceName": "사이언스타임즈",
-        "publishedAt": "2026-06-21T22:02:28Z",
-        "url": "https://news.google.com/rss/articles/CBMijwFBVV95cUxQS01nRTQwYUFIVUh4QklIVUJ0SEQwS1UwS1dib2x0elVOSzU5cG16OXk2Sy1LZWJua2Y0UWVWWk1WMHpBLXdjeDN3cEhUS0JvM2p2QUR0clhBdjVhLVpyNTRwYVEzY05wMmxGdDNaMHlDTV9HQWdBOEVLTmJuSm5IdDV1ZEl5RnVqLWJUMUd4OA?oc=5",
+        "headline": "Mines, Logistics and Deep Uncertainty Threaten a Middle East Oil Rebound",
+        "displayHeadline": "중동 원유 공급 회복을 막는 물류·불확실성 점검",
+        "originalHeadline": "Mines, Logistics and Deep Uncertainty Threaten a Middle East Oil Rebound",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "New York Times Business",
+        "publishedAt": "2026-06-21T17:39:07Z",
+        "url": "https://www.nytimes.com/2026/06/20/business/iran-us-persian-gulf-oil-production.html",
         "impactTarget": "bridge",
-        "impactTone": "neutral",
-        "category": "semiconductor_bridge",
-        "categoryLabel": "반도체",
+        "impactTone": "positive",
+        "category": "macro",
+        "categoryLabel": "매크로",
         "tags": [
-          "반도체"
+          "매크로",
+          "정책",
+          "공급망"
         ],
         "relatedFactors": [
-          "indices",
+          "macro",
           "news"
         ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
+        "whyImportant": "환율·물가·고용·유가는 돈의 흐름과 기업 비용을 바꿉니다. 숫자가 크게 바뀌면 시장 분위기도 흔들릴 수 있어요.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.752,
+        "qualityScore": 0.742,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
+        "sourceId": "rss:nytimes:business",
+        "region": "US",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "반도체보다 뜨거운 MLCC…ETF는 감감무소식",
-        "displayHeadline": "반도체보다 뜨거운 MLCC…ETF는 감감무소식",
-        "originalHeadline": null,
-        "language": "ko",
-        "translationNote": null,
-        "sourceName": "인베스트조선",
-        "publishedAt": "2026-06-21T22:00:10Z",
-        "url": "https://news.google.com/rss/articles/CBMigwFBVV95cUxONkdPWno3UzdhSk1uZ29UU0NWeEFua3pwREU5Z3JGOVROSHNXRFNDazQ4XzlrTnRUSGlIQndJckpzanc4amc0Z0N0SnpYeG0tNE54UFFXRk5HX09NQlNKR2ZoX0x1SmJFamxPZXFuYnBmVmc5VWp0c0E1eE0zRVMyd1JXaw?oc=5",
-        "impactTarget": "bridge",
+        "headline": "'Regime change but in a velvet glove': How Kevin Warsh has set out to remake the Fed",
+        "displayHeadline": "연준·미국 금리 흐름이 증시에 주는 부담 확인",
+        "originalHeadline": "'Regime change but in a velvet glove': How Kevin Warsh has set out to remake the Fed",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "CNBC Finance",
+        "publishedAt": "2026-06-21T11:14:02Z",
+        "url": "https://www.cnbc.com/2026/06/21/how-kevin-warsh-has-set-out-to-remake-the-fed.html",
+        "impactTarget": "us",
         "impactTone": "neutral",
-        "category": "semiconductor_bridge",
-        "categoryLabel": "반도체",
+        "category": "central_bank",
+        "categoryLabel": "중앙은행",
         "tags": [
-          "반도체"
+          "금리"
         ],
         "relatedFactors": [
-          "indices",
-          "news"
+          "macro"
         ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
+        "whyImportant": "금리가 높아지면 돈 빌리는 부담이 커져 주식에는 부담이 됩니다. 그래서 금리 뉴스는 미국·한국 온도에 같이 영향을 줍니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.752,
+        "qualityScore": 0.644,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
-        "sourceId": "rss:google-news:market-context-kr",
-        "region": "KR",
+        "sourceId": "rss:cnbc:finance",
+        "region": "US",
         "provider": "public-rss",
         "licenseNote": "public RSS headline cache only; no body or image scraping"
       },
       {
-        "headline": "삼성·SK, 광주·전남에 대규모 반도체 투자 임박",
-        "displayHeadline": "삼성·SK, 광주·전남에 대규모 반도체 투자 임박",
+        "headline": "While the World Scrambles for Oil, China Sits on Full Tanks",
+        "displayHeadline": "중국 원유 재고가 글로벌 유가 부담을 완화할지 점검",
+        "originalHeadline": "While the World Scrambles for Oil, China Sits on Full Tanks",
+        "language": "en",
+        "translationNote": "해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.",
+        "sourceName": "New York Times Business",
+        "publishedAt": "2026-06-21T09:01:52Z",
+        "url": "https://www.nytimes.com/2026/06/21/business/china-oil-iran.html",
+        "impactTarget": "bridge",
+        "impactTone": "neutral",
+        "category": "macro",
+        "categoryLabel": "매크로",
+        "tags": [
+          "매크로"
+        ],
+        "relatedFactors": [
+          "macro"
+        ],
+        "whyImportant": "환율·물가·고용·유가는 돈의 흐름과 기업 비용을 바꿉니다. 숫자가 크게 바뀌면 시장 분위기도 흔들릴 수 있어요.",
+        "scoreAnchor": "market_temperature_context",
+        "qualityScore": 0.616,
+        "priorityTier": "STANDARD",
+        "critical": false,
+        "criticalReason": null,
+        "sourceId": "rss:nytimes:business",
+        "region": "US",
+        "provider": "public-rss",
+        "licenseNote": "public RSS headline cache only; no body or image scraping"
+      },
+      {
+        "headline": "[굿모닝 증시]마이크론 실적에 쏠린 눈…반도체 주도 이어갈까",
+        "displayHeadline": "[굿모닝 증시]마이크론 실적에 쏠린 눈…반도체 주도 이어갈까",
         "originalHeadline": null,
         "language": "ko",
         "translationNote": null,
         "sourceName": "v.daum.net",
-        "publishedAt": "2026-06-21T13:54:18Z",
-        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE42RWN0V3ZjX19oZnlOcW9IeU5QYVJxSGN6X0lpbVU4RXpOMjlOTEZORjJMVTBHTk9Nak9rRE80SmtKazN1SVJFaS1rTnZiTjA?oc=5",
+        "publishedAt": "2026-06-21T23:20:00Z",
+        "url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE1iQTFHRnZ5WW1weVJPMXR2dGdNX1FYYlJlSHIxa25KczBteHFZcS1nZkg2WGR1LTdyczVzcm92cFdXeXhIZ2hkUzNCQjBpSHM?oc=5",
         "impactTarget": "bridge",
         "impactTone": "neutral",
         "category": "semiconductor_bridge",
@@ -782,9 +787,9 @@
           "indices",
           "news"
         ],
-        "whyImportant": "반도체 이슈는 미국 기술주와 한국 증시를 이어주는 브릿지 신호입니다.",
+        "whyImportant": "반도체는 미국 기술주와 한국 대표주를 잇는 업종입니다. 이쪽 뉴스는 두 시장 온도 차이를 설명할 때 씁니다.",
         "scoreAnchor": "market_temperature_context",
-        "qualityScore": 0.635,
+        "qualityScore": 0.779,
         "priorityTier": "STANDARD",
         "critical": false,
         "criticalReason": null,
