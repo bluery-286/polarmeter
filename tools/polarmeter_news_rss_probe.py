@@ -223,6 +223,11 @@ def is_low_impact_policy_noise(text: str) -> bool:
         pattern.search(text) for pattern in LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS
     )
 
+def is_market_history_or_obituary(text: str) -> bool:
+    if not re.search(r'(별세|부고|향년|dies|died|dead|remembered|obituary)', text, re.I):
+        return False
+    return not re.search(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|다우|증시|선물|환율|유가|금리\s*(인상|인하|동결)|급등|급락|상승|하락|혼조)', text, re.I)
+
 LISTED_COMPANY_MARKET_CONTEXT_PATTERNS = [
     re.compile(r'(실적|매출|영업이익|수출|가이던스|어닝|컨센서스|업종|섹터|주가|증시|코스피|코스닥|상승|하락|급등|급락)', re.I),
 ]
@@ -466,16 +471,52 @@ DEFAULT_FEEDS = [
         'url': google_news_url('코스피 OR 코스닥 OR 나스닥 OR S&P500 OR 원달러 OR 환율 OR 반도체 OR 외국인 OR 연준 OR FOMC OR VIX OR 유가 when:1d -부동산 -동탄 -관광 -굿즈'),
     },
     {
+        'sourceId': 'rss:google-news:kr-equity-close',
+        'label': 'Google News RSS — 한국장 마감/수급',
+        'region': 'KR',
+        'url': google_news_url('코스피 코스닥 증시 마감 외국인 기관 수급 환율 반도체 when:1d -추천주 -특징주 -부동산 -공모주'),
+    },
+    {
+        'sourceId': 'rss:google-news:kr-market-flow',
+        'label': 'Google News RSS — 한국장 수급/환율',
+        'region': 'KR',
+        'url': google_news_url('한국 증시 코스피 코스닥 외국인 순매수 순매도 환율 수급 when:1d -추천주 -특징주 -부동산'),
+    },
+    {
+        'sourceId': 'rss:google-news:kr-us-market-bridge',
+        'label': 'Google News RSS — 뉴욕증시/한국장 연결',
+        'region': 'KR',
+        'url': google_news_url('뉴욕증시 나스닥 S&P500 다우 선물 연준 금리 유가 when:1d -추천주 -부동산'),
+    },
+    {
         'sourceId': 'rss:google-news:market-context-us-major',
         'label': 'Google News RSS — US market translated',
         'region': 'US',
         'url': google_news_url('S&P 500 Nasdaq Dow futures Fed Treasury yield Wall Street stocks when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
     },
     {
+        'sourceId': 'rss:google-news:us-stock-today',
+        'label': 'Google News RSS — US stock market today',
+        'region': 'US',
+        'url': google_news_url('stock market today S&P 500 Nasdaq Dow Wall Street stocks futures when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
+    },
+    {
         'sourceId': 'rss:google-news:market-context-us-macro',
         'label': 'Google News RSS — global macro translated',
         'region': 'US',
         'url': google_news_url('Fed FOMC Treasury yield dollar index VIX oil Iran Middle East markets when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
+    },
+    {
+        'sourceId': 'rss:google-news:us-tech-semis',
+        'label': 'Google News RSS — US tech/semis translated',
+        'region': 'US',
+        'url': google_news_url('Nvidia chip stocks semiconductor Nasdaq S&P 500 market when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
+    },
+    {
+        'sourceId': 'rss:marketwatch:topstories',
+        'label': 'MarketWatch Top Stories',
+        'region': 'US',
+        'url': 'https://feeds.content.dowjones.io/public/rss/mw_topstories',
     },
     {
         'sourceId': 'rss:cnbc:finance',
@@ -723,6 +764,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'LOW_IMPACT_POLICY_NOT_MARKET_TEMPERATURE'
     if is_theme_or_opinion_noise(full_text):
         return None, 'OPINION_OR_THEME_NOT_DIRECT_MARKET_TEMPERATURE'
+    if is_market_history_or_obituary(full_text):
+        return None, 'MARKET_HISTORY_OR_OBITUARY_NOT_TODAY_TEMPERATURE'
     published_dt = parse_utc(published_at)
     if not published_dt:
         return None, 'MISSING_PUBLISHED_AT'
@@ -913,6 +956,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         return (1 if item.get('critical') else 0, float(item.get('marketImpactScore') or 0), float(item.get('qualityScore') or 0), 1 if item.get('category') in {'market_event', 'macro', 'central_bank'} else 0)
 
     out = sorted(out, key=sort_key, reverse=True)
+    out = issue_capped_items(out, per_issue_limit=3)
     overseas_items = [item for item in out if item.get('region') == 'US']
     us_items = [item for item in out if item.get('region') == 'US' or item.get('impactTarget') == 'us']
     kr_items = [item for item in out if item.get('region') == 'KR' or item.get('impactTarget') == 'kr']
@@ -920,9 +964,9 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     us_target_items = [item for item in out if item.get('impactTarget') == 'us']
     balanced: list[dict[str, Any]] = []
     seen_balanced: set[str] = set()
-    target_overseas = min(len(overseas_items), max(2, max_items // 3)) if max_items >= 6 else min(len(overseas_items), 1)
-    target_us = max(1, max_items // 2)
-    target_kr = max(1, max_items - target_us)
+    target_overseas = min(len(overseas_items), max(3, max_items // 3)) if max_items >= 6 else min(len(overseas_items), 1)
+    target_kr = min(len(kr_items), max(4, max_items // 3)) if max_items >= 10 else min(len(kr_items), 2)
+    target_us = min(len(us_items), max(4, max_items // 3)) if max_items >= 10 else min(len(us_items), 2)
     critical_items = [item for item in out if item.get('critical')]
     def add_item(item: dict[str, Any]) -> bool:
         key = str(item.get('url') or item.get('headline')).lower()
@@ -933,12 +977,12 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         return True
     # Critical events should lead. Translated overseas cards get a minimum
     # presence, but the quota must not override stronger market triggers.
-    critical_lead_limit = min(len(critical_items), max(3, max_items // 3))
+    critical_lead_limit = min(len(critical_items), max(4, max_items // 4))
     for bucket, limit in [
         (critical_items, critical_lead_limit),
-        (overseas_items, target_overseas),
         (kr_items, target_kr),
         (us_items, target_us),
+        (overseas_items, target_overseas),
         (out, max_items),
     ]:
         count = 0
@@ -974,6 +1018,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         'balancedPolicy': 'critical_first_then_translated_overseas_and_kr_mix',
         'criticalCount': sum(1 for item in selected if item.get('critical')),
         'translatedOverseasCount': sum(1 for item in selected if item.get('region') == 'US' and item.get('originalHeadline')),
+        'issueClusterCount': len({item.get('issueClusterKey') for item in selected if item.get('issueClusterKey')}),
     }
 
 
@@ -985,6 +1030,22 @@ def normalized_news_topic_text(item: dict[str, Any]) -> str:
     text = re.sub(r'삼성전자|삼전|삼멘|삼맨', '삼성', text)
     text = re.sub(r'sk하이닉스|하이닉스|하멘|하맨', '하이닉스', text)
     return re.sub(r'\s+', ' ', text).strip()
+
+
+def issue_cluster_key(item: dict[str, Any]) -> str:
+    text = normalized_news_topic_text(item)
+    raw = ' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline'), item.get('sourceName')])
+    if re.search(r'(이란|중동|호르무즈|iran|hormuz|u\s*s\s*iran|us\s*iran)', raw, re.I) and re.search(r'(유가|원유|oil|wti|협상|negotiation|talks|strait|긴장|완화)', raw, re.I):
+        return 'issue:iran_oil_risk'
+    if re.search(r'(s&p|s\s*p\s*500|sp500|나스닥|nasdaq|다우|dow|wall street|미국\s*주요\s*지수|뉴욕증시)', raw, re.I) and re.search(r'(선물|futures|상승|하락|약세|강세|반등|rally|slip|edge|higher|lower|mixed|혼조|개장|premarket)', raw, re.I):
+        return 'issue:us_index_market_wrap'
+    if re.search(r'(sk\s*하이닉스|하이닉스|삼성전자|삼성)', raw, re.I) and re.search(r'(시총|1위|대장주|왕좌|반도체\s*랠리)', raw, re.I):
+        return 'issue:kr_semiconductor_leadership'
+    if re.search(r'(코스피|코스닥|한국\s*증시|국내\s*증시)', raw, re.I) and re.search(r'(마감|개장|수급|외국인|기관|환율|최고치|숨고르기)', raw, re.I):
+        return 'issue:kr_market_flow'
+    stop_words = {'기사', '뉴스', '오늘', '관련', '소개한', '집중조명'}
+    tokens = [token for token in text.split() if len(token) >= 2 and token not in stop_words]
+    return 'issue:' + '|'.join(tokens[:5])
 
 
 def news_dedupe_key(item: dict[str, Any]) -> str:
@@ -1007,6 +1068,20 @@ def news_dedupe_key(item: dict[str, Any]) -> str:
         if len(token) >= 2 and token not in stop_words and token not in tokens:
             tokens.append(token)
     return 'topic:' + '|'.join(tokens[:8])
+
+
+def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    capped: list[dict[str, Any]] = []
+    for item in items:
+        key = issue_cluster_key(item)
+        count = counts.get(key, 0)
+        if count >= per_issue_limit:
+            continue
+        counts[key] = count + 1
+        item['issueClusterKey'] = key
+        capped.append(item)
+    return capped
 
 
 def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes: int) -> dict[str, Any]:
@@ -1036,8 +1111,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument('--timeout', type=int, default=DEFAULT_TIMEOUT)
-    parser.add_argument('--per-feed-limit', type=int, default=12)
-    parser.add_argument('--max-items', type=int, default=10)
+    parser.add_argument('--per-feed-limit', type=int, default=16)
+    parser.add_argument('--max-items', type=int, default=18)
     parser.add_argument('--ttl-minutes', type=int, default=DEFAULT_NEWS_TTL_MINUTES)
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()

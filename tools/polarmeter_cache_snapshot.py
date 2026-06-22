@@ -20,6 +20,7 @@ DEFAULT_OUTPUT = PROJECT / 'testflight/free-cache-snapshot-latest.json'
 DEFAULT_NEWS_PROBE = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
+NEWS_SNAPSHOT_MAX_ITEMS = 18
 
 CORE_SIGNALS = {'kospi', 'usd_krw', 'sp500', 'vix', 'wti'}
 CORE_GROUPS = {
@@ -118,6 +119,31 @@ def load_last_known_good(path: Path | None) -> dict[str, Any]:
 
 def provider_items(probe: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     return {provider.get('provider', 'unknown'): provider.get('items', []) for provider in probe.get('providers', [])}
+
+
+def provider_metrics(probe: dict[str, Any]) -> dict[str, Any]:
+    providers = probe.get('providers') if isinstance(probe.get('providers'), list) else []
+    status_by_name: dict[str, str] = {}
+    call_count = 0
+    item_failure_count = 0
+
+    for provider in providers:
+        if not isinstance(provider, dict):
+            continue
+        name = str(provider.get('provider') or 'unknown')
+        status = str(provider.get('status') or 'unknown')
+        status_by_name[name] = status
+        items = provider.get('items') if isinstance(provider.get('items'), list) else []
+        call_count += len(items)
+        item_failure_count += sum(1 for item in items if isinstance(item, dict) and item.get('status') != 'ok')
+
+    provider_failure_count = sum(1 for status in status_by_name.values() if status not in {'ok', 'partial'})
+    return {
+        'providerCallCount': call_count,
+        'providerFailureCount': provider_failure_count,
+        'providerItemFailureCount': item_failure_count,
+        'providerStatusByName': status_by_name,
+    }
 
 
 def as_float(value: Any) -> float | None:
@@ -418,12 +444,14 @@ def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
                 'priorityTier': item.get('priorityTier') or ('CRITICAL' if item.get('critical') else 'STANDARD'),
                 'critical': item.get('critical') is True,
                 'criticalReason': item.get('criticalReason'),
+                'marketImpactScore': item.get('marketImpactScore'),
+                'issueClusterKey': item.get('issueClusterKey'),
                 'sourceId': item.get('sourceId'),
                 'region': item.get('region'),
                 'provider': item.get('provider') or 'public-rss',
                 'licenseNote': item.get('licenseNote') or 'public RSS headline cache only; no body or image scraping',
             }
-            for item in items[:10]
+            for item in items[:NEWS_SNAPSHOT_MAX_ITEMS]
             if isinstance(item, dict) and item.get('headline') and item.get('url')
         ],
     }
@@ -446,6 +474,7 @@ def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = No
         'clientDirectProviderCalls': False,
         'defaultTtlMinutes': 30,
         'probeStatus': probe.get('status'),
+        'providerMetrics': provider_metrics(probe),
         'dataQuality': quality,
         'sources': {
             provider['provider']: {

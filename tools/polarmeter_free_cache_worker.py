@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,41 @@ DEFAULT_PUBLIC_HEALTH_NAME = 'health.json'
 WEEKDAY_NEWS_TTL_MINUTES = 30
 WEEKEND_NEWS_TTL_MINUTES = 60
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
+BETA_MONTHLY_COST_LIMIT_USD = 50
+BETA_MONTHLY_COST_WARNING_USD = 20
+
+COST_GUARDRAILS = {
+    'estimatedMonthlyCost': {
+        'currency': 'USD',
+        'smallBeta': '0-20',
+        'initialLaunch1kTo10kMau': '0-50',
+        'notes': 'Operational estimate only; paid market data, news APIs, AI summaries, OTA usage, and FX can change actual cost.',
+    },
+    'budgetLimit': {
+        'currency': 'USD',
+        'monthlyLimit': BETA_MONTHLY_COST_LIMIT_USD,
+        'warningLimit': BETA_MONTHLY_COST_WARNING_USD,
+        'status': 'configured_beta_hard_cap',
+        'warningAction': 'review provider usage and OTA update frequency',
+        'hardLimitAction': 'activate kill-switch before adding paid/restricted providers',
+    },
+    'budgetCapConfigured': True,
+    'commercialUseChecked': False,
+    'killSwitchActive': False,
+    'killSwitchStatus': {
+        'newsTranslationSummaryGeneration': 'ready_no_paid_ai',
+        'rapidMoveBriefingGeneration': 'ready',
+        'paidProviderCalls': 'disabled_by_default',
+        'pushNotifications': 'not_enabled',
+    },
+    'killSwitchEnv': {
+        'all': 'POLARMETER_KILL_SWITCH_ALL',
+        'newsTranslationSummaryGeneration': 'POLARMETER_DISABLE_NEWS_TRANSLATION_SUMMARY',
+        'rapidMoveBriefingGeneration': 'POLARMETER_DISABLE_RAPID_MOVE_BRIEFING',
+        'paidProviderCalls': 'POLARMETER_DISABLE_PAID_PROVIDERS',
+        'pushNotifications': 'POLARMETER_DISABLE_PUSH_NOTIFICATIONS',
+    },
+}
 
 
 def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -121,11 +157,57 @@ def re_has_english_only(value: Any) -> bool:
     return bool(text.strip()) and not any('\uac00' <= ch <= '\ud7a3' for ch in text) and any(('a' <= ch.lower() <= 'z') for ch in text)
 
 
+def env_enabled(name: str) -> bool:
+    value = os.environ.get(name, '').strip().lower()
+    return value in {'1', 'true', 'yes', 'on'}
+
+
+def public_cost_guardrails() -> dict[str, Any]:
+    guardrails = json.loads(json.dumps(COST_GUARDRAILS))
+    env = guardrails['killSwitchEnv']
+    all_off = env_enabled(env['all'])
+    switch_map = {
+        'newsTranslationSummaryGeneration': env['newsTranslationSummaryGeneration'],
+        'rapidMoveBriefingGeneration': env['rapidMoveBriefingGeneration'],
+        'paidProviderCalls': env['paidProviderCalls'],
+        'pushNotifications': env['pushNotifications'],
+    }
+    active_switches = []
+    for key, env_name in switch_map.items():
+        if all_off or env_enabled(env_name):
+            guardrails['killSwitchStatus'][key] = 'off_by_kill_switch'
+            active_switches.append(key)
+    guardrails['killSwitchActive'] = bool(active_switches)
+    guardrails['activeKillSwitches'] = active_switches
+    return guardrails
+
+
+def budget_cap_configured() -> bool:
+    return bool(public_cost_guardrails().get('budgetCapConfigured'))
+
+
+def commercial_use_checked() -> bool:
+    return bool(public_cost_guardrails().get('commercialUseChecked'))
+
+
+def data_serving_mode(snapshot: dict[str, Any]) -> str:
+    if snapshot.get('status') not in {'ok', 'partial'}:
+        return 'fallback'
+    display_mode = (snapshot.get('dataQuality') or {}).get('displayMode')
+    if display_mode == 'normal':
+        return 'normal'
+    if display_mode in {'limited', 'collecting'}:
+        return 'limited'
+    return 'limited'
+
+
 def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, Any]:
     signals = snapshot.get('signals', {})
     ok_signals = sorted(k for k, v in signals.items() if isinstance(v, dict) and v.get('status') == 'ok')
     blocked_signals = sorted(k for k, v in signals.items() if isinstance(v, dict) and v.get('status') not in {'ok', None})
     news = snapshot.get('news') or {}
+    provider_metrics = snapshot.get('providerMetrics') or {}
+    cost_guardrails = public_cost_guardrails()
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
@@ -141,6 +223,18 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'newsNextRefreshAt': news.get('nextRefreshAt'),
         'newsRecommendedSchedule': news.get('recommendedSchedule') or NEWS_RECOMMENDED_SCHEDULE,
         'dataQuality': snapshot.get('dataQuality') or {},
+        'dataServingMode': data_serving_mode(snapshot),
+        'lastSuccessfulSnapshotAt': snapshot.get('generatedAt') if snapshot.get('status') in {'ok', 'partial'} else None,
+        'providerCallCount': provider_metrics.get('providerCallCount', 0),
+        'providerFailureCount': provider_metrics.get('providerFailureCount', 0),
+        'providerStatusByName': provider_metrics.get('providerStatusByName') or {},
+        'estimatedMonthlyCost': cost_guardrails['estimatedMonthlyCost'],
+        'budgetLimit': cost_guardrails['budgetLimit'],
+        'budgetCapConfigured': cost_guardrails['budgetCapConfigured'],
+        'commercialUseChecked': cost_guardrails['commercialUseChecked'],
+        'killSwitchActive': cost_guardrails['killSwitchActive'],
+        'killSwitchStatus': cost_guardrails['killSwitchStatus'],
+        'costGuardrails': cost_guardrails,
         'blockedOrUnavailableSignals': blocked_signals,
         'notes': [
             'Public artifact contains normalized delayed/free data only.',
@@ -163,6 +257,17 @@ def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
         'okNewsCount': manifest.get('okNewsCount') or 0,
         'newsStatus': manifest.get('newsStatus') or 'unavailable',
         'dataQuality': manifest.get('dataQuality') or {},
+        'dataServingMode': manifest.get('dataServingMode') or 'limited',
+        'lastSuccessfulSnapshotAt': manifest.get('lastSuccessfulSnapshotAt'),
+        'providerCallCount': manifest.get('providerCallCount') or 0,
+        'providerFailureCount': manifest.get('providerFailureCount') or 0,
+        'providerStatusByName': manifest.get('providerStatusByName') or {},
+        'estimatedMonthlyCost': manifest.get('estimatedMonthlyCost') or {},
+        'budgetLimit': manifest.get('budgetLimit') or {},
+        'budgetCapConfigured': manifest.get('budgetCapConfigured') is True,
+        'commercialUseChecked': manifest.get('commercialUseChecked') is True,
+        'killSwitchActive': manifest.get('killSwitchActive') is True,
+        'killSwitchStatus': manifest.get('killSwitchStatus') or {},
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
     }
@@ -195,7 +300,8 @@ def sanitize_public_news(news: dict[str, Any]) -> dict[str, Any]:
         'language', 'translationNote',
         'url', 'impactTarget', 'impactTone', 'category', 'categoryLabel', 'tags',
         'relatedFactors', 'whyImportant', 'scoreAnchor', 'qualityScore', 'priorityTier',
-        'critical', 'criticalReason', 'sourceId', 'region', 'provider', 'licenseNote',
+        'critical', 'criticalReason', 'marketImpactScore', 'issueClusterKey',
+        'sourceId', 'region', 'provider', 'licenseNote',
     }
     out = {key: value for key, value in news.items() if key in allowed_news and key != 'items'}
     out['paidProviderEnabled'] = False
@@ -225,6 +331,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'status': snapshot.get('status'),
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
+        'costGuardrails': public_cost_guardrails(),
         'defaultTtlMinutes': snapshot.get('defaultTtlMinutes') or 30,
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
         'signals': {
@@ -259,7 +366,7 @@ def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapsho
     health_path = public_dir / DEFAULT_PUBLIC_HEALTH_NAME
     public_snapshot = sanitize_public_snapshot(snapshot)
     assert_public_payload_safe(public_snapshot)
-    manifest = public_manifest(public_snapshot, snapshot_name)
+    manifest = public_manifest(snapshot, snapshot_name)
     atomic_write_json(snapshot_path, public_snapshot)
     atomic_write_json(manifest_path, manifest)
     atomic_write_json(health_path, public_health(manifest))

@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-WORKSPACE = Path(__file__).resolve().parents[1]
+WORKSPACE = Path('/Users/kkac286/.openclaw/workspace')
 TOOLS = WORKSPACE / 'tools'
 
 
@@ -50,12 +50,14 @@ def main() -> int:
             raise AssertionError('cached news policy fields must be false')
         if news.get('bodyScrapingEnabled') is not False or news.get('imageScrapingEnabled') is not False:
             raise AssertionError('cached news must not scrape body/images')
-        if len(news.get('items') or []) <= 0:
-            raise AssertionError('pages snapshot must include cached RSS headlines for B1 QA')
+        if len(news.get('items') or []) < 10:
+            raise AssertionError('pages snapshot must include a useful cached RSS headline pool for B1 QA')
         for item in news.get('items') or []:
             if not item.get('categoryLabel') or not item.get('whyImportant') or item.get('scoreAnchor') != 'market_temperature_context':
                 raise AssertionError('pages snapshot news must expose category and market-temperature evidence anchor')
-        if manifest.get('okNewsCount', 0) <= 0:
+            if not item.get('issueClusterKey'):
+                raise AssertionError('pages snapshot news must expose issueClusterKey for app grouping')
+        if manifest.get('okNewsCount', 0) < 10:
             raise AssertionError('manifest must expose cached news count')
         if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
             raise AssertionError('manifest must expose cached news TTL metadata')
@@ -63,6 +65,34 @@ def main() -> int:
             raise AssertionError('manifest news schedule metadata mismatch')
         if not isinstance(news.get('ttlMinutes'), int) or not news.get('nextRefreshAt'):
             raise AssertionError('snapshot news must expose TTL metadata')
+        if manifest.get('dataServingMode') not in {'normal', 'limited', 'fallback'}:
+            raise AssertionError('manifest must expose dataServingMode')
+        if 'lastSuccessfulSnapshotAt' not in manifest:
+            raise AssertionError('manifest must expose lastSuccessfulSnapshotAt')
+        for key in ['providerCallCount', 'providerFailureCount']:
+            if not isinstance(manifest.get(key), int):
+                raise AssertionError(f'manifest must expose integer {key}')
+        if not isinstance(manifest.get('providerStatusByName'), dict):
+            raise AssertionError('manifest must expose providerStatusByName')
+        for key in ['estimatedMonthlyCost', 'budgetLimit', 'killSwitchStatus', 'costGuardrails']:
+            if not isinstance(manifest.get(key), dict):
+                raise AssertionError(f'manifest must expose {key}')
+        for key in ['budgetCapConfigured', 'commercialUseChecked', 'killSwitchActive']:
+            if not isinstance(manifest.get(key), bool):
+                raise AssertionError(f'manifest must expose boolean {key}')
+        budget_limit = manifest.get('budgetLimit') or {}
+        if manifest.get('budgetCapConfigured') is not True or budget_limit.get('monthlyLimit') != 50 or budget_limit.get('warningLimit') != 20:
+            raise AssertionError('manifest must expose configured beta budget cap 20/50 USD')
+        cost_guardrails = manifest.get('costGuardrails') or {}
+        if cost_guardrails.get('commercialUseChecked') is not False:
+            raise AssertionError('commercialUseChecked must stay false until provider terms are manually verified')
+        snapshot_guardrails = snapshot.get('costGuardrails') or {}
+        if (snapshot_guardrails.get('killSwitchStatus') or {}).get('rapidMoveBriefingGeneration') not in {'ready', 'off_by_kill_switch'}:
+            raise AssertionError('snapshot must expose rapid move briefing kill-switch status')
+        health = json.loads((out / 'health.json').read_text(encoding='utf-8'))
+        for key in ['dataServingMode', 'providerCallCount', 'providerFailureCount', 'estimatedMonthlyCost', 'budgetLimit', 'killSwitchActive', 'killSwitchStatus']:
+            if key not in health:
+                raise AssertionError(f'health must expose {key}')
     print('PolarMeter GitHub Pages smoke: PASS')
     return 0
 
