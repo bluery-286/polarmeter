@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-WORKSPACE = Path('/Users/kkac286/.openclaw/workspace')
+WORKSPACE = Path(__file__).resolve().parents[1]
 TOOLS = WORKSPACE / 'tools'
 
 
