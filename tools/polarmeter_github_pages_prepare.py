@@ -24,6 +24,7 @@ TOOLS = WORKSPACE / 'tools'
 DEFAULT_SITE = PROJECT / 'github-pages-site'
 DEFAULT_OUTPUT = PROJECT / '_site'
 PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
+LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 
 
 def copy_site(site_dir: Path, output_dir: Path) -> None:
@@ -74,11 +75,32 @@ def summary_from_public_payload(output_dir: Path, summary: dict[str, Any], *, re
     }
 
 
-def run_worker(output_dir: Path) -> dict[str, Any]:
+def seed_last_known_good_from_site(site_dir: Path, output_path: Path) -> bool:
+    snapshot_path = site_dir / 'market-snapshot-latest.json'
+    if not snapshot_path.exists():
+        return False
+    try:
+        snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
+    except Exception:
+        return False
+    signals = snapshot.get('signals')
+    if not isinstance(signals, dict) or not signals:
+        return False
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps({
+        'updatedAt': snapshot.get('generatedAt'),
+        'source': 'github-pages-site/market-snapshot-latest.json',
+        'signals': signals,
+    }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    return True
+
+
+def run_worker(output_dir: Path, last_known_good: Path) -> dict[str, Any]:
     cmd = [
         sys.executable,
         str(TOOLS / 'polarmeter_free_cache_worker.py'),
         '--public-dir', str(output_dir),
+        '--last-known-good', str(last_known_good),
         '--skip-fixture',
         '--json',
     ]
@@ -123,7 +145,8 @@ def main() -> int:
 
     copy_site(args.site, args.output)
     baseline_public_files = read_public_files(args.output)
-    summary = run_worker(args.output)
+    seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
+    summary = run_worker(args.output, LAST_KNOWN_GOOD)
     if not public_payload_is_publishable(args.output) and baseline_public_files:
         restore_public_files(args.output, baseline_public_files)
         summary = summary_from_public_payload(args.output, summary, reused_existing=True)
@@ -139,6 +162,7 @@ def main() -> int:
         'okSignals': summary.get('okSignals'),
         'okNewsCount': summary.get('okNewsCount'),
         'usedExistingPublicSnapshot': summary.get('usedExistingPublicSnapshot') is True,
+        'seededLastKnownGoodFromSite': seeded_last_known_good,
         'publicUrls': {
             'snapshot': 'market-snapshot-latest.json',
             'manifest': 'market-snapshot-manifest.json',
@@ -148,7 +172,12 @@ def main() -> int:
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(f"PolarMeter GitHub Pages payload: PASS output={args.output} snapshot={payload['snapshotStatus']} okSignals={len(payload['okSignals'] or [])}")
+        print(
+            f"PolarMeter GitHub Pages payload: PASS output={args.output} "
+            f"snapshot={payload['snapshotStatus']} okSignals={len(payload['okSignals'] or [])} "
+            f"okNews={payload['okNewsCount']} reusedExisting={payload['usedExistingPublicSnapshot']} "
+            f"seededLastKnownGood={payload['seededLastKnownGoodFromSite']}"
+        )
     return 0
 
 
