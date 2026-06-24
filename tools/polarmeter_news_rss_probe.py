@@ -194,6 +194,23 @@ THEME_OR_OPINION_NOISE_PATTERNS = [
     re.compile(r'(Prediction:|Could\s+Crush|Should\s+You\s+Actually|Smarter\s+Buy|Best\s+.+\s+To\s+Buy)', re.I),
 ]
 
+CORPORATE_CRIME_NONMARKET_PATTERNS = [
+    re.compile(r'(기술|영업\s*비밀|자료|정보).{0,24}(유출|넘긴|빼돌|절취|실형|징역|구속|재판|기소)', re.I),
+    re.compile(r'(실형|징역|구속|재판|기소|횡령|배임).{0,24}(반도체|기술|임원|연구원|직원)', re.I),
+]
+
+CORPORATE_CRIME_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(주가|증시|지수|실적|매출|영업이익|수출|공급망|가이던스|컨센서스|거래\s*정지)', re.I),
+]
+
+POLITICAL_CONTEXT_NONMARKET_PATTERNS = [
+    re.compile(r'(midterm|midterms|election|elections|대선|총선|중간\s*선거|선거|정치권|politics)', re.I),
+]
+
+POLITICAL_CONTEXT_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(stocks?|market|s&p\s*500|sp500|nasdaq|dow|futures?|yield|treasury|rate\s*decision|rate\s*cut|rate\s*hike|증시|시장|지수|선물|국채|수익률|금리\s*(인하|인상|동결|결정))', re.I),
+]
+
 
 def is_outlook_commentary(text: str) -> bool:
     market = re.search(r'(코스피|코스닥|나스닥|s&p|sp500|다우|증시|지수|시장|wall street|stocks?)', text, re.I)
@@ -230,6 +247,18 @@ def is_single_company_listing_story(text: str) -> bool:
 def is_science_tech_nonmarket_story(text: str) -> bool:
     return any(pattern.search(text) for pattern in SCIENCE_TECH_NONMARKET_PATTERNS) and not any(
         pattern.search(text) for pattern in SCIENCE_TECH_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_corporate_crime_nonmarket_story(text: str) -> bool:
+    return any(pattern.search(text) for pattern in CORPORATE_CRIME_NONMARKET_PATTERNS) and not any(
+        pattern.search(text) for pattern in CORPORATE_CRIME_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_political_context_nonmarket_story(text: str) -> bool:
+    return any(pattern.search(text) for pattern in POLITICAL_CONTEXT_NONMARKET_PATTERNS) and not any(
+        pattern.search(text) for pattern in POLITICAL_CONTEXT_MARKET_OVERRIDE_PATTERNS
     )
 
 
@@ -739,7 +768,7 @@ def headline_tone(headline: str) -> str:
             return 'positive'
     if any(token in headline for token in ['종전', '휴전', '합의', '환호']) or any(token in text for token in ['ceasefire', 'truce', 'deal coming soon', 'deal signed']):
         return 'positive'
-    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담']) or any(token in text for token in ['fall', 'drop', 'lower', 'risk', 'selloff', 'volatility']):
+    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담']) or any(token in text for token in ['fall', 'drop', 'lower', 'risk', 'selloff', 'volatility', 'crash']):
         return 'negative'
     if any(token in headline for token in ['상승', '강세', '반등', '급등']) or any(token in text for token in ['rally', 'rise', 'gain', 'higher', 'rebound', 'climb']):
         return 'positive'
@@ -751,7 +780,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         return 'neutral'
     text = headline.lower()
     up = re.search(r'(급등|상승|오름|올랐|강세|↑|\brise\b|\brises\b|\brising\b|\bhigher\b|\bsurge\b|\bjump\b|\bgain\b|\brally\b|\bclimb\b|\bclimbs\b|\bclimbing\b)', text, re.I)
-    down = re.search(r'(급락|하락|내림|내렸|떨어|약세|↓|\bfall\b|\bfalls\b|\bfalling\b|\bdrop\b|\bdrops\b|\blower\b|\bslip\b|\bdecline\b|\bplunge\b)', text, re.I)
+    down = re.search(r'(급락|하락|내림|내렸|떨어|약세|↓|\bfall\b|\bfalls\b|\bfalling\b|\bdrop\b|\bdrops\b|\blower\b|\bslip\b|\bdecline\b|\bplunge\b|\bcrash\b|\bcrashes\b|\bcrashed\b)', text, re.I)
     has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil)', text, re.I)
     oil_risk = re.search(r'(긴장|호르무즈|전쟁|제재|공급 차질|폐쇄|risk|pressure|tension|hormuz|war|sanction)', text, re.I)
     has_fx = re.search(r'(환율|원/달러|원달러|usd/krw|달러|dollar|원화)', text, re.I)
@@ -767,7 +796,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     )
     explicit_rate_burden = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(부담|공포|우려|상승|급등|높|고공|higher|rise|rises|rising|jump|surge)|(부담|공포|우려).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I)
     explicit_rate_relief = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(완화|하락|인하|내림|낮아|ease|eases|fall|falls|drop|drops|lower|decline)|(완화|하락|인하|내림|낮아|ease|fall|drop|lower).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I)
-    title_burden = re.search(r'(부담|공포|악재|위험회피|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I)
+    title_burden = re.search(r'(부담|공포|악재|위험회피|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I)
     explicit_fx_burden = re.search(r'(15\d{2}|1,5\d{2}|금융위기\s*후\s*최고|외환위기\s*후\s*최고|달러\s*강세|원화\s*약세|환율.{0,16}(급등|상승|고공|부담|최고|불안)|usd/krw.{0,12}(higher|rise))', text, re.I)
     explicit_fx_relief = re.search(r'(달러\s*약세|원화\s*강세|환율.{0,12}(급락|하락|완화|안정)|usd/krw.{0,12}(lower|fall|drop))', text, re.I)
     explicit_foreign_flow_burden = re.search(r'(외국인|foreigners?).{0,36}(주식|증시|equity|stock).{0,24}(팔|매도|순매도|sell|sold|selling)|(주식|증시|equity|stock).{0,24}(팔|매도|순매도|sell|sold|selling).{0,36}(외국인|foreigners?)', text, re.I)
@@ -775,6 +804,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if explicit_index_fade:
         return 'negative'
     if explicit_index_rebound:
+        return 'positive'
+    if has_index and re.search(r'(급락|폭락|하락|약세|plunge|drop|slump|crash(?:es|ed)?).{0,24}(에도|불구|despite).{0,54}(강세|상승|반등|회복|rally|rebound|recover|gain|higher|climb)', text, re.I):
         return 'positive'
     if explicit_index_burden:
         return 'negative'
@@ -868,6 +899,10 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'RETAIL_FUEL_PRICE_NOT_MARKET_TEMPERATURE'
     if is_single_company_listing_story(full_text):
         return None, 'SINGLE_COMPANY_LISTING_NOT_MARKET_TEMPERATURE'
+    if is_corporate_crime_nonmarket_story(full_text):
+        return None, 'CORPORATE_CRIME_NOT_MARKET_TEMPERATURE'
+    if is_political_context_nonmarket_story(full_text):
+        return None, 'POLITICAL_CONTEXT_NOT_MARKET_TEMPERATURE'
     if is_science_tech_nonmarket_story(full_text):
         return None, 'SCIENCE_TECH_NOT_MARKET_TEMPERATURE'
     if is_low_impact_policy_noise(full_text):
