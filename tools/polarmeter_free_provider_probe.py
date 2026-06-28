@@ -21,7 +21,7 @@ SECRETS_DIR = Path.home() / '.openclaw/secrets'
 REQUIRED_SIGNALS = [
     {'key': 'sp500', 'label': 'S&P500/SPY', 'providerSymbol': {'twelvedata': 'SPY', 'fmp': 'SPY'}, 'category': 'us_index'},
     {'key': 'nasdaq100', 'label': 'Nasdaq100/QQQ', 'providerSymbol': {'twelvedata': 'QQQ', 'fmp': 'QQQ'}, 'category': 'us_index'},
-    {'key': 'vix', 'label': 'CBOE VIX', 'providerSymbol': {'twelvedata': 'VIX', 'fmp': '^VIX'}, 'category': 'volatility'},
+    {'key': 'vix', 'label': 'CBOE VIX', 'providerSymbol': {'yahoo_chart': '^VIX', 'twelvedata': 'VIX', 'fmp': '^VIX'}, 'category': 'volatility'},
     {'key': 'usd_krw', 'label': 'USD/KRW', 'providerSymbol': {'bok_ecos': '0000001', 'twelvedata': 'USD/KRW', 'fmp': 'USD/KRW'}, 'category': 'fx'},
     {'key': 'us10y', 'label': 'US 10Y Treasury Yield', 'providerSymbol': {'yahoo_chart': '^TNX', 'twelvedata': 'TLT', 'fmp': 'TLT'}, 'category': 'rate'},
     {'key': 'dxy', 'label': 'US Dollar Index', 'providerSymbol': {'yahoo_chart': 'DX-Y.NYB', 'twelvedata': 'UUP', 'fmp': 'UUP'}, 'category': 'dollar'},
