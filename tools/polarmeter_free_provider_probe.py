@@ -19,16 +19,16 @@ from typing import Any
 SECRETS_DIR = Path.home() / '.openclaw/secrets'
 
 REQUIRED_SIGNALS = [
-    {'key': 'sp500', 'label': 'S&P500/SPY', 'providerSymbol': {'twelvedata': 'SPY', 'fmp': 'SPY'}, 'category': 'us_index'},
-    {'key': 'nasdaq100', 'label': 'Nasdaq100/QQQ', 'providerSymbol': {'twelvedata': 'QQQ', 'fmp': 'QQQ'}, 'category': 'us_index'},
+    {'key': 'sp500', 'label': 'S&P500/SPY', 'providerSymbol': {'yahoo_chart': 'SPY', 'twelvedata': 'SPY', 'fmp': 'SPY'}, 'category': 'us_index'},
+    {'key': 'nasdaq100', 'label': 'Nasdaq100/QQQ', 'providerSymbol': {'yahoo_chart': 'QQQ', 'twelvedata': 'QQQ', 'fmp': 'QQQ'}, 'category': 'us_index'},
     {'key': 'vix', 'label': 'CBOE VIX', 'providerSymbol': {'yahoo_chart': '^VIX', 'twelvedata': 'VIX', 'fmp': '^VIX'}, 'category': 'volatility'},
-    {'key': 'usd_krw', 'label': 'USD/KRW', 'providerSymbol': {'bok_ecos': '0000001', 'twelvedata': 'USD/KRW', 'fmp': 'USD/KRW'}, 'category': 'fx'},
+    {'key': 'usd_krw', 'label': 'USD/KRW', 'providerSymbol': {'bok_ecos': '0000001', 'yahoo_chart': 'KRW=X', 'twelvedata': 'USD/KRW', 'fmp': 'USD/KRW'}, 'category': 'fx'},
     {'key': 'us10y', 'label': 'US 10Y Treasury Yield', 'providerSymbol': {'yahoo_chart': '^TNX', 'twelvedata': 'TLT', 'fmp': 'TLT'}, 'category': 'rate'},
     {'key': 'dxy', 'label': 'US Dollar Index', 'providerSymbol': {'yahoo_chart': 'DX-Y.NYB', 'twelvedata': 'UUP', 'fmp': 'UUP'}, 'category': 'dollar'},
-    {'key': 'wti', 'label': 'WTI proxy/USO', 'providerSymbol': {'twelvedata': 'USO', 'fmp': 'USO'}, 'category': 'commodity'},
-    {'key': 'gold', 'label': 'Gold proxy/GLD', 'providerSymbol': {'twelvedata': 'GLD', 'fmp': 'GLD'}, 'category': 'commodity'},
-    {'key': 'soxx', 'label': 'SOXX', 'providerSymbol': {'twelvedata': 'SOXX', 'fmp': 'SOXX'}, 'category': 'semiconductor'},
-    {'key': 'smh', 'label': 'SMH', 'providerSymbol': {'twelvedata': 'SMH', 'fmp': 'SMH'}, 'category': 'semiconductor'},
+    {'key': 'wti', 'label': 'WTI crude futures', 'providerSymbol': {'yahoo_chart': 'CL=F', 'twelvedata': 'USO', 'fmp': 'USO'}, 'category': 'commodity'},
+    {'key': 'gold', 'label': 'Gold proxy/GLD', 'providerSymbol': {'yahoo_chart': 'GLD', 'twelvedata': 'GLD', 'fmp': 'GLD'}, 'category': 'commodity'},
+    {'key': 'soxx', 'label': 'SOXX', 'providerSymbol': {'yahoo_chart': 'SOXX', 'twelvedata': 'SOXX', 'fmp': 'SOXX'}, 'category': 'semiconductor'},
+    {'key': 'smh', 'label': 'SMH', 'providerSymbol': {'yahoo_chart': 'SMH', 'twelvedata': 'SMH', 'fmp': 'SMH'}, 'category': 'semiconductor'},
     {'key': 'iwm', 'label': 'Russell 2000/IWM', 'providerSymbol': {'yahoo_chart': 'IWM', 'twelvedata': 'IWM', 'fmp': 'IWM'}, 'category': 'us_smallcap'},
     {'key': 'eem', 'label': 'Emerging Markets/EEM', 'providerSymbol': {'yahoo_chart': 'EEM', 'twelvedata': 'EEM', 'fmp': 'EEM'}, 'category': 'global_equity'},
     {'key': 'kr_samsung', 'label': '삼성전자', 'providerSymbol': {'data_go_kr': '005930'}, 'category': 'kr_proxy'},
