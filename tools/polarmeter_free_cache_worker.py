@@ -246,11 +246,11 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
 def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
     quality = manifest.get('dataQuality') or {}
     core_coverage = quality.get('coreCoverageRatio')
-    has_full_core_coverage = isinstance(core_coverage, (int, float)) and core_coverage >= 1.0
+    has_servable_core_coverage = isinstance(core_coverage, (int, float)) and core_coverage >= 0.6
     has_renderable_mode = quality.get('displayMode') != 'collecting'
     has_news = (manifest.get('okNewsCount') or 0) > 0
     return {
-        'ok': manifest.get('snapshotStatus') in {'ok', 'partial'} and has_full_core_coverage and has_renderable_mode and has_news,
+        'ok': manifest.get('snapshotStatus') in {'ok', 'partial'} and has_servable_core_coverage and has_renderable_mode and has_news,
         'generatedAt': manifest.get('generatedAt'),
         'snapshotStatus': manifest.get('snapshotStatus'),
         'okSignalCount': len(manifest.get('okSignals') or []),

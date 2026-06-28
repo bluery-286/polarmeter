@@ -56,9 +56,11 @@ def public_payload_is_publishable(output_dir: Path) -> bool:
     except Exception:
         return False
     data_quality = snapshot.get('dataQuality') or {}
+    core_coverage = data_quality.get('coreCoverageRatio')
     return (
         health.get('ok') is True
-        and data_quality.get('coreCoverageRatio') == 1.0
+        and isinstance(core_coverage, (int, float))
+        and core_coverage >= 0.6
         and data_quality.get('displayMode') != 'collecting'
         and len((snapshot.get('news') or {}).get('items') or []) > 0
     )
@@ -126,8 +128,9 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
     if summary.get('snapshotStatus') not in {'ok', 'partial'}:
         raise AssertionError(f"unexpected snapshot status for pages payload: {summary.get('snapshotStatus')}")
     data_quality = snapshot.get('dataQuality') or {}
-    if data_quality.get('coreCoverageRatio') != 1.0:
-        raise AssertionError(f"public snapshot must keep full core coverage, got {data_quality.get('coreCoverageRatio')}")
+    core_coverage = data_quality.get('coreCoverageRatio')
+    if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:
+        raise AssertionError(f"public snapshot must keep renderable core coverage, got {core_coverage}")
     if data_quality.get('displayMode') == 'collecting':
         raise AssertionError('public snapshot must not publish collecting mode')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):

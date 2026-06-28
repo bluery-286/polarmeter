@@ -21,6 +21,11 @@ DEFAULT_NEWS_PROBE = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
 NEWS_SNAPSHOT_MAX_ITEMS = 18
+MAX_STALE_SIGNAL_AGE_HOURS = {
+    # VIX is a fast-moving risk signal. If free providers are blocked for days,
+    # showing an old number is worse than clearly marking it unavailable.
+    'vix': 72,
+}
 
 CORE_SIGNALS = {'kospi', 'usd_krw', 'sp500', 'vix', 'wti'}
 CORE_GROUPS = {
@@ -66,6 +71,35 @@ def normalized_as_of(value: Any) -> str:
     if value:
         return str(value)
     return utc_now()
+
+
+def parse_utc_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, timezone.utc)
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def stale_signal_age_hours(signal: dict[str, Any]) -> float | None:
+    data_as_of = parse_utc_datetime(signal.get('dataAsOf') or signal.get('lastSuccessfulAt') or signal.get('fetchedAt'))
+    if not data_as_of:
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - data_as_of).total_seconds() / 3600)
+
+
+def stale_signal_is_too_old(key: str, signal: dict[str, Any]) -> bool:
+    max_hours = MAX_STALE_SIGNAL_AGE_HOURS.get(key)
+    if max_hours is None:
+        return False
+    age_hours = stale_signal_age_hours(signal)
+    return age_hours is None or age_hours > max_hours
 
 
 def kr_index_display_badge(value: Any) -> str:
@@ -244,6 +278,8 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
     previous = last_good.get(key)
     if not isinstance(previous, dict) or previous.get('value') in (None, ''):
         return None
+    if stale_signal_is_too_old(key, previous):
+        return None
     previous_quality, previous_reason = validate_candidate(key, {
         'status': 'ok',
         'price': previous.get('value'),
@@ -262,6 +298,8 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
         'qualityReason': reason if previous_quality == 'ok' else previous_reason,
         'reliability': signal_reliability(key, previous.get('provider') or 'free-cache', 'stale', reason),
         'staleSource': 'last_known_good',
+        'staleAgeHours': stale_signal_age_hours(previous),
+        'maxStaleAgeHours': MAX_STALE_SIGNAL_AGE_HOURS.get(key),
         'fetchedAt': utc_now(),
         'ttlMinutes': previous.get('ttlMinutes') or 360,
     })

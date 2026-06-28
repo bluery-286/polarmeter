@@ -41,8 +41,9 @@ def main() -> int:
         if snapshot.get('paidProviderEnabled') is not False or snapshot.get('clientDirectProviderCalls') is not False:
             raise AssertionError('snapshot policy fields must be false')
         data_quality = snapshot.get('dataQuality') or {}
-        if data_quality.get('coreCoverageRatio') != 1.0:
-            raise AssertionError(f"pages snapshot must keep full core coverage, got {data_quality.get('coreCoverageRatio')}")
+        core_coverage = data_quality.get('coreCoverageRatio')
+        if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:
+            raise AssertionError(f"pages snapshot must keep renderable core coverage, got {core_coverage}")
         if data_quality.get('displayMode') == 'collecting':
             raise AssertionError('pages snapshot must not publish collecting mode')
         news = snapshot.get('news') or {}
