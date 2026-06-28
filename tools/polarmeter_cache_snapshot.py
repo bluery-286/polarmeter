@@ -20,7 +20,7 @@ DEFAULT_OUTPUT = PROJECT / 'testflight/free-cache-snapshot-latest.json'
 DEFAULT_NEWS_PROBE = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
-NEWS_SNAPSHOT_MAX_ITEMS = 18
+NEWS_SNAPSHOT_MAX_ITEMS = 30
 MAX_STALE_SIGNAL_AGE_HOURS = {
     # VIX is a fast-moving risk signal. If free providers are blocked for days,
     # showing an old number is worse than clearly marking it unavailable.
