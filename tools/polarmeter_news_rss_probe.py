@@ -199,7 +199,7 @@ LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS = [
 
 LOCAL_SEMICONDUCTOR_POLICY_NOISE_PATTERNS = [
     re.compile(r'(노조|노노\s*갈등|탈퇴|임단협|쟁의|노사\s*갈등).{0,40}(삼성|하이닉스|반도체)|(삼성|하이닉스|반도체).{0,40}(노조|노노\s*갈등|탈퇴|임단협|쟁의|노사\s*갈등)', re.I),
-    re.compile(r'(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|예산\s*축소).{0,48}(반도체|소부장)|(반도체|소부장).{0,48}(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|예산\s*축소)', re.I),
+    re.compile(r'(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소).{0,48}(반도체|소부장)|(반도체|소부장).{0,48}(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소)', re.I),
 ]
 
 LOCAL_SEMICONDUCTOR_POLICY_MARKET_OVERRIDE_PATTERNS = [
@@ -830,6 +830,48 @@ def koreanize_english_headline(headline: str) -> str | None:
     return translated
 
 
+def cause_aware_display_headline(headline: str, display_headline: str | None) -> str | None:
+    """Return a user-facing headline that names the market-temperature signal.
+
+    The cache only stores public headline metadata, so this function does not
+    infer article-body facts. It rewrites obvious headline-level signals into
+    a clearer "why this matters" sentence while preserving the original
+    headline separately.
+    """
+    visible = (display_headline or headline or '').strip()
+    raw = ' '.join(part for part in [headline, visible] if part).strip()
+    if not raw:
+        return visible or None
+
+    has_fx = re.search(r'(환율|원[·\s/-]?달러|달러[·\s/-]?원|고환율|usd/krw)', raw, re.I)
+    has_high_fx = re.search(r'(15\d{2}|1,5\d{2}|1천\s*5백|1,600|1600|고환율)', raw, re.I)
+    fx_falling = re.search(r'(↓|하락|내림|낮아|떨어|0\.\d+%↓|lower|falls?|drops?)', raw, re.I)
+    if has_fx and has_high_fx:
+        if fx_falling:
+            return '환율은 내려도 1,500원대라 국내시장 부담'
+        return '환율 1,500원대는 국내시장 부담'
+    if has_fx and explicit_fx_relief_signal(raw):
+        return '환율 하락은 한국장 수급 부담을 덜 수 있음'
+
+    if re.search(r'(이란|중동|iran|middle\s*east).{0,32}(무력\s*공방|공습|충돌|긴장|불안|살얼음판)|(무력\s*공방|공습|충돌|긴장|불안|살얼음판).{0,32}(이란|중동|iran|middle\s*east)', raw, re.I):
+        if re.search(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|증시|지수|시장)', raw, re.I):
+            return '중동 긴장은 지수 변동성 부담으로 이어질 수 있음'
+
+    has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil|석유)', raw, re.I)
+    has_food_or_inflation = re.search(r'(먹거리|물가|인플레이션|비용|cpi|pce)', raw, re.I)
+    if has_oil and (oil_relief_signal(raw) or re.search(r'(유가|원유|브렌트|wti|crude|oil|석유).{0,24}(내렸|내려|내리|하락|낮아)', raw, re.I)):
+        if has_food_or_inflation and re.search(r'(쑥|상승|높|고점|부담|3\.\d+%)', raw, re.I):
+            return '유가는 내려도 물가 부담은 아직 남아 있음'
+        return '유가 하락은 물가·비용 부담 완화 신호'
+    if has_oil and oil_burden_signal(raw):
+        return '유가 상승은 물가·비용 부담을 키울 수 있음'
+
+    if re.search(r'(반도체).{0,32}(1천조|1000조|투자\s*공개|투자\s*계획|대규모\s*투자)', raw, re.I):
+        return '반도체 대규모 투자 계획은 한국 성장주 참고 신호'
+
+    return visible or None
+
+
 def split_google_news_source(title: str, fallback_source: str) -> tuple[str, str]:
     if ' - ' not in title:
         return title, fallback_source
@@ -1077,6 +1119,8 @@ def dampened_burden_signal(text: str) -> bool:
 
 
 def inflation_stress_signal(text: str) -> bool:
+    if re.search(r'(물가|인플레이션|비용|inflation).{0,24}(부담|압력|고점|상승|높|쑥|stress|pressure)', text, re.I):
+        return True
     return bool(re.search(
         r'(pce|cpi|물가|인플레이션|inflation).{0,48}('
         r'\d+(?:\.\d+)?%?\s*(?:↑|\+)|상승|급등|높|고공|고점|최고(?:치|가)?|가속|'
@@ -1318,16 +1362,21 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if not relevance:
                 filtered_reasons[reason] = filtered_reasons.get(reason, 0) + 1
                 continue
-            display_headline = koreanize_english_headline(headline)
-            if not has_korean(headline) and not display_headline:
+            translated_headline = koreanize_english_headline(headline)
+            if has_korean(headline):
+                display_headline = cause_aware_display_headline(headline, headline)
+            else:
+                display_headline = translated_headline
+            if not has_korean(headline) and not translated_headline:
                 filtered_reasons['UNTRANSLATED_ENGLISH_HEADLINE'] = filtered_reasons.get('UNTRANSLATED_ENGLISH_HEADLINE', 0) + 1
                 continue
-            translated_from_english = bool(display_headline and not has_korean(headline))
+            translated_from_english = bool(translated_headline and not has_korean(headline))
             final_impact_tone = market_burden_tone(display_headline or headline, relevance['impactTone'])
+            original_headline = headline if (translated_from_english or (display_headline and display_headline != headline)) else None
             out.append({
                 'headline': headline,
                 'displayHeadline': display_headline or headline,
-                'originalHeadline': headline if display_headline else None,
+                'originalHeadline': original_headline,
                 'language': 'en' if translated_from_english else 'ko',
                 'translationNote': '해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.' if translated_from_english else None,
                 'sourceName': item.get('sourceName') or result.get('label') or 'RSS',
