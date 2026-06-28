@@ -1353,6 +1353,7 @@ def categorize(headline: str) -> tuple[str, str, list[str]]:
 def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
+    seen_display_headlines: set[str] = set()
     filtered_reasons: dict[str, int] = {}
     for result in feed_results:
         for item in result.get('items', []):
@@ -1376,6 +1377,11 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 continue
             translated_from_english = bool(translated_headline and not has_korean(headline))
             final_impact_tone = market_burden_tone(display_headline or headline, relevance['impactTone'])
+            display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
+            if display_key in seen_display_headlines:
+                filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
+                continue
+            seen_display_headlines.add(display_key)
             original_headline = headline if (translated_from_english or (display_headline and display_headline != headline)) else None
             out.append({
                 'headline': headline,
