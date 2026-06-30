@@ -15,6 +15,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -98,16 +99,21 @@ def seed_last_known_good_from_site(site_dir: Path, output_path: Path) -> bool:
 
 
 def run_worker(output_dir: Path, last_known_good: Path) -> dict[str, Any]:
-    cmd = [
-        sys.executable,
-        str(TOOLS / 'polarmeter_free_cache_worker.py'),
-        '--public-dir', str(output_dir),
-        '--last-known-good', str(last_known_good),
-        '--skip-fixture',
-        '--json',
-    ]
-    result = subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
-    return json.loads(result.stdout)
+    with tempfile.TemporaryDirectory(prefix='polarmeter-pages-worker-') as tmp:
+        tmp_path = Path(tmp)
+        cmd = [
+            sys.executable,
+            str(TOOLS / 'polarmeter_free_cache_worker.py'),
+            '--report', str(tmp_path / 'free-provider-probe-report.json'),
+            '--news-report', str(tmp_path / 'news-rss-probe-report.json'),
+            '--snapshot', str(tmp_path / 'free-cache-snapshot.json'),
+            '--public-dir', str(output_dir),
+            '--last-known-good', str(last_known_good),
+            '--skip-fixture',
+            '--json',
+        ]
+        result = subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
+        return json.loads(result.stdout)
 
 
 def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
@@ -127,6 +133,8 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('health.json must be ok for current Pages payload')
     if summary.get('snapshotStatus') not in {'ok', 'partial'}:
         raise AssertionError(f"unexpected snapshot status for pages payload: {summary.get('snapshotStatus')}")
+    if summary.get('freshnessAudit') != 'passed':
+        raise AssertionError('pages worker summary must prove data freshness audit passed')
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:
@@ -137,6 +145,64 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
         raise AssertionError('manifest news schedule metadata mismatch')
+    if manifest.get('marketDataRecommendedSchedule') != 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations':
+        raise AssertionError('manifest market data schedule metadata mismatch')
+    critical_refreshes = manifest.get('criticalMarketRefreshes')
+    if not isinstance(critical_refreshes, list) or len(critical_refreshes) < 8:
+        raise AssertionError('manifest must expose KR/US open-close critical refresh points')
+    required_refresh_keys = {
+        'kr_open_plus_30', 'kr_open_plus_60', 'kr_close_plus_15', 'kr_close_plus_60',
+        'us_open_plus_30', 'us_open_plus_60', 'us_close_plus_15', 'us_close_plus_60',
+    }
+    actual_refresh_keys = {item.get('key') for item in critical_refreshes if isinstance(item, dict)}
+    missing_refresh_keys = required_refresh_keys - actual_refresh_keys
+    if missing_refresh_keys:
+        raise AssertionError(f'manifest missing critical refresh keys: {sorted(missing_refresh_keys)}')
+    refresh_policy = manifest.get('refreshPolicy') or {}
+    if refresh_policy.get('version') != 'market-aware-cache-refresh-v1':
+        raise AssertionError('manifest must expose market-aware refresh policy version')
+    if manifest.get('dataServingMode') not in {'normal', 'limited', 'fallback'}:
+        raise AssertionError('manifest must expose dataServingMode')
+    if 'lastSuccessfulSnapshotAt' not in manifest:
+        raise AssertionError('manifest must expose lastSuccessfulSnapshotAt')
+    retired_signals = {'kodex200', 'tiger200'}
+    leaked_retired = retired_signals.intersection(snapshot.get('signals') or {})
+    if leaked_retired:
+        raise AssertionError(f'public snapshot leaked retired domestic ETF proxy signals: {sorted(leaked_retired)}')
+    for key, signal in (snapshot.get('signals') or {}).items():
+        if not isinstance(signal, dict) or signal.get('valuePolicy') != 'show':
+            continue
+        if not isinstance(signal.get('dataAgeHours'), (int, float)):
+            raise AssertionError(f'public snapshot showable signal missing dataAgeHours: {key}')
+        if not isinstance(signal.get('freshnessRank'), int):
+            raise AssertionError(f'public snapshot showable signal missing freshnessRank: {key}')
+    for key in ['providerCallCount', 'providerFailureCount']:
+        if not isinstance(manifest.get(key), int):
+            raise AssertionError(f'manifest must expose integer {key}')
+    if not isinstance(manifest.get('providerStatusByName'), dict):
+        raise AssertionError('manifest must expose providerStatusByName')
+    for key in ['estimatedMonthlyCost', 'budgetLimit', 'killSwitchStatus', 'costGuardrails']:
+        if not isinstance(manifest.get(key), dict):
+            raise AssertionError(f'manifest must expose {key}')
+    for key in ['budgetCapConfigured', 'commercialUseChecked', 'killSwitchActive']:
+        if not isinstance(manifest.get(key), bool):
+            raise AssertionError(f'manifest must expose boolean {key}')
+    budget_limit = manifest.get('budgetLimit') or {}
+    if manifest.get('budgetCapConfigured') is not True or budget_limit.get('monthlyLimit') != 50 or budget_limit.get('warningLimit') != 20:
+        raise AssertionError('manifest must expose configured beta budget cap 20/50 USD')
+    cost_guardrails = manifest.get('costGuardrails') or {}
+    if cost_guardrails.get('commercialUseChecked') is not False:
+        raise AssertionError('commercialUseChecked must stay false until provider terms are manually verified')
+    snapshot_guardrails = snapshot.get('costGuardrails') or {}
+    if (snapshot_guardrails.get('killSwitchStatus') or {}).get('rapidMoveBriefingGeneration') not in {'ready', 'off_by_kill_switch'}:
+        raise AssertionError('snapshot must expose rapid move briefing kill-switch status')
+    for key in ['dataServingMode', 'providerCallCount', 'providerFailureCount', 'estimatedMonthlyCost', 'budgetLimit', 'killSwitchActive', 'killSwitchStatus']:
+        if key not in health:
+            raise AssertionError(f'health must expose {key}')
+    if health.get('marketDataRecommendedSchedule') != manifest.get('marketDataRecommendedSchedule'):
+        raise AssertionError('health must expose market data refresh schedule')
+    if len(health.get('criticalMarketRefreshes') or []) < 8:
+        raise AssertionError('health must expose critical market refresh points')
 
 
 def main() -> int:
@@ -164,6 +230,7 @@ def main() -> int:
         'snapshotStatus': summary.get('snapshotStatus'),
         'okSignals': summary.get('okSignals'),
         'okNewsCount': summary.get('okNewsCount'),
+        'freshnessAudit': summary.get('freshnessAudit'),
         'usedExistingPublicSnapshot': summary.get('usedExistingPublicSnapshot') is True,
         'seededLastKnownGoodFromSite': seeded_last_known_good,
         'publicUrls': {

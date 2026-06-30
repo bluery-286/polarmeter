@@ -25,6 +25,8 @@ def main() -> int:
         summary = json.loads(result.stdout)
         if not summary.get('ok'):
             raise AssertionError('pages prepare summary not ok')
+        if summary.get('freshnessAudit') != 'passed':
+            raise AssertionError('pages prepare summary must prove data freshness audit passed')
         required = ['index.html', 'privacy.html', 'terms.html', 'support.html', 'styles.css', '.nojekyll', 'market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
         for name in required:
             if not (out / name).exists():
@@ -46,6 +48,17 @@ def main() -> int:
             raise AssertionError(f"pages snapshot must keep renderable core coverage, got {core_coverage}")
         if data_quality.get('displayMode') == 'collecting':
             raise AssertionError('pages snapshot must not publish collecting mode')
+        retired_signals = {'kodex200', 'tiger200'}
+        leaked_retired = retired_signals.intersection(snapshot.get('signals') or {})
+        if leaked_retired:
+            raise AssertionError(f'pages snapshot leaked retired domestic ETF proxy signals: {sorted(leaked_retired)}')
+        for key, signal in (snapshot.get('signals') or {}).items():
+            if not isinstance(signal, dict) or signal.get('valuePolicy') != 'show':
+                continue
+            if not isinstance(signal.get('dataAgeHours'), (int, float)):
+                raise AssertionError(f'pages snapshot showable signal missing dataAgeHours: {key}')
+            if not isinstance(signal.get('freshnessRank'), int):
+                raise AssertionError(f'pages snapshot showable signal missing freshnessRank: {key}')
         news = snapshot.get('news') or {}
         if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
             raise AssertionError('cached news policy fields must be false')
@@ -64,8 +77,22 @@ def main() -> int:
             raise AssertionError('manifest must expose cached news TTL metadata')
         if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
             raise AssertionError('manifest news schedule metadata mismatch')
+        if manifest.get('marketDataRecommendedSchedule') != 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations':
+            raise AssertionError('manifest market data schedule metadata mismatch')
+        critical_refreshes = manifest.get('criticalMarketRefreshes')
+        if not isinstance(critical_refreshes, list) or len(critical_refreshes) < 8:
+            raise AssertionError('manifest must expose KR/US open-close critical refreshes')
+        required_refresh_keys = {
+            'kr_open_plus_30', 'kr_open_plus_60', 'kr_close_plus_15', 'kr_close_plus_60',
+            'us_open_plus_30', 'us_open_plus_60', 'us_close_plus_15', 'us_close_plus_60',
+        }
+        actual_refresh_keys = {item.get('key') for item in critical_refreshes if isinstance(item, dict)}
+        if required_refresh_keys - actual_refresh_keys:
+            raise AssertionError(f'manifest missing critical refresh keys: {sorted(required_refresh_keys - actual_refresh_keys)}')
         if not isinstance(news.get('ttlMinutes'), int) or not news.get('nextRefreshAt'):
             raise AssertionError('snapshot news must expose TTL metadata')
+        if (snapshot.get('refreshPolicy') or {}).get('version') != 'market-aware-cache-refresh-v1':
+            raise AssertionError('snapshot must expose market-aware refresh policy')
         if manifest.get('dataServingMode') not in {'normal', 'limited', 'fallback'}:
             raise AssertionError('manifest must expose dataServingMode')
         if 'lastSuccessfulSnapshotAt' not in manifest:
@@ -94,6 +121,8 @@ def main() -> int:
         for key in ['dataServingMode', 'providerCallCount', 'providerFailureCount', 'estimatedMonthlyCost', 'budgetLimit', 'killSwitchActive', 'killSwitchStatus']:
             if key not in health:
                 raise AssertionError(f'health must expose {key}')
+        if health.get('marketDataRecommendedSchedule') != manifest.get('marketDataRecommendedSchedule'):
+            raise AssertionError('health must expose market data refresh schedule')
     print('PolarMeter GitHub Pages smoke: PASS')
     return 0
 

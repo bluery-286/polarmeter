@@ -23,6 +23,7 @@ from typing import Any
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
 TOOLS = WORKSPACE / 'tools'
+APP_TOOLS = WORKSPACE / 'tools'
 DEFAULT_REPORT = PROJECT / 'testflight/free-provider-probe-report-latest.json'
 DEFAULT_NEWS_REPORT = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_SNAPSHOT = PROJECT / 'testflight/free-cache-snapshot-latest.json'
@@ -34,6 +35,73 @@ DEFAULT_PUBLIC_HEALTH_NAME = 'health.json'
 WEEKDAY_NEWS_TTL_MINUTES = 30
 WEEKEND_NEWS_TTL_MINUTES = 60
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
+MARKET_DATA_RECOMMENDED_SCHEDULE = 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations'
+CRITICAL_MARKET_REFRESHES = [
+    {
+        'key': 'kr_open_plus_30',
+        'market': 'KR',
+        'label': '국내장 개장 후 30분 확인',
+        'localTime': '09:30 KST',
+        'utcCron': '30 0 * * 1-5',
+        'reason': '개장 직후 왜곡을 피하고, 첫 체결 흐름이 잡힌 뒤 국내 지수·환율을 확인합니다.',
+    },
+    {
+        'key': 'kr_open_plus_60',
+        'market': 'KR',
+        'label': '국내장 개장 후 1시간 확인',
+        'localTime': '10:00 KST',
+        'utcCron': '0 1 * * 1-5',
+        'reason': '초반 수급이 진정된 뒤 국내 온도와 원/달러 부담을 다시 확인합니다.',
+    },
+    {
+        'key': 'kr_close_plus_15',
+        'market': 'KR',
+        'label': '국내장 마감 직후 확인',
+        'localTime': '15:45 KST',
+        'utcCron': '45 6 * * 1-5',
+        'reason': '마감 직후 국내 지수 방향과 환율 부담을 장중값이 아닌 마감 근처 기준으로 갱신합니다.',
+    },
+    {
+        'key': 'kr_close_plus_60',
+        'market': 'KR',
+        'label': '국내장 마감 확정 확인',
+        'localTime': '16:30 KST',
+        'utcCron': '30 7 * * 1-5',
+        'reason': '지연 제공처의 종가 반영 시간을 감안해 국내 종가 기준 스냅샷을 다시 만듭니다.',
+    },
+    {
+        'key': 'us_open_plus_30',
+        'market': 'US',
+        'label': '미장 개장 후 30분 확인',
+        'localTime': '09:30 ET + 30m',
+        'utcCron': '0 14,15 * * 1-5',
+        'reason': '미국 정규장 초반 지수·VIX·금리 방향을 확인합니다. DST와 표준시간을 모두 커버합니다.',
+    },
+    {
+        'key': 'us_open_plus_60',
+        'market': 'US',
+        'label': '미장 개장 후 1시간 확인',
+        'localTime': '09:30 ET + 60m',
+        'utcCron': '30 14,15 * * 1-5',
+        'reason': '초반 변동이 지나간 뒤 미국 온도와 한국장 연결 신호를 다시 계산합니다.',
+    },
+    {
+        'key': 'us_close_plus_15',
+        'market': 'US',
+        'label': '미장 마감 직후 확인',
+        'localTime': '16:00 ET + 15m',
+        'utcCron': '15 20,21 * * 1-5',
+        'reason': '미국 마감 방향과 VIX 반응을 가장 먼저 반영합니다. DST와 표준시간을 모두 커버합니다.',
+    },
+    {
+        'key': 'us_close_plus_60',
+        'market': 'US',
+        'label': '미장 마감 확정 확인',
+        'localTime': '16:00 ET + 60m',
+        'utcCron': '0 21,22 * * 1-5',
+        'reason': '지연 시세와 마감 데이터 반영을 감안해 미국 종가 기준 스냅샷을 다시 만듭니다.',
+    },
+]
 BETA_MONTHLY_COST_LIMIT_USD = 50
 BETA_MONTHLY_COST_WARNING_USD = 20
 
@@ -79,6 +147,16 @@ def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.Comple
     return subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
 
 
+def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
+    """Fail the worker before fixture/public publishing when selected data is stale."""
+    run([
+        sys.executable,
+        str(APP_TOOLS / 'polarmeter_data_freshness_audit.py'),
+        str(snapshot_path),
+        str(report_path),
+    ])
+
+
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding='utf-8'))
 
@@ -95,6 +173,23 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 def recommended_news_ttl_minutes(now: datetime | None = None) -> int:
     current = now or datetime.now(timezone.utc)
     return WEEKEND_NEWS_TTL_MINUTES if current.weekday() >= 5 else WEEKDAY_NEWS_TTL_MINUTES
+
+
+def public_refresh_policy() -> dict[str, Any]:
+    return {
+        'version': 'market-aware-cache-refresh-v1',
+        'marketDataRecommendedSchedule': MARKET_DATA_RECOMMENDED_SCHEDULE,
+        'newsRecommendedSchedule': NEWS_RECOMMENDED_SCHEDULE,
+        'baseCadence': {
+            'weekdays': '30분',
+            'weekends': '60분',
+        },
+        'criticalMarketRefreshes': CRITICAL_MARKET_REFRESHES,
+        'notes': [
+            '정기 30분 주기에 더해 국내장/미장 개장 후와 마감 후 확인 스냅샷을 중요 갱신점으로 둡니다.',
+            '무료/지연 제공처가 아직 새 값을 주지 않으면 추정으로 채우지 않고 dataAsOf와 freshness 상태를 표시합니다.',
+        ],
+    }
 
 
 def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: dict[str, Any]) -> None:
@@ -114,7 +209,7 @@ def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: d
     if not isinstance(quality.get('coreCoverageRatio'), (int, float)):
         raise AssertionError('snapshot dataQuality must include coreCoverageRatio')
 
-    required = {'sp500', 'nasdaq100', 'vix', 'usd_krw', 'wti', 'soxx', 'smh', 'kospi', 'kosdaq', 'kodex200', 'tiger200'}
+    required = {'sp500', 'nasdaq100', 'vix', 'usd_krw', 'wti', 'soxx', 'smh', 'kospi', 'kosdaq'}
     missing = required - set(snapshot.get('signals', {}).keys())
     if missing:
         raise AssertionError(f'missing required snapshot signals: {sorted(missing)}')
@@ -122,10 +217,16 @@ def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: d
     for screen_key, screen in fixture.items():
         if not isinstance(screen, dict):
             continue
-        if screen.get('source') != 'cached':
-            raise AssertionError(f'{screen_key} source must be cached')
-        if screen.get('badge') != 'delayed':
-            raise AssertionError(f'{screen_key} badge must be delayed')
+        if screen_key == 'archive':
+            if screen.get('source') != 'runtime':
+                raise AssertionError('archive source must be runtime for local-only records')
+            if screen.get('badge') != '복기 준비 중':
+                raise AssertionError('archive badge must keep local-record collecting state')
+        else:
+            if screen.get('source') != 'cached':
+                raise AssertionError(f'{screen_key} source must be cached')
+            if screen.get('badge') != 'delayed':
+                raise AssertionError(f'{screen_key} badge must be delayed')
         policy = screen.get('_cachePolicy') or {}
         if policy.get('paidProviderEnabled') is not False:
             raise AssertionError(f'{screen_key} paid provider policy must be false')
@@ -208,6 +309,8 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
     news = snapshot.get('news') or {}
     provider_metrics = snapshot.get('providerMetrics') or {}
     cost_guardrails = public_cost_guardrails()
+    data_quality = sanitize_public_data_quality(snapshot.get('dataQuality') or {})
+    refresh_policy = public_refresh_policy()
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
@@ -222,12 +325,15 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'newsTtlMinutes': news.get('ttlMinutes') or recommended_news_ttl_minutes(),
         'newsNextRefreshAt': news.get('nextRefreshAt'),
         'newsRecommendedSchedule': news.get('recommendedSchedule') or NEWS_RECOMMENDED_SCHEDULE,
-        'dataQuality': snapshot.get('dataQuality') or {},
+        'marketDataRecommendedSchedule': MARKET_DATA_RECOMMENDED_SCHEDULE,
+        'criticalMarketRefreshes': CRITICAL_MARKET_REFRESHES,
+        'refreshPolicy': refresh_policy,
+        'dataQuality': data_quality,
         'dataServingMode': data_serving_mode(snapshot),
         'lastSuccessfulSnapshotAt': snapshot.get('generatedAt') if snapshot.get('status') in {'ok', 'partial'} else None,
         'providerCallCount': provider_metrics.get('providerCallCount', 0),
         'providerFailureCount': provider_metrics.get('providerFailureCount', 0),
-        'providerStatusByName': provider_metrics.get('providerStatusByName') or {},
+        'providerStatusByName': sanitize_public_provider_status_by_name(provider_metrics.get('providerStatusByName') or {}),
         'estimatedMonthlyCost': cost_guardrails['estimatedMonthlyCost'],
         'budgetLimit': cost_guardrails['budgetLimit'],
         'budgetCapConfigured': cost_guardrails['budgetCapConfigured'],
@@ -261,13 +367,16 @@ def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
         'lastSuccessfulSnapshotAt': manifest.get('lastSuccessfulSnapshotAt'),
         'providerCallCount': manifest.get('providerCallCount') or 0,
         'providerFailureCount': manifest.get('providerFailureCount') or 0,
-        'providerStatusByName': manifest.get('providerStatusByName') or {},
+        'providerStatusByName': sanitize_public_provider_status_by_name(manifest.get('providerStatusByName') or {}),
         'estimatedMonthlyCost': manifest.get('estimatedMonthlyCost') or {},
         'budgetLimit': manifest.get('budgetLimit') or {},
         'budgetCapConfigured': manifest.get('budgetCapConfigured') is True,
         'commercialUseChecked': manifest.get('commercialUseChecked') is True,
         'killSwitchActive': manifest.get('killSwitchActive') is True,
         'killSwitchStatus': manifest.get('killSwitchStatus') or {},
+        'marketDataRecommendedSchedule': manifest.get('marketDataRecommendedSchedule'),
+        'criticalMarketRefreshes': manifest.get('criticalMarketRefreshes') or [],
+        'refreshPolicy': manifest.get('refreshPolicy') or {},
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
     }
@@ -283,7 +392,8 @@ def sanitize_public_signal(signal: dict[str, Any]) -> dict[str, Any]:
     allowed = {
         'key', 'label', 'value', 'change', 'changePct', 'status', 'freshnessStatus',
         'provider', 'sourceId', 'fetchedAt', 'dataAsOf', 'ttlMinutes', 'valuePolicy',
-        'licenseNote', 'coreSignal', 'qualityStatus', 'reliability', 'lastSuccessfulAt',
+        'licenseNote', 'coreSignal', 'qualityStatus', 'dataAgeHours', 'freshnessRank',
+        'reliability', 'lastSuccessfulAt',
         'staleSource',
     }
     return {key: value for key, value in signal.items() if key in allowed}
@@ -324,6 +434,18 @@ def sanitize_public_data_quality(data_quality: dict[str, Any]) -> dict[str, Any]
     return {key: value for key, value in data_quality.items() if key in allowed}
 
 
+def sanitize_public_provider_status_by_name(status_by_name: dict[str, Any]) -> dict[str, str]:
+    safe: dict[str, str] = {}
+    for key, value in status_by_name.items():
+        status = str(value or 'unavailable')
+        if status in {'missing_key', 'missing_secret', 'needs_key'}:
+            status = 'unavailable'
+        elif status not in {'ok', 'partial', 'unavailable'}:
+            status = 'unavailable'
+        safe[str(key)] = status
+    return safe
+
+
 def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
@@ -332,6 +454,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
         'costGuardrails': public_cost_guardrails(),
+        'refreshPolicy': public_refresh_policy(),
         'defaultTtlMinutes': snapshot.get('defaultTtlMinutes') or 30,
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
         'signals': {
@@ -343,8 +466,8 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def assert_public_payload_safe(snapshot: dict[str, Any]) -> None:
-    raw = json.dumps(snapshot, ensure_ascii=False).lower()
+def assert_public_payload_safe(*payloads: dict[str, Any]) -> None:
+    raw = '\n'.join(json.dumps(payload, ensure_ascii=False).lower() for payload in payloads)
     forbidden_tokens = [
         'api_key', 'apikey=', 'servicekey=', 'service_key', 'secret',
         'twelve_data_api_key', 'fmp_api_key', 'data_go_kr_service_key',
@@ -354,10 +477,11 @@ def assert_public_payload_safe(snapshot: dict[str, Any]) -> None:
     leaked = [token for token in forbidden_tokens if token in raw]
     if leaked:
         raise AssertionError(f'public snapshot leaked internal token(s): {leaked}')
-    news = snapshot.get('news') or {}
-    for item in news.get('items') or []:
-        if item.get('body') or item.get('imageUrl') or item.get('description'):
-            raise AssertionError('public news item must not expose body/image/description fields')
+    for payload in payloads:
+        news = payload.get('news') or {}
+        for item in news.get('items') or []:
+            if item.get('body') or item.get('imageUrl') or item.get('description'):
+                raise AssertionError('public news item must not expose body/image/description fields')
 
 
 def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapshot_name: str) -> dict[str, str]:
@@ -365,11 +489,12 @@ def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapsho
     manifest_path = public_dir / DEFAULT_PUBLIC_MANIFEST_NAME
     health_path = public_dir / DEFAULT_PUBLIC_HEALTH_NAME
     public_snapshot = sanitize_public_snapshot(snapshot)
-    assert_public_payload_safe(public_snapshot)
     manifest = public_manifest(snapshot, snapshot_name)
+    health = public_health(manifest)
+    assert_public_payload_safe(public_snapshot, manifest, health)
     atomic_write_json(snapshot_path, public_snapshot)
     atomic_write_json(manifest_path, manifest)
-    atomic_write_json(health_path, public_health(manifest))
+    atomic_write_json(health_path, health)
     return {
         'snapshot': str(snapshot_path),
         'manifest': str(manifest_path),
@@ -394,6 +519,7 @@ def main() -> int:
     news_ttl_minutes = recommended_news_ttl_minutes()
     run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report), '--ttl-minutes', str(news_ttl_minutes)])
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
+    run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:
         run([sys.executable, str(TOOLS / 'polarmeter_free_cache_fixture.py'), '--snapshot', str(args.snapshot), '--output', str(args.fixture)])
 
@@ -418,6 +544,7 @@ def main() -> int:
         'coreCoverageRatio': (snapshot.get('dataQuality') or {}).get('coreCoverageRatio'),
         'displayMode': (snapshot.get('dataQuality') or {}).get('displayMode'),
         'okNewsCount': len((snapshot.get('news') or {}).get('items') or []),
+        'freshnessAudit': 'passed',
         'publicArtifacts': public_artifacts,
     }
     if args.json:

@@ -34,8 +34,6 @@ REQUIRED_SIGNALS = [
     {'key': 'kr_samsung', 'label': '삼성전자', 'providerSymbol': {'data_go_kr': '005930'}, 'category': 'kr_proxy'},
     {'key': 'kospi', 'label': 'KOSPI', 'providerSymbol': {'yahoo_chart': '^KS11', 'data_go_kr_index': '코스피'}, 'category': 'kr_index'},
     {'key': 'kosdaq', 'label': 'KOSDAQ', 'providerSymbol': {'yahoo_chart': '^KQ11', 'data_go_kr_index': '코스닥'}, 'category': 'kr_index'},
-    {'key': 'kodex200', 'label': 'KODEX 200', 'providerSymbol': {'data_go_kr_etf': '069500'}, 'category': 'kr_etf_proxy'},
-    {'key': 'tiger200', 'label': 'TIGER 200', 'providerSymbol': {'data_go_kr_etf': '102110'}, 'category': 'kr_etf_proxy'},
 ]
 
 
@@ -403,7 +401,6 @@ def build_report() -> dict[str, Any]:
         fmp_probe(secret_or_env('FMP_API_KEY')),
         data_go_kr_probe(secret_or_env('DATA_GO_KR_SERVICE_KEY')),
         data_go_kr_index_probe(secret_or_env('DATA_GO_KR_SERVICE_KEY')),
-        data_go_kr_etf_probe(secret_or_env('DATA_GO_KR_SERVICE_KEY')),
     ]
     return {
         'mode': 'free_provider_probe',

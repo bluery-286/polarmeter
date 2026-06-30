@@ -43,9 +43,6 @@ SANITY_RANGES = {
     # 2026 POC cross-check: KOSPI genuinely trades in the 7,000~8,000 range.
     'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 7.0, 'rejectAbsChangePct': 10.0, 'requiresChangePct': True},
     'kosdaq': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 10.0, 'requiresChangePct': True},
-    # 2026 POC cross-check: KODEX/TIGER 200 ETF prices can trade above 120,000 KRW.
-    'kodex200': {'minPrice': 20000, 'maxPrice': 200000, 'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 8.0, 'requiresChangePct': True},
-    'tiger200': {'minPrice': 20000, 'maxPrice': 200000, 'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 8.0, 'requiresChangePct': True},
     'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
@@ -77,6 +74,9 @@ def parse_utc_datetime(value: Any) -> datetime | None:
     if not value:
         return None
     try:
+        if isinstance(value, str) and len(value.strip()) == 8 and value.strip().isdigit():
+            parsed = datetime.strptime(value.strip(), '%Y%m%d')
+            return parsed.replace(tzinfo=timezone.utc)
         if isinstance(value, (int, float)):
             return datetime.fromtimestamp(value, timezone.utc)
         parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
@@ -92,6 +92,26 @@ def stale_signal_age_hours(signal: dict[str, Any]) -> float | None:
     if not data_as_of:
         return None
     return max(0.0, (datetime.now(timezone.utc) - data_as_of).total_seconds() / 3600)
+
+
+def candidate_age_hours(item: dict[str, Any]) -> float | None:
+    data_as_of = parse_utc_datetime(normalized_as_of(item.get('asOf')))
+    if not data_as_of:
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - data_as_of).total_seconds() / 3600)
+
+
+def candidate_freshness_rank(item: dict[str, Any]) -> int:
+    age_hours = candidate_age_hours(item)
+    if age_hours is None:
+        return 0
+    if age_hours <= 18:
+        return 3
+    if age_hours <= 84:
+        return 2
+    if age_hours <= 168:
+        return 1
+    return 0
 
 
 def stale_signal_is_too_old(key: str, signal: dict[str, Any]) -> bool:
@@ -250,6 +270,7 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
     key = signal['key']
     showable = status in {'ok', 'suspect'}
     data_as_of = normalized_as_of(item.get('asOf'))
+    age_hours = candidate_age_hours(item)
     return {
         'key': key,
         'label': signal['label'],
@@ -262,6 +283,8 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
         'sourceId': f'{provider}:{item.get("symbol")}',
         'fetchedAt': utc_now(),
         'dataAsOf': data_as_of,
+        'dataAgeHours': round(age_hours, 2) if age_hours is not None else None,
+        'freshnessRank': candidate_freshness_rank(item),
         'ttlMinutes': 30,
         'valuePolicy': 'show' if showable else 'hide',
         'licenseNote': 'free/delayed provider via cache server',
@@ -309,32 +332,46 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
 def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, Any]]], last_good: dict[str, Any]) -> dict[str, Any]:
     key = signal['key']
     failures: list[dict[str, Any]] = []
-    partial_candidate: dict[str, Any] | None = None
+    candidates: list[dict[str, Any]] = []
+    quality_rank = {'ok': 3, 'suspect': 2, 'partial': 1}
     for provider, items in providers.items():
         for item in items:
             if item.get('key') != key:
                 continue
             quality, reason = validate_candidate(key, item)
-            failures.append({'provider': provider, 'status': item.get('status'), 'quality': quality, 'reason': reason or item.get('reason')})
-            if quality == 'ok':
-                out = normalize_signal(signal, provider, item, status='ok')
-                out['fallbackChain'] = failures
-                return out
-            if quality == 'suspect' and partial_candidate is None:
-                partial_candidate = normalize_signal(signal, provider, item, status='suspect', reason=reason)
-            elif quality == 'partial' and partial_candidate is None:
-                partial_candidate = normalize_signal(signal, provider, item, status='partial', reason=reason)
+            failure = {
+                'provider': provider,
+                'status': item.get('status'),
+                'quality': quality,
+                'reason': reason or item.get('reason'),
+                'dataAsOf': normalized_as_of(item.get('asOf')) if item.get('asOf') not in (None, '') else None,
+                'dataAgeHours': round(candidate_age_hours(item), 2) if candidate_age_hours(item) is not None else None,
+                'freshnessRank': candidate_freshness_rank(item),
+            }
+            failures.append(failure)
+            if quality in {'ok', 'suspect', 'partial'}:
+                out = normalize_signal(signal, provider, item, status=quality, reason=reason)
+                candidates.append({
+                    'signal': out,
+                    'quality': quality,
+                    'qualityRank': quality_rank[quality],
+                    'freshnessRank': candidate_freshness_rank(item),
+                })
 
-    if partial_candidate and partial_candidate.get('status') == 'suspect':
-        partial_candidate['fallbackChain'] = failures
-        return partial_candidate
+    showable_candidates = [item for item in candidates if item['quality'] in {'ok', 'suspect'}]
+    if showable_candidates:
+        best = max(showable_candidates, key=lambda item: (item['freshnessRank'], item['qualityRank']))
+        best['signal']['fallbackChain'] = failures
+        return best['signal']
     last_good_signal = stale_from_last_good(signal, last_good, failures[-1]['reason'] if failures else 'provider_unavailable')
     if last_good_signal:
         last_good_signal['fallbackChain'] = failures
         return last_good_signal
-    if partial_candidate:
-        partial_candidate['fallbackChain'] = failures
-        return partial_candidate
+    partial_candidates = [item for item in candidates if item['quality'] == 'partial']
+    if partial_candidates:
+        best = max(partial_candidates, key=lambda item: (item['freshnessRank'], item['qualityRank']))
+        best['signal']['fallbackChain'] = failures
+        return best['signal']
     return {
         'key': key,
         'label': signal['label'],
