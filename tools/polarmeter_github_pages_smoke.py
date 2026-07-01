@@ -75,6 +75,8 @@ def main() -> int:
             raise AssertionError('manifest must expose cached news count')
         if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
             raise AssertionError('manifest must expose cached news TTL metadata')
+        if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
+            raise AssertionError('manifest must expose market data TTL metadata')
         if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
             raise AssertionError('manifest news schedule metadata mismatch')
         if manifest.get('marketDataRecommendedSchedule') != 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations':
@@ -91,6 +93,8 @@ def main() -> int:
             raise AssertionError(f'manifest missing critical refresh keys: {sorted(required_refresh_keys - actual_refresh_keys)}')
         if not isinstance(news.get('ttlMinutes'), int) or not news.get('nextRefreshAt'):
             raise AssertionError('snapshot news must expose TTL metadata')
+        if not isinstance(snapshot.get('defaultTtlMinutes'), int) or not snapshot.get('nextRefreshAt'):
+            raise AssertionError('snapshot must expose market data TTL metadata')
         if (snapshot.get('refreshPolicy') or {}).get('version') != 'market-aware-cache-refresh-v1':
             raise AssertionError('snapshot must expose market-aware refresh policy')
         if manifest.get('dataServingMode') not in {'normal', 'limited', 'fallback'}:
@@ -123,6 +127,8 @@ def main() -> int:
                 raise AssertionError(f'health must expose {key}')
         if health.get('marketDataRecommendedSchedule') != manifest.get('marketDataRecommendedSchedule'):
             raise AssertionError('health must expose market data refresh schedule')
+        if health.get('marketDataNextRefreshAt') != manifest.get('marketDataNextRefreshAt') or health.get('nextRefreshAt') != manifest.get('nextRefreshAt'):
+            raise AssertionError('health must expose market data next refresh metadata')
     print('PolarMeter GitHub Pages smoke: PASS')
     return 0
 

@@ -143,6 +143,8 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('public snapshot must not publish collecting mode')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
+    if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
+        raise AssertionError('manifest must expose market data TTL and next refresh metadata')
     if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
         raise AssertionError('manifest news schedule metadata mismatch')
     if manifest.get('marketDataRecommendedSchedule') != 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations':
@@ -201,6 +203,8 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
             raise AssertionError(f'health must expose {key}')
     if health.get('marketDataRecommendedSchedule') != manifest.get('marketDataRecommendedSchedule'):
         raise AssertionError('health must expose market data refresh schedule')
+    if health.get('marketDataNextRefreshAt') != manifest.get('marketDataNextRefreshAt') or health.get('nextRefreshAt') != manifest.get('nextRefreshAt'):
+        raise AssertionError('health must expose market data next refresh metadata')
     if len(health.get('criticalMarketRefreshes') or []) < 8:
         raise AssertionError('health must expose critical market refresh points')
 

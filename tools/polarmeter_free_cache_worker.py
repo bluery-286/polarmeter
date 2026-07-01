@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,64 +41,64 @@ CRITICAL_MARKET_REFRESHES = [
         'key': 'kr_open_plus_30',
         'market': 'KR',
         'label': '국내장 개장 후 30분 확인',
-        'localTime': '09:30 KST',
-        'utcCron': '30 0 * * 1-5',
-        'reason': '개장 직후 왜곡을 피하고, 첫 체결 흐름이 잡힌 뒤 국내 지수·환율을 확인합니다.',
+        'localTime': '09:35 KST',
+        'utcCron': '35 0 * * 1-5',
+        'reason': '개장 직후 왜곡을 피하고, 첫 체결 흐름이 잡힌 뒤 국내 지수·환율을 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다.',
     },
     {
         'key': 'kr_open_plus_60',
         'market': 'KR',
         'label': '국내장 개장 후 1시간 확인',
-        'localTime': '10:00 KST',
-        'utcCron': '0 1 * * 1-5',
-        'reason': '초반 수급이 진정된 뒤 국내 온도와 원/달러 부담을 다시 확인합니다.',
+        'localTime': '10:05 KST',
+        'utcCron': '5 1 * * 1-5',
+        'reason': '초반 수급이 진정된 뒤 국내 온도와 원/달러 부담을 다시 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다.',
     },
     {
         'key': 'kr_close_plus_15',
         'market': 'KR',
         'label': '국내장 마감 직후 확인',
-        'localTime': '15:45 KST',
-        'utcCron': '45 6 * * 1-5',
+        'localTime': '15:50 KST',
+        'utcCron': '50 6 * * 1-5',
         'reason': '마감 직후 국내 지수 방향과 환율 부담을 장중값이 아닌 마감 근처 기준으로 갱신합니다.',
     },
     {
         'key': 'kr_close_plus_60',
         'market': 'KR',
         'label': '국내장 마감 확정 확인',
-        'localTime': '16:30 KST',
-        'utcCron': '30 7 * * 1-5',
+        'localTime': '16:35 KST',
+        'utcCron': '35 7 * * 1-5',
         'reason': '지연 제공처의 종가 반영 시간을 감안해 국내 종가 기준 스냅샷을 다시 만듭니다.',
     },
     {
         'key': 'us_open_plus_30',
         'market': 'US',
         'label': '미장 개장 후 30분 확인',
-        'localTime': '09:30 ET + 30m',
-        'utcCron': '0 14,15 * * 1-5',
-        'reason': '미국 정규장 초반 지수·VIX·금리 방향을 확인합니다. DST와 표준시간을 모두 커버합니다.',
+        'localTime': '09:30 ET + 35m',
+        'utcCron': '5 14,15 * * 1-5',
+        'reason': '미국 정규장 초반 지수·VIX·금리 방향을 확인합니다. DST와 표준시간을 모두 커버하고, GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다.',
     },
     {
         'key': 'us_open_plus_60',
         'market': 'US',
         'label': '미장 개장 후 1시간 확인',
-        'localTime': '09:30 ET + 60m',
-        'utcCron': '30 14,15 * * 1-5',
+        'localTime': '09:30 ET + 65m',
+        'utcCron': '35 14,15 * * 1-5',
         'reason': '초반 변동이 지나간 뒤 미국 온도와 한국장 연결 신호를 다시 계산합니다.',
     },
     {
         'key': 'us_close_plus_15',
         'market': 'US',
         'label': '미장 마감 직후 확인',
-        'localTime': '16:00 ET + 15m',
-        'utcCron': '15 20,21 * * 1-5',
+        'localTime': '16:00 ET + 20m',
+        'utcCron': '20 20,21 * * 1-5',
         'reason': '미국 마감 방향과 VIX 반응을 가장 먼저 반영합니다. DST와 표준시간을 모두 커버합니다.',
     },
     {
         'key': 'us_close_plus_60',
         'market': 'US',
         'label': '미장 마감 확정 확인',
-        'localTime': '16:00 ET + 60m',
-        'utcCron': '0 21,22 * * 1-5',
+        'localTime': '16:00 ET + 65m',
+        'utcCron': '5 21,22 * * 1-5',
         'reason': '지연 시세와 마감 데이터 반영을 감안해 미국 종가 기준 스냅샷을 다시 만듭니다.',
     },
 ]
@@ -173,6 +173,24 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 def recommended_news_ttl_minutes(now: datetime | None = None) -> int:
     current = now or datetime.now(timezone.utc)
     return WEEKEND_NEWS_TTL_MINUTES if current.weekday() >= 5 else WEEKDAY_NEWS_TTL_MINUTES
+
+
+def recommended_market_ttl_minutes(now: datetime | None = None) -> int:
+    current = now or datetime.now(timezone.utc)
+    return 60 if current.weekday() >= 5 else 30
+
+
+def iso_add_minutes(value: Any, minutes: int) -> str | None:
+    if not value:
+        return None
+    text = str(value)
+    try:
+        parsed = datetime.fromisoformat(text.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (parsed.astimezone(timezone.utc) + timedelta(minutes=minutes)).isoformat().replace('+00:00', 'Z')
 
 
 def public_refresh_policy() -> dict[str, Any]:
@@ -311,6 +329,8 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
     cost_guardrails = public_cost_guardrails()
     data_quality = sanitize_public_data_quality(snapshot.get('dataQuality') or {})
     refresh_policy = public_refresh_policy()
+    market_ttl_minutes = snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes()
+    market_next_refresh_at = iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes))
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
@@ -325,6 +345,9 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'newsTtlMinutes': news.get('ttlMinutes') or recommended_news_ttl_minutes(),
         'newsNextRefreshAt': news.get('nextRefreshAt'),
         'newsRecommendedSchedule': news.get('recommendedSchedule') or NEWS_RECOMMENDED_SCHEDULE,
+        'marketDataTtlMinutes': market_ttl_minutes,
+        'marketDataNextRefreshAt': market_next_refresh_at,
+        'nextRefreshAt': market_next_refresh_at,
         'marketDataRecommendedSchedule': MARKET_DATA_RECOMMENDED_SCHEDULE,
         'criticalMarketRefreshes': CRITICAL_MARKET_REFRESHES,
         'refreshPolicy': refresh_policy,
@@ -365,6 +388,9 @@ def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
         'dataQuality': manifest.get('dataQuality') or {},
         'dataServingMode': manifest.get('dataServingMode') or 'limited',
         'lastSuccessfulSnapshotAt': manifest.get('lastSuccessfulSnapshotAt'),
+        'marketDataTtlMinutes': manifest.get('marketDataTtlMinutes'),
+        'marketDataNextRefreshAt': manifest.get('marketDataNextRefreshAt'),
+        'nextRefreshAt': manifest.get('nextRefreshAt'),
         'providerCallCount': manifest.get('providerCallCount') or 0,
         'providerFailureCount': manifest.get('providerFailureCount') or 0,
         'providerStatusByName': sanitize_public_provider_status_by_name(manifest.get('providerStatusByName') or {}),
@@ -447,6 +473,7 @@ def sanitize_public_provider_status_by_name(status_by_name: dict[str, Any]) -> d
 
 
 def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    market_ttl_minutes = snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes()
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
@@ -455,7 +482,8 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'clientDirectProviderCalls': False,
         'costGuardrails': public_cost_guardrails(),
         'refreshPolicy': public_refresh_policy(),
-        'defaultTtlMinutes': snapshot.get('defaultTtlMinutes') or 30,
+        'defaultTtlMinutes': market_ttl_minutes,
+        'nextRefreshAt': iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes)),
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
         'signals': {
             key: sanitize_public_signal(value)

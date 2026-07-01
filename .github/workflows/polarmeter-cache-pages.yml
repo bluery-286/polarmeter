@@ -3,20 +3,21 @@ name: PolarMeter Cache Pages
 on:
   workflow_dispatch:
   schedule:
-    # Weekdays: every 30 minutes as the baseline. UTC schedule; app displays provider dataAsOf.
-    - cron: '*/30 * * * 1-5'
+    # Weekdays: every 30 minutes as the baseline. Use off-peak minutes because
+    # GitHub scheduled workflows can be delayed or dropped around :00/:30.
+    - cron: '7,37 * * * 1-5'
     # Korea market confirmation points:
     # 09:30/10:00 KST after open, 15:45/16:30 KST after close/final delayed data.
-    - cron: '30 0 * * 1-5'
-    - cron: '0 1 * * 1-5'
-    - cron: '45 6 * * 1-5'
-    - cron: '30 7 * * 1-5'
+    - cron: '35 0 * * 1-5'
+    - cron: '5 1 * * 1-5'
+    - cron: '50 6 * * 1-5'
+    - cron: '35 7 * * 1-5'
     # US market confirmation points. Includes both US daylight and standard time.
     # 09:30 ET +30/+60m, 16:00 ET +15/+60m.
-    - cron: '0 14,15 * * 1-5'
-    - cron: '30 14,15 * * 1-5'
-    - cron: '15 20,21 * * 1-5'
-    - cron: '0 21,22 * * 1-5'
+    - cron: '5 14,15 * * 1-5'
+    - cron: '35 14,15 * * 1-5'
+    - cron: '20 20,21 * * 1-5'
+    - cron: '5 21,22 * * 1-5'
     # Weekends: hourly so overseas/geopolitics headlines do not sit stale.
     - cron: '0 * * * 0,6'
 
