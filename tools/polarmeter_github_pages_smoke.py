@@ -136,6 +136,10 @@ def main() -> int:
         for key in ['dataServingMode', 'providerCallCount', 'providerFailureCount', 'estimatedMonthlyCost', 'budgetLimit', 'killSwitchActive', 'killSwitchStatus']:
             if key not in health:
                 raise AssertionError(f'health must expose {key}')
+        if health.get('temperatureHistoryStatus') not in {'ready', 'pending'}:
+            raise AssertionError('health must expose temperatureHistoryStatus')
+        if health.get('temperatureHistoryStatus') != manifest.get('temperatureHistoryStatus'):
+            raise AssertionError('health temperatureHistoryStatus must match manifest')
         if health.get('marketDataRecommendedSchedule') != manifest.get('marketDataRecommendedSchedule'):
             raise AssertionError('health must expose market data refresh schedule')
         if health.get('marketDataNextRefreshAt') != manifest.get('marketDataNextRefreshAt') or health.get('nextRefreshAt') != manifest.get('nextRefreshAt'):
