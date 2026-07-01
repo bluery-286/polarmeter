@@ -503,6 +503,7 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'us\s+stock\s+market\s+today.*wall\s+street\s+rebounds.*oil\s+slides.*s&p\s*500.*nasdaq\s+rise', re.I), '유가 하락과 이란 긴장 완화 속 S&P500·나스닥 반등'),
     (re.compile(r'nasdaq.*s&p\s*500.*dow\s+futures\s+mixed.*iran.*escalation.*lifts?\s+oil\s+prices?', re.I), '이란·중동 긴장에 유가 상승 부담, 미국 지수 선물은 혼조'),
     (re.compile(r'oil\s+prices?\s+rise.*stock\s+futures\s+inch\s+higher.*iran.*airstrikes?', re.I), '미·이란 공방에 유가 상승 부담, 지수 선물은 소폭 상승'),
+    (re.compile(r'wall\s+street\s+dips?\s+amid\s+rising\s+us[-\s]?iran\s+tensions?', re.I), '미·이란 긴장 고조에 미국 증시 약세 부담'),
     (re.compile(r'top\s+brokers\s+lift\s+s&p\s*500\s+targets.*forecast\s+gains', re.I), '브로커들이 S&P500 목표치를 상향한 전망성 기사'),
     (re.compile(r'reduce\s+reliance\s+on\s+strait\s+of\s+hormuz', re.I), '호르무즈 의존도 축소 논의는 에너지 공급망 부담을 낮출 수 있음'),
     (re.compile(r'u\.s\.\s+and\s+iran\s+begin\s+peace\s+talks.*strait\s+of\s+hormuz', re.I), '미·이란 대화는 호르무즈 불확실성과 유가 부담을 낮출 수 있음'),
@@ -751,10 +752,10 @@ def english_market_context_translation(headline: str) -> str | None:
         return '중동 이슈에 지수 선물과 유가 경로를 함께 확인'
     if has_oil_geo and re.search(r'(oil\s+prices?.{0,24}return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?|return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?.{0,24}oil|pre[-\s]?war\s+levels?)', lower):
         return '유가가 전쟁 전 수준으로 돌아오며 비용 부담 완화'
-    if has_oil_geo and positive and has_wall_street:
-        return '이란·중동 긴장 완화와 함께 미국 증시 상승 흐름 확인'
-    if has_oil_geo and negative and has_wall_street:
+    if has_oil_geo and (broad_index_negative or negative) and has_wall_street:
         return '이란·중동 이슈 속 미국 증시 약세 부담 확인'
+    if has_oil_geo and broad_index_positive and has_wall_street:
+        return '이란·중동 긴장 완화와 함께 미국 증시 상승 흐름 확인'
     if has_oil_geo and re.search(r'(oil|crude).{0,28}(slide|slides|sliding|fall|falls|drop|drops|lower)|(slide|slides|sliding|fall|falls|drop|drops|lower).{0,28}(oil|crude)', lower):
         return '유가 하락은 물가·비용 부담을 낮추는 완화 신호'
     if has_oil_geo and re.search(r'oil|crude|hormuz', lower):
