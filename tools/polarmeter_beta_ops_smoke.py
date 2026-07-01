@@ -138,6 +138,20 @@ def assert_public_cache(args: argparse.Namespace) -> dict[str, Any]:
             if age is None or age > args.active_market_signal_max_age_hours:
                 errors.append(f'{CORE_SIGNALS[key]} is stale during US market: age={age}')
 
+    core_signal_status = {
+        key: {
+            'label': label,
+            'status': (signals.get(key) or {}).get('status'),
+            'valuePolicy': (signals.get(key) or {}).get('valuePolicy'),
+            'value': (signals.get(key) or {}).get('value'),
+            'change': (signals.get(key) or {}).get('change'),
+            'changePct': (signals.get(key) or {}).get('changePct'),
+            'dataAsOf': (signals.get(key) or {}).get('dataAsOf'),
+            'dataAgeHours': signal_age_hours(signals.get(key) or {}, now),
+        }
+        for key, label in CORE_SIGNALS.items()
+    }
+
     summary = {
         'ok': not errors,
         'baseUrl': args.base_url,
@@ -149,6 +163,7 @@ def assert_public_cache(args: argparse.Namespace) -> dict[str, Any]:
         'newsCount': len((snapshot.get('news') or {}).get('items') or []),
         'krActive': kr_active,
         'usActive': us_active,
+        'coreSignals': core_signal_status,
         'errors': errors,
     }
     if errors:
