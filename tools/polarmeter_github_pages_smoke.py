@@ -48,6 +48,17 @@ def main() -> int:
             raise AssertionError(f"pages snapshot must keep renderable core coverage, got {core_coverage}")
         if data_quality.get('displayMode') == 'collecting':
             raise AssertionError('pages snapshot must not publish collecting mode')
+        history = snapshot.get('temperatureHistory') or {}
+        if history.get('version') != 'temperature-history-v1':
+            raise AssertionError('pages snapshot must expose temperatureHistory v1')
+        if history.get('retentionDays') != 7:
+            raise AssertionError('pages snapshot temperatureHistory must retain 7 KST dates')
+        if not isinstance(history.get('items'), list) or len(history.get('items') or []) > 7:
+            raise AssertionError('pages snapshot temperatureHistory items must be a list of at most 7 KST dates')
+        if (history.get('dailyDelta') or {}).get('status') not in {'ready', 'pending'}:
+            raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready or pending')
+        if manifest.get('temperatureHistoryStatus') not in {'ready', 'pending'}:
+            raise AssertionError('manifest must expose temperatureHistoryStatus')
         retired_signals = {'kodex200', 'tiger200'}
         leaked_retired = retired_signals.intersection(snapshot.get('signals') or {})
         if leaked_retired:

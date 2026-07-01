@@ -19,6 +19,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.request import urlopen
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -32,6 +33,11 @@ DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 DEFAULT_PUBLIC_SNAPSHOT_NAME = 'market-snapshot-latest.json'
 DEFAULT_PUBLIC_MANIFEST_NAME = 'market-snapshot-manifest.json'
 DEFAULT_PUBLIC_HEALTH_NAME = 'health.json'
+DEFAULT_PREVIOUS_PUBLIC_CACHE_URL = os.environ.get(
+    'POLARMETER_PREVIOUS_PUBLIC_CACHE_URL',
+    'https://polarmeter.polarbearworks.com/market-snapshot-latest.json',
+)
+TEMPERATURE_HISTORY_RETENTION_DAYS = 7
 WEEKDAY_NEWS_TTL_MINUTES = 30
 WEEKEND_NEWS_TTL_MINUTES = 60
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
@@ -104,6 +110,9 @@ CRITICAL_MARKET_REFRESHES = [
 ]
 BETA_MONTHLY_COST_LIMIT_USD = 50
 BETA_MONTHLY_COST_WARNING_USD = 20
+
+sys.path.insert(0, str(TOOLS))
+from polarmeter_score_core import KST, build_scores, detect_session, snapshot_from_points  # noqa: E402
 
 COST_GUARDRAILS = {
     'estimatedMonthlyCost': {
@@ -210,6 +219,209 @@ def public_refresh_policy() -> dict[str, Any]:
     }
 
 
+def parse_utc_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def kst_date_key(value: Any) -> str | None:
+    parsed = parse_utc_datetime(value)
+    if not parsed:
+        return None
+    return parsed.astimezone(KST).date().isoformat()
+
+
+def snapshot_score_point(signal: dict[str, Any] | None) -> dict[str, Any]:
+    signal = signal or {}
+    status = signal.get('status') or 'unavailable'
+    scoreable = status in {'ok', 'stale', 'suspect'}
+    return {
+        'status': status,
+        'close': signal.get('value') if scoreable else None,
+        'pct': signal.get('changePct') if scoreable else None,
+        'reason': signal.get('sourceId'),
+        'date': signal.get('dataAsOf') or signal.get('fetchedAt'),
+        'freshness': signal.get('freshnessStatus') or '',
+    }
+
+
+def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    signals = snapshot.get('signals') or {}
+    if not isinstance(signals, dict) or not signals:
+        return None
+    items = {
+        'S&P500': snapshot_score_point(signals.get('sp500')),
+        'Nasdaq100': snapshot_score_point(signals.get('nasdaq100')),
+        'Russell 2000': snapshot_score_point(signals.get('iwm')),
+        'VIX': snapshot_score_point(signals.get('vix')),
+        '미국 10년물': snapshot_score_point(signals.get('us10y')),
+        'DXY': snapshot_score_point(signals.get('dxy')),
+        'USD/KRW': snapshot_score_point(signals.get('usd_krw')),
+        'KOSPI': snapshot_score_point(signals.get('kospi')),
+        'KOSDAQ': snapshot_score_point(signals.get('kosdaq')),
+        '삼성전자': snapshot_score_point(signals.get('kr_samsung')),
+        'SK하이닉스': snapshot_score_point(signals.get('kr_hynix')),
+        'SOXX': snapshot_score_point(signals.get('soxx')),
+        'SMH': snapshot_score_point(signals.get('smh')),
+    }
+    generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
+    session_type = detect_session(snapshot, now=generated_at.astimezone(KST) if generated_at else None)
+    return build_scores(snapshot_from_points(items, session_type=session_type), session_type=session_type)
+
+
+def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    generated_at = snapshot.get('generatedAt')
+    date_kst = kst_date_key(generated_at)
+    scores = temperature_scores_from_snapshot(snapshot)
+    if not date_kst or not scores:
+        return None
+    us = scores.get('us_temperature') or {}
+    kr = scores.get('kr_temperature') or {}
+    us_score = us.get('score')
+    kr_score = kr.get('score')
+    if not isinstance(us_score, (int, float)) or not isinstance(kr_score, (int, float)):
+        return None
+    return {
+        'dateKst': date_kst,
+        'asOf': generated_at,
+        'sessionType': (scores.get('market_context') or {}).get('market_session_type'),
+        'usScore': int(round(us_score)),
+        'krScore': int(round(kr_score)),
+        'usLabel': us.get('label'),
+        'krLabel': kr.get('label'),
+        'source': 'score_core_v1',
+    }
+
+
+def load_previous_public_snapshot(path: Path | None, public_dir: Path | None, snapshot_name: str, previous_url: str | None) -> dict[str, Any]:
+    candidates: list[Path] = []
+    if path:
+        candidates.append(path)
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            payload = json.loads(candidate.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        if isinstance(payload, dict) and payload.get('generatedAt'):
+            return payload
+    if previous_url:
+        try:
+            with urlopen(previous_url, timeout=4) as response:
+                if getattr(response, 'status', 200) >= 400:
+                    raise RuntimeError(f'previous public snapshot HTTP {getattr(response, "status", 0)}')
+                payload = json.loads(response.read().decode('utf-8'))
+                return payload if isinstance(payload, dict) else {}
+        except Exception:
+            pass
+    if public_dir:
+        candidate = public_dir / snapshot_name
+        if candidate.exists():
+            try:
+                payload = json.loads(candidate.read_text(encoding='utf-8'))
+            except Exception:
+                return {}
+            if isinstance(payload, dict) and payload.get('generatedAt'):
+                return payload
+    return {}
+
+
+def apply_temperature_history(snapshot: dict[str, Any], previous_public_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    current = temperature_history_entry(snapshot)
+    if not current:
+        snapshot['temperatureHistory'] = {
+            'version': 'temperature-history-v1',
+            'basis': 'kst_calendar_day_latest_successful_snapshot',
+            'anchorTimeKst': '00:00',
+            'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
+            'updatedAt': snapshot.get('generatedAt'),
+            'items': [],
+            'dailyDelta': {'status': 'pending', 'reason': 'current_temperature_score_unavailable'},
+        }
+        return snapshot
+
+    previous_public_snapshot = previous_public_snapshot or {}
+    previous_history = previous_public_snapshot.get('temperatureHistory') or {}
+    existing_items = previous_history.get('items') if isinstance(previous_history, dict) else []
+    if not isinstance(existing_items, list):
+        existing_items = []
+    items: list[dict[str, Any]] = [
+        item for item in existing_items
+        if isinstance(item, dict) and isinstance(item.get('dateKst'), str)
+    ]
+    previous_entry = temperature_history_entry(previous_public_snapshot)
+    if previous_entry:
+        items = [item for item in items if item.get('dateKst') != previous_entry['dateKst']]
+        items.append(previous_entry)
+
+    items = [item for item in items if item.get('dateKst') != current['dateKst']]
+    items.append(current)
+    items = sorted(items, key=lambda item: str(item.get('dateKst')))[-TEMPERATURE_HISTORY_RETENTION_DAYS:]
+    try:
+        previous_date_kst = (datetime.fromisoformat(current['dateKst']).date() - timedelta(days=1)).isoformat()
+    except ValueError:
+        previous_date_kst = None
+    comparison = next((item for item in items if item.get('dateKst') == previous_date_kst), None)
+
+    def delta_for(market: str) -> dict[str, Any] | None:
+        if not comparison:
+            return None
+        current_key = f'{market}Score'
+        current_score = current.get(current_key)
+        previous_score = comparison.get(current_key)
+        if not isinstance(current_score, (int, float)) or not isinstance(previous_score, (int, float)):
+            return None
+        return {
+            'currentScore': int(round(current_score)),
+            'previousScore': int(round(previous_score)),
+            'delta': int(round(current_score - previous_score)),
+            'basis': 'previous_kst_date',
+            'comparisonDateKst': comparison.get('dateKst'),
+            'comparisonAsOf': comparison.get('asOf'),
+        }
+
+    us_delta = delta_for('us')
+    kr_delta = delta_for('kr')
+    snapshot['temperatureHistory'] = {
+        'version': 'temperature-history-v1',
+        'basis': 'kst_calendar_day_latest_successful_snapshot',
+        'anchorTimeKst': '00:00',
+        'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
+        'updatedAt': snapshot.get('generatedAt'),
+        'currentDateKst': current['dateKst'],
+        'comparisonDateKst': comparison.get('dateKst') if comparison else None,
+        'items': items,
+        'dailyDelta': {
+            'status': 'ready' if us_delta and kr_delta else 'pending',
+            'reason': None if us_delta and kr_delta else 'previous_kst_date_snapshot_missing',
+            'us': us_delta,
+            'kr': kr_delta,
+        },
+    }
+    return snapshot
+
+
+def assert_temperature_history_contract(snapshot: dict[str, Any]) -> None:
+    history = snapshot.get('temperatureHistory') or {}
+    if history.get('version') != 'temperature-history-v1':
+        raise AssertionError('snapshot must include temperatureHistory v1')
+    if history.get('retentionDays') != TEMPERATURE_HISTORY_RETENTION_DAYS:
+        raise AssertionError('temperatureHistory retention must be 7 KST dates')
+    if len(history.get('items') or []) > TEMPERATURE_HISTORY_RETENTION_DAYS:
+        raise AssertionError('temperatureHistory must retain at most 7 KST dates')
+    status = (history.get('dailyDelta') or {}).get('status')
+    if status not in {'ready', 'pending'}:
+        raise AssertionError(f'temperatureHistory dailyDelta status invalid: {status}')
+
+
 def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: dict[str, Any]) -> None:
     if report.get('paidProviderEnabled') is not False:
         raise AssertionError('provider report must keep paidProviderEnabled=false')
@@ -231,6 +443,7 @@ def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: d
     missing = required - set(snapshot.get('signals', {}).keys())
     if missing:
         raise AssertionError(f'missing required snapshot signals: {sorted(missing)}')
+    assert_temperature_history_contract(snapshot)
 
     for screen_key, screen in fixture.items():
         if not isinstance(screen, dict):
@@ -353,6 +566,9 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'refreshPolicy': refresh_policy,
         'dataQuality': data_quality,
         'dataServingMode': data_serving_mode(snapshot),
+        'temperatureHistoryStatus': ((snapshot.get('temperatureHistory') or {}).get('dailyDelta') or {}).get('status') or 'pending',
+        'temperatureHistoryCurrentDateKst': (snapshot.get('temperatureHistory') or {}).get('currentDateKst'),
+        'temperatureHistoryComparisonDateKst': (snapshot.get('temperatureHistory') or {}).get('comparisonDateKst'),
         'lastSuccessfulSnapshotAt': snapshot.get('generatedAt') if snapshot.get('status') in {'ok', 'partial'} else None,
         'providerCallCount': provider_metrics.get('providerCallCount', 0),
         'providerFailureCount': provider_metrics.get('providerFailureCount', 0),
@@ -485,6 +701,15 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'defaultTtlMinutes': market_ttl_minutes,
         'nextRefreshAt': iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes)),
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
+        'temperatureHistory': snapshot.get('temperatureHistory') or {
+            'version': 'temperature-history-v1',
+            'basis': 'kst_calendar_day_latest_successful_snapshot',
+            'anchorTimeKst': '00:00',
+            'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
+            'updatedAt': snapshot.get('generatedAt'),
+            'items': [],
+            'dailyDelta': {'status': 'pending', 'reason': 'temperature_history_unavailable'},
+        },
         'signals': {
             key: sanitize_public_signal(value)
             for key, value in (snapshot.get('signals') or {}).items()
@@ -519,6 +744,7 @@ def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapsho
     public_snapshot = sanitize_public_snapshot(snapshot)
     manifest = public_manifest(snapshot, snapshot_name)
     health = public_health(manifest)
+    assert_temperature_history_contract(public_snapshot)
     assert_public_payload_safe(public_snapshot, manifest, health)
     atomic_write_json(snapshot_path, public_snapshot)
     atomic_write_json(manifest_path, manifest)
@@ -540,6 +766,8 @@ def main() -> int:
     parser.add_argument('--skip-fixture', action='store_true', help='Only update provider report and normalized snapshot')
     parser.add_argument('--public-dir', type=Path, help='Write deployable public JSON artifacts into this directory')
     parser.add_argument('--public-snapshot-name', default=DEFAULT_PUBLIC_SNAPSHOT_NAME)
+    parser.add_argument('--previous-public-snapshot', type=Path, help='Optional previous public snapshot JSON for temperature history continuity')
+    parser.add_argument('--previous-public-url', default=DEFAULT_PREVIOUS_PUBLIC_CACHE_URL, help='Optional previous deployed public snapshot URL for temperature history continuity')
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
 
@@ -547,6 +775,10 @@ def main() -> int:
     news_ttl_minutes = recommended_news_ttl_minutes()
     run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report), '--ttl-minutes', str(news_ttl_minutes)])
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
+    previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
+    snapshot_for_history = load_json(args.snapshot)
+    apply_temperature_history(snapshot_for_history, previous_public_snapshot)
+    atomic_write_json(args.snapshot, snapshot_for_history)
     run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:
         run([sys.executable, str(TOOLS / 'polarmeter_free_cache_fixture.py'), '--snapshot', str(args.snapshot), '--output', str(args.fixture)])
@@ -571,6 +803,9 @@ def main() -> int:
         'okSignals': sorted(k for k, v in snapshot.get('signals', {}).items() if v.get('status') == 'ok'),
         'coreCoverageRatio': (snapshot.get('dataQuality') or {}).get('coreCoverageRatio'),
         'displayMode': (snapshot.get('dataQuality') or {}).get('displayMode'),
+        'temperatureHistoryStatus': ((snapshot.get('temperatureHistory') or {}).get('dailyDelta') or {}).get('status') or 'pending',
+        'temperatureHistoryCurrentDateKst': (snapshot.get('temperatureHistory') or {}).get('currentDateKst'),
+        'temperatureHistoryComparisonDateKst': (snapshot.get('temperatureHistory') or {}).get('comparisonDateKst'),
         'okNewsCount': len((snapshot.get('news') or {}).get('items') or []),
         'freshnessAudit': 'passed',
         'publicArtifacts': public_artifacts,

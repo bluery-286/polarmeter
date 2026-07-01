@@ -58,12 +58,18 @@ def public_payload_is_publishable(output_dir: Path) -> bool:
         return False
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
+    history = snapshot.get('temperatureHistory') or {}
+    daily_delta_status = (history.get('dailyDelta') or {}).get('status')
     return (
         health.get('ok') is True
         and isinstance(core_coverage, (int, float))
         and core_coverage >= 0.6
         and data_quality.get('displayMode') != 'collecting'
         and len((snapshot.get('news') or {}).get('items') or []) > 0
+        and history.get('version') == 'temperature-history-v1'
+        and history.get('retentionDays') == 7
+        and isinstance(history.get('items'), list)
+        and daily_delta_status in {'ready', 'pending'}
     )
 
 
@@ -141,6 +147,17 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError(f"public snapshot must keep renderable core coverage, got {core_coverage}")
     if data_quality.get('displayMode') == 'collecting':
         raise AssertionError('public snapshot must not publish collecting mode')
+    history = snapshot.get('temperatureHistory') or {}
+    if history.get('version') != 'temperature-history-v1':
+        raise AssertionError('public snapshot must expose temperatureHistory v1')
+    if history.get('retentionDays') != 7:
+        raise AssertionError('public snapshot temperatureHistory must retain 7 KST dates')
+    if not isinstance(history.get('items'), list) or len(history.get('items') or []) > 7:
+        raise AssertionError('public snapshot temperatureHistory items must be a list of at most 7 KST dates')
+    if (history.get('dailyDelta') or {}).get('status') not in {'ready', 'pending'}:
+        raise AssertionError('public snapshot temperatureHistory dailyDelta status must be ready or pending')
+    if manifest.get('temperatureHistoryStatus') not in {'ready', 'pending'}:
+        raise AssertionError('manifest must expose temperatureHistoryStatus')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
