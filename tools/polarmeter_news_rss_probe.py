@@ -727,19 +727,19 @@ def english_market_context_translation(headline: str) -> str | None:
     if re.search(r'retaliatory\s+strike|strike\s+on\s+iran', lower) and re.search(r'oil|crude', lower):
         return '미국의 이란 보복 공습에 유가 상승 부담'
     if re.search(r'gold|silver', lower) and negative and has_fed:
-        return '연준 신호에 금·은 가격 약세, 안전자산 수요 약화 확인'
+        return '연준 신호에 금·은 가격 약세, 안전자산 수요 약화'
     if re.search(r'bond\s+yields?.{0,24}falling|yields?.{0,24}falling', lower) and has_inflation:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
     if has_inflation and has_chip and re.search(r'micron|apple|chip\s+stocks?|semiconductor|technology\s+stocks?', lower):
-        return 'PCE 물가 부담과 반도체·대형 기술주 약세 확인'
+        return 'PCE 물가 부담과 반도체·대형 기술주 약세 압력'
     if re.search(r's&p\s*500|nasdaq', lower) and re.search(r'losing\s+momentum|under\s+pressure|ai\s+stocks?', lower):
         return 'AI주 압박에 S&P500·나스닥 약세 압력'
     if has_inflation and re.search(r'hotter[-\s]?than[-\s]?expected|hot|high(?:er|est)?|sticky|elevated', lower) and (positive or has_wall_street):
-        return '미국 지수 선물 반등 속 물가 상승 부담 확인'
+        return '지수 선물은 반등하지만 물가 부담은 남아 있음'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and not broad_index_negative:
-        return '미국 주요 지수 선물이 반등하며 개장 전 부담을 덜어내는지 확인'
+        return '미국 지수 선물 반등은 개장 전 부담 완화 신호'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_negative:
-        return '미국 주요 지수 선물이 약세를 보이며 개장 전 부담을 확인'
+        return '미국 지수 선물 약세는 개장 전 부담 신호'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and positive and has_fed:
         return '연준 금리 결정을 앞두고 미국 주요 지수 선물이 소폭 상승'
     if has_futures and has_oil_geo and re.search(r'(oil|crude).{0,24}(rise|rises|rising|higher|surge|surges)|(rise|rises|rising|higher|surge|surges|lift|lifts|lifted).{0,24}(oil|crude)', lower):
@@ -749,13 +749,13 @@ def english_market_context_translation(headline: str) -> str | None:
             return '중동 긴장에 유가 상승 부담, 지수 선물은 소폭 상승'
         return '중동 긴장에 유가 상승 부담'
     if has_futures and has_oil_geo:
-        return '중동 이슈에 지수 선물과 유가 경로를 함께 확인'
+        return '중동 이슈는 지수 선물과 유가를 함께 흔드는 배경'
     if has_oil_geo and re.search(r'(oil\s+prices?.{0,24}return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?|return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?.{0,24}oil|pre[-\s]?war\s+levels?)', lower):
         return '유가가 전쟁 전 수준으로 돌아오며 비용 부담 완화'
     if has_oil_geo and (broad_index_negative or negative) and has_wall_street:
-        return '이란·중동 이슈 속 미국 증시 약세 부담 확인'
+        return '이란·중동 이슈는 미국 증시 약세 부담'
     if has_oil_geo and broad_index_positive and has_wall_street:
-        return '이란·중동 긴장 완화와 함께 미국 증시 상승 흐름 확인'
+        return '중동 긴장 완화는 미국 증시 상승 흐름에 우호적'
     if has_oil_geo and re.search(r'(oil|crude).{0,28}(slide|slides|sliding|fall|falls|drop|drops|lower)|(slide|slides|sliding|fall|falls|drop|drops|lower).{0,28}(oil|crude)', lower):
         return '유가 하락은 물가·비용 부담을 낮추는 완화 신호'
     if has_oil_geo and re.search(r'oil|crude|hormuz', lower):
@@ -769,13 +769,13 @@ def english_market_context_translation(headline: str) -> str | None:
     if has_dollar and has_fed:
         return '연준·금리 신호는 달러와 환율 부담을 바꿀 수 있음'
     if has_fed:
-        return '연준·미국 금리 흐름 확인'
+        return '연준·미국 금리 흐름은 시장 부담을 바꾸는 변수'
     if has_chip and equity_negative:
-        return '반도체·AI주 약세가 미국 기술주 흐름에 주는 부담 확인'
+        return '반도체·AI주 약세는 미국 기술주 부담'
     if has_chip and equity_positive:
         return '반도체·AI주 반등은 미국 기술주 부담을 덜어주는 신호'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
-        return '나스닥·S&P500과 다우 흐름이 엇갈리며 미국장 온도 차이를 확인'
+        return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
     subjects: list[str] = []
     if has_sp500:
