@@ -66,6 +66,37 @@ def first_present(data: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
+def as_float(value: Any) -> float | None:
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def yahoo_chart_change_fields(meta: dict[str, Any], closes: list[Any]) -> tuple[float | None, float | None, float | None, float | None, str]:
+    """Calculate chart price/change without shifting previous close across null slots."""
+    raw_closes = [as_float(item) for item in closes]
+    numeric_closes = [value for value in raw_closes if value is not None]
+    meta_price = as_float(meta.get('regularMarketPrice'))
+    price = meta_price if meta_price is not None else (numeric_closes[-1] if numeric_closes else None)
+    previous = as_float(first_present(meta, ['regularMarketPreviousClose', 'previousClose']))
+    change = as_float(first_present(meta, ['regularMarketChange']))
+    change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
+    source = 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close'
+    if previous in (None, 0) and len(numeric_closes) >= 2:
+        previous_candidates = [value for value in raw_closes[:-1] if value is not None]
+        previous = previous_candidates[-1] if previous_candidates else numeric_closes[-2]
+        source = 'close_array_fallback'
+    if price is not None and previous not in (None, 0):
+        if change is None:
+            change = price - previous
+        if change_pct is None:
+            change_pct = change / previous * 100
+    return price, change, change_pct, previous, source
+
+
 def bok_key() -> str | None:
     return secret_or_env('BOK_API_KEY') or secret_or_env('ECOS_API_KEY') or secret_or_env('BANK_OF_KOREA_API_KEY')
 
@@ -223,18 +254,13 @@ def yahoo_chart_probe() -> dict[str, Any]:
             result = (data.get('chart', {}).get('result') or [{}])[0]
             meta = result.get('meta') or {}
             quote = (result.get('indicators', {}).get('quote') or [{}])[0]
-            closes = [value for value in (quote.get('close') or []) if value is not None]
-            price = meta.get('regularMarketPrice') or (closes[-1] if closes else None)
-            previous = closes[-2] if len(closes) >= 2 else None
-            change = None
-            change_pct = None
-            if price is not None and previous not in (None, 0):
-                change = float(price) - float(previous)
-                change_pct = change / float(previous) * 100
+            closes = quote.get('close') or []
+            price, change, change_pct, previous, change_source = yahoo_chart_change_fields(meta, closes)
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
         except Exception as exc:  # pragma: no cover - network diagnostic
             price = change = change_pct = None
+            previous = change_source = None
             meta = {}
             status = 'error'
             reason = str(exc)
@@ -246,6 +272,8 @@ def yahoo_chart_probe() -> dict[str, Any]:
             'price': price,
             'change': change,
             'changePct': change_pct,
+            'previousClose': previous,
+            'changeSource': change_source,
             'asOf': meta.get('regularMarketTime'),
             'reason': reason,
         })

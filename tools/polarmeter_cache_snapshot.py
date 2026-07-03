@@ -41,7 +41,7 @@ CORE_GROUPS = {
 SANITY_RANGES = {
     # abs(changePct) <= suspect is normal; > reject is hidden unless last-known-good exists.
     # 2026 POC cross-check: KOSPI genuinely trades in the 7,000~8,000 range.
-    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 7.0, 'rejectAbsChangePct': 10.0, 'requiresChangePct': True},
+    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': True},
     'kosdaq': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 10.0, 'requiresChangePct': True},
     'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},

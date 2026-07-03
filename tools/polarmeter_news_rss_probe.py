@@ -853,7 +853,7 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
 
     has_fx = re.search(r'(환율|원[·\s/-]?달러|달러[·\s/-]?원|고환율|usd/krw)', raw, re.I)
     has_high_fx = re.search(r'(15\d{2}|1,5\d{2}|1천\s*5백|1,600|1600|고환율)', raw, re.I)
-    fx_falling = re.search(r'(↓|하락|내림|낮아|떨어|0\.\d+%↓|lower|falls?|drops?)', raw, re.I)
+    fx_falling = re.search(r'(↓|하락|내림|내려|내렸|내렸지만|내려도|낮아|떨어|0\.\d+%↓|lower|falls?|drops?)', raw, re.I)
     if has_fx and has_high_fx:
         if fx_falling:
             return '환율은 내려도 1,500원대라 국내시장 부담'
@@ -867,7 +867,18 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
 
     has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil|석유)', raw, re.I)
     has_food_or_inflation = re.search(r'(먹거리|물가|인플레이션|비용|cpi|pce)', raw, re.I)
-    if has_oil and (oil_relief_signal(raw) or re.search(r'(유가|원유|브렌트|wti|crude|oil|석유).{0,24}(내렸|내려|내리|하락|낮아)', raw, re.I)):
+    oil_price_up = re.search(
+        r'(유가|원유|브렌트|wti|crude|oil|석유).{0,24}(소폭\s*)?(상승|급등|올랐|오름|높아|higher|rise|rises|rising|jump|jumps|surge|surges)|'
+        r'(상승|급등|올랐|오름|높아|higher|rise|rises|rising|jump|jumps|surge|surges).{0,16}(유가|원유|브렌트|wti|crude|oil|석유)',
+        raw,
+        re.I,
+    )
+    oil_price_down = re.search(r'(유가|원유|브렌트|wti|crude|oil|석유).{0,24}(내렸|내려|내리|하락|낮아|lower|falls?|drops?)', raw, re.I)
+    if has_oil and oil_price_up:
+        if re.search(r'(반도체|기술주|나스닥|지수|증시).{0,40}(하락|약세|급락|폭락)', raw, re.I):
+            return '반도체 약세와 유가 상승은 시장 부담 신호'
+        return '유가 상승은 물가·비용 부담을 키울 수 있음'
+    if has_oil and ((oil_relief_signal(raw) and not oil_price_up) or oil_price_down):
         if has_food_or_inflation and re.search(r'(쑥|상승|높|고점|부담|3\.\d+%)', raw, re.I):
             return '유가는 내려도 물가 부담은 아직 남아 있음'
         return '유가 하락은 물가·비용 부담 완화 신호'
@@ -998,10 +1009,14 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
 
     if explicit_index_fade:
         return 'negative'
-    if explicit_fx_relief:
-        return 'positive'
     if explicit_fx_burden:
         return 'negative'
+    if explicit_fx_relief:
+        return 'positive'
+    if explicit_oil_burden:
+        return 'negative'
+    if explicit_oil_relief:
+        return 'positive'
     if explicit_geo_relief and (explicit_index_relief or up or explicit_oil_relief) and not (explicit_index_burden or title_burden or explicit_inflation_burden or explicit_fx_burden or explicit_oil_burden):
         return 'positive'
     if explicit_foreign_flow_burden:
@@ -1049,9 +1064,9 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         if explicit_fx_burden:
             return 'negative'
     if has_oil:
-        if down or explicit_oil_relief:
+        if explicit_oil_relief:
             return 'positive'
-        if up or explicit_oil_burden:
+        if explicit_oil_burden or up:
             return 'negative'
     if has_rate:
         if re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(상승|급등|높|고공|higher|rise|rises|rising|jump|surge)', text, re.I):
@@ -1072,6 +1087,15 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
 
 
 def fx_or_foreign_balance_stress(text: str) -> bool:
+    if re.search(
+        r'구두\s*개입.{0,24}(전혀\s*안|안\s*먹|먹히지|실패|무력)|'
+        r'(고환율|환율|원화|달러).{0,30}(방어\s*총력|개입\s*총력|원화\s*약세|부담\s*지속|불안\s*지속)',
+        text,
+        re.I,
+    ):
+        return True
+    if re.search(r'(부담|불안|압박).{0,12}(완화|진정|낮아|줄|덜|해소)|(완화|진정|낮아|줄|덜|해소).{0,12}(부담|불안|압박)', text, re.I):
+        return False
     return bool(re.search(
         r'(15\d{2}|1,5\d{2}|고환율|금융위기\s*후\s*최고|외환위기\s*후\s*최고|달러\s*강세|원화\s*약세|'
         r'환율.{0,24}(급등|상승|고공|부담|최고|불안|불확실)|usd/krw.{0,12}(higher|rise)|'
@@ -1091,7 +1115,13 @@ def fx_or_foreign_balance_stress(text: str) -> bool:
 
 
 def explicit_fx_relief_signal(text: str) -> bool:
-    if re.search(r'(무소용|치솟|위협|외환위기|금융위기|원화\s*약세|달러\s*강세)', text, re.I):
+    if re.search(
+        r'(무소용|치솟|위협|외환위기|금융위기|원화\s*약세|달러\s*강세)|'
+        r'(환율|원/달러|원달러|usd/krw).{0,36}(내렸지만|내려도).{0,36}(부담|불안|압박)|'
+        r'(1,500원대|1500원대).{0,36}(부담|불안|압박)',
+        text,
+        re.I,
+    ):
         return False
     return bool(re.search(
         r'(달러\s*약세|원화.{0,14}(강세|안정|진정)|환율.{0,14}(급락|하락|내림|낮아|진정|안정)|고환율.{0,10}(진정|안정)|고환율\s*부담\s*완화|수급\s*부담\s*완화|외국인.{0,24}(순매수|유입|매수세)|usd/krw.{0,12}(lower|fall|drop))',
