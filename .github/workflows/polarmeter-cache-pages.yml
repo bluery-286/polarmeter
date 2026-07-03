@@ -69,7 +69,6 @@ jobs:
           ARTIFACT_ID: ${{ needs.build.outputs.pages_artifact_id }}
         with:
           script: |
-            const core = require('@actions/core');
             const crypto = require('crypto');
 
             const artifactId = Number(process.env.ARTIFACT_ID);
