@@ -29,14 +29,21 @@ FINAL_FAILURES = {
 }
 
 
-def request_json(url: str, *, method: str = 'GET', token: str | None = None, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def request_json(
+    url: str,
+    *,
+    method: str = 'GET',
+    token: str | None = None,
+    auth_scheme: str = 'token',
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     data = None if payload is None else json.dumps(payload).encode('utf-8')
     headers = {
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2026-03-10',
     }
     if token:
-        headers['Authorization'] = f'Bearer {token}'
+        headers['Authorization'] = f'{auth_scheme} {token}'
     if payload is not None:
         headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -57,7 +64,7 @@ def get_oidc_token(audience: str | None = None) -> str:
     if audience:
         separator = '&' if '?' in request_url else '?'
         request_url = f'{request_url}{separator}audience={urllib.parse.quote(audience)}'
-    response = request_json(request_url, token=request_token)
+    response = request_json(request_url, token=request_token, auth_scheme='Bearer')
     value = response.get('value')
     if not isinstance(value, str) or not value:
         raise RuntimeError('OIDC token response did not contain value')
