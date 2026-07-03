@@ -62,11 +62,87 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
       - id: deployment
         name: Deploy Pages with unique cache build version
+        uses: actions/github-script@v8
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          python3 tools/polarmeter_pages_deploy_unique.py \
-            --artifact-id "${{ needs.build.outputs.pages_artifact_id }}"
+          ARTIFACT_ID: ${{ needs.build.outputs.pages_artifact_id }}
+        with:
+          script: |
+            const core = require('@actions/core');
+            const crypto = require('crypto');
+
+            const artifactId = Number(process.env.ARTIFACT_ID);
+            if (!Number.isFinite(artifactId)) {
+              throw new Error(`Invalid Pages artifact id: ${process.env.ARTIFACT_ID}`);
+            }
+
+            const seed = `${context.sha}-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT || '1'}`;
+            const buildVersion = crypto.createHash('sha1').update(seed).digest('hex');
+            const idToken = await core.getIDToken();
+
+            async function requestWithRetry(label, fn, attempts = 4) {
+              let lastError;
+              for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                try {
+                  return await fn();
+                } catch (error) {
+                  lastError = error;
+                  const status = error.status || error.response?.status;
+                  if (![429, 500, 502, 503, 504].includes(status) || attempt === attempts) {
+                    throw error;
+                  }
+                  core.warning(`${label} failed with HTTP ${status}; retry ${attempt}/${attempts}`);
+                  await new Promise((resolve) => setTimeout(resolve, Math.min(2 ** attempt, 10) * 1000));
+                }
+              }
+              throw lastError;
+            }
+
+            core.info(`Creating Pages deployment artifact=${artifactId} buildVersion=${buildVersion}`);
+            const deployment = await requestWithRetry('create Pages deployment', () => github.request(
+              'POST /repos/{owner}/{repo}/pages/deployments',
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifactId,
+                pages_build_version: buildVersion,
+                oidc_token: idToken,
+              },
+            ));
+
+            const deploymentId = deployment.data.id || String(deployment.data.status_url || '').split('/').pop() || buildVersion;
+            core.info(`Created Pages deployment id=${deploymentId}`);
+
+            const deadline = Date.now() + 10 * 60 * 1000;
+            while (Date.now() < deadline) {
+              const status = await requestWithRetry('get Pages deployment status', () => github.request(
+                'GET /repos/{owner}/{repo}/pages/deployments/{deploymentId}',
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  deploymentId,
+                },
+              ));
+              const deploymentStatus = status.data.status;
+              core.info(`Pages deployment status: ${deploymentStatus}`);
+              if (deploymentStatus === 'succeed') {
+                core.setOutput('page_url', status.data.page_url || deployment.data.page_url || '');
+                core.setOutput('status', 'succeed');
+                core.setOutput('deployment_id', String(deploymentId));
+                core.setOutput('pages_build_version', buildVersion);
+                core.info('Reported success!');
+                return;
+              }
+              if ([
+                'deployment_failed',
+                'deployment_perms_error',
+                'deployment_content_failed',
+                'deployment_cancelled',
+                'deployment_lost',
+              ].includes(deploymentStatus)) {
+                throw new Error(`Pages deployment failed with status=${deploymentStatus}`);
+              }
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+            throw new Error('Pages deployment timed out');
