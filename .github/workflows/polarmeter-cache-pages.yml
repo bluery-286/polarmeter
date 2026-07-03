@@ -69,5 +69,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 tools/polarmeter_pages_deploy_unique.py \
-            --artifact-id "${{ needs.build.outputs.pages_artifact_id }}" \
-            --build-version "${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
+            --artifact-id "${{ needs.build.outputs.pages_artifact_id }}"

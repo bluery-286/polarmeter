@@ -10,6 +10,7 @@ artifact id plus run metadata to avoid stale public cache serving.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -75,7 +76,8 @@ def default_build_version() -> str:
     sha = os.environ.get('GITHUB_SHA', 'unknown-sha')
     run_id = os.environ.get('GITHUB_RUN_ID', 'unknown-run')
     attempt = os.environ.get('GITHUB_RUN_ATTEMPT', '1')
-    return f'{sha}-{run_id}-{attempt}'
+    seed = f'{sha}-{run_id}-{attempt}'
+    return hashlib.sha1(seed.encode('utf-8')).hexdigest()
 
 
 def write_output(name: str, value: str) -> None:
