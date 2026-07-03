@@ -35,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
+    outputs:
+      pages_artifact_id: ${{ steps.upload.outputs.artifact_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,7 +50,8 @@ jobs:
         run: |
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
           python3 tools/polarmeter_github_pages_smoke.py
-      - uses: actions/upload-pages-artifact@v3
+      - id: upload
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./_site
 
@@ -59,5 +62,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
       - id: deployment
-        uses: actions/deploy-pages@v4
+        name: Deploy Pages with unique cache build version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/polarmeter_pages_deploy_unique.py \
+            --artifact-id "${{ needs.build.outputs.pages_artifact_id }}" \
+            --build-version "${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
