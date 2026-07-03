@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -39,8 +40,12 @@ def request_json(url: str, *, method: str = 'GET', token: str | None = None, pay
     if payload is not None:
         headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=30) as response:
-        body = response.read().decode('utf-8')
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            body = response.read().decode('utf-8')
+    except urllib.error.HTTPError as error:
+        body = error.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'HTTP {error.code} {error.reason} from {url}: {body}') from error
     return json.loads(body) if body else {}
 
 
