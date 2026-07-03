@@ -81,7 +81,7 @@ def yahoo_chart_change_fields(meta: dict[str, Any], closes: list[Any]) -> tuple[
     numeric_closes = [value for value in raw_closes if value is not None]
     meta_price = as_float(meta.get('regularMarketPrice'))
     price = meta_price if meta_price is not None else (numeric_closes[-1] if numeric_closes else None)
-    previous = as_float(first_present(meta, ['regularMarketPreviousClose', 'previousClose']))
+    previous = as_float(first_present(meta, ['regularMarketPreviousClose', 'previousClose', 'chartPreviousClose']))
     change = as_float(first_present(meta, ['regularMarketChange']))
     change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
     source = 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close'
