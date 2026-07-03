@@ -30,7 +30,7 @@ FINAL_FAILURES = {
 }
 
 
-def request_json(
+def request_json_once(
     url: str,
     *,
     method: str = 'GET',
@@ -48,13 +48,35 @@ def request_json(
     if payload is not None:
         headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            body = response.read().decode('utf-8')
-    except urllib.error.HTTPError as error:
-        body = error.read().decode('utf-8', errors='replace')
-        raise RuntimeError(f'HTTP {error.code} {error.reason} from {url}: {body}') from error
+    with urllib.request.urlopen(req, timeout=30) as response:
+        body = response.read().decode('utf-8')
     return json.loads(body) if body else {}
+
+
+def request_json(
+    url: str,
+    *,
+    method: str = 'GET',
+    token: str | None = None,
+    auth_scheme: str = 'token',
+    payload: dict[str, Any] | None = None,
+    attempts: int = 4,
+) -> dict[str, Any]:
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return request_json_once(url, method=method, token=token, auth_scheme=auth_scheme, payload=payload)
+        except urllib.error.HTTPError as error:
+            body = error.read().decode('utf-8', errors='replace')
+            last_error = RuntimeError(f'HTTP {error.code} {error.reason} from {url}: {body}')
+            if error.code not in {429, 500, 502, 503, 504} or attempt >= attempts:
+                raise last_error from error
+        except urllib.error.URLError as error:
+            last_error = error
+            if attempt >= attempts:
+                raise RuntimeError(f'network error from {url}: {error}') from error
+        time.sleep(min(2 ** attempt, 10))
+    raise RuntimeError(f'request failed after {attempts} attempts: {last_error}')
 
 
 def get_oidc_token(audience: str | None = None) -> str:
