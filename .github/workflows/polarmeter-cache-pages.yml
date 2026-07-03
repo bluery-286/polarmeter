@@ -61,8 +61,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-        env:
-          # deploy-pages uses GITHUB_SHA as pages_build_version. Scheduled cache
-          # runs can create new artifacts on the same commit, so include run
-          # identity to avoid Pages serving the previous artifact.
-          GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
