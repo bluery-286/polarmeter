@@ -231,6 +231,13 @@ def parse_utc_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def public_market_ttl_minutes(snapshot: dict[str, Any]) -> int:
+    generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
+    if generated_at is not None:
+        return recommended_market_ttl_minutes(generated_at)
+    return int(snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes())
+
+
 def kst_date_key(value: Any) -> str | None:
     parsed = parse_utc_datetime(value)
     if not parsed:
@@ -542,7 +549,7 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
     cost_guardrails = public_cost_guardrails()
     data_quality = sanitize_public_data_quality(snapshot.get('dataQuality') or {})
     refresh_policy = public_refresh_policy()
-    market_ttl_minutes = snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes()
+    market_ttl_minutes = public_market_ttl_minutes(snapshot)
     market_next_refresh_at = iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes))
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
@@ -692,7 +699,7 @@ def sanitize_public_provider_status_by_name(status_by_name: dict[str, Any]) -> d
 
 
 def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
-    market_ttl_minutes = snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes()
+    market_ttl_minutes = public_market_ttl_minutes(snapshot)
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
