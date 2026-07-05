@@ -18,9 +18,9 @@ on:
     - cron: '35 14,15 * * 1-5'
     - cron: '20 20,21 * * 1-5'
     - cron: '5 21,22 * * 1-5'
-    # Weekends: hourly off :00 because GitHub scheduled workflows can be
-    # delayed or dropped near the top of the hour.
-    - cron: '17 * * * 0,6'
+    # Weekends: two off-peak attempts per hour. The build guard below skips
+    # fresh caches, so this adds schedule redundancy without doubling data calls.
+    - cron: '17,37 * * * 0,6'
 
 permissions:
   contents: write
@@ -33,11 +33,53 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Decide whether cache build is needed
+        id: cache_guard
+        env:
+          CACHE_MANIFEST_URL: https://polarmeter.polarbearworks.com/market-snapshot-manifest.json
+          MIN_MINUTES_BEFORE_NEXT_REFRESH: '10'
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from datetime import datetime, timezone
+
+          event_name = os.environ.get('GITHUB_EVENT_NAME', '')
+          threshold = float(os.environ.get('MIN_MINUTES_BEFORE_NEXT_REFRESH', '10'))
+          should_build = True
+          reason = 'manual dispatch always builds'
+
+          if event_name != 'workflow_dispatch':
+              url = os.environ['CACHE_MANIFEST_URL']
+              try:
+                  request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache', 'Pragma': 'no-cache'})
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      manifest = json.loads(response.read().decode('utf-8'))
+                  next_refresh = datetime.fromisoformat(str(manifest['nextRefreshAt']).replace('Z', '+00:00')).astimezone(timezone.utc)
+                  minutes_until = (next_refresh - datetime.now(timezone.utc)).total_seconds() / 60
+                  if minutes_until > threshold:
+                      should_build = False
+                      reason = f'public cache fresh for {minutes_until:.1f}m; skip schedule build'
+                  else:
+                      reason = f'public cache due soon or stale ({minutes_until:.1f}m); build'
+              except Exception as error:
+                  should_build = True
+                  reason = f'manifest check failed; build to recover: {error}'
+
+          print(reason)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f"should_build={'true' if should_build else 'false'}\n")
+              output.write(f"reason={reason}\n")
+          PY
       - uses: actions/checkout@v4
+        if: steps.cache_guard.outputs.should_build == 'true'
       - uses: actions/setup-python@v5
+        if: steps.cache_guard.outputs.should_build == 'true'
         with:
           python-version: '3.12'
       - name: Build Pages payload
+        if: steps.cache_guard.outputs.should_build == 'true'
         env:
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
@@ -46,9 +88,11 @@ jobs:
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
           python3 tools/polarmeter_github_pages_smoke.py
       - uses: actions/upload-pages-artifact@v3
+        if: steps.cache_guard.outputs.should_build == 'true'
         with:
           path: ./_site
       - name: Publish Pages branch
+        if: steps.cache_guard.outputs.should_build == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
