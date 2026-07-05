@@ -18,8 +18,9 @@ on:
     - cron: '35 14,15 * * 1-5'
     - cron: '20 20,21 * * 1-5'
     - cron: '5 21,22 * * 1-5'
-    # Weekends: hourly so overseas/geopolitics headlines do not sit stale.
-    - cron: '0 * * * 0,6'
+    # Weekends: hourly off :00 because GitHub scheduled workflows can be
+    # delayed or dropped near the top of the hour.
+    - cron: '17 * * * 0,6'
 
 permissions:
   contents: write
