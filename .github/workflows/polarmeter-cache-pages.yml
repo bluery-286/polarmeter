@@ -113,6 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           import subprocess
@@ -123,15 +124,18 @@ jobs:
           from pathlib import Path
 
           site = Path('_site')
-          expected = json.loads((site / 'market-snapshot-latest.json').read_text(encoding='utf-8')).get('generatedAt')
+          expected_bytes = (site / 'market-snapshot-latest.json').read_bytes()
+          expected_payload = json.loads(expected_bytes.decode('utf-8'))
+          expected = expected_payload.get('generatedAt')
           if not expected:
               raise SystemExit('market-snapshot-latest.json is missing generatedAt')
+          expected_sha256 = hashlib.sha256(expected_bytes).hexdigest()
 
           public_url = os.environ['PUBLIC_SNAPSHOT_URL']
           run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
           retries = int(os.environ.get('PAGES_PUBLIC_VERIFY_RETRIES', '2'))
 
-          def public_generated_at(attempt: int, poll: int) -> str | None:
+          def public_snapshot(attempt: int, poll: int) -> tuple[str | None, str]:
               cache_bust = int(time.time())
               url = f'{public_url}?run={run_id}&attempt={attempt}&poll={poll}&t={cache_bust}'
               request = urllib.request.Request(
@@ -139,8 +143,9 @@ jobs:
                   headers={'Cache-Control': 'no-cache', 'Pragma': 'no-cache'},
               )
               with urllib.request.urlopen(request, timeout=20) as response:
-                  payload = json.loads(response.read().decode('utf-8'))
-              return payload.get('generatedAt')
+                  body = response.read()
+              payload = json.loads(body.decode('utf-8'))
+              return payload.get('generatedAt'), hashlib.sha256(body).hexdigest()
 
           def wait_for_public(attempt: int, seconds: int = 120) -> tuple[bool, str | None]:
               deadline = time.time() + seconds
@@ -149,14 +154,16 @@ jobs:
               while time.time() < deadline:
                   poll += 1
                   try:
-                      last = public_generated_at(attempt, poll)
+                      generated_at, public_sha256 = public_snapshot(attempt, poll)
+                      last = f'{generated_at} sha256={public_sha256}'
                       print(
                           f'public cache poll attempt={attempt} poll={poll} '
-                          f'generatedAt={last} expected={expected}',
+                          f'generatedAt={generated_at} expected={expected} '
+                          f'sha256={public_sha256} expectedSha256={expected_sha256}',
                           flush=True,
                       )
-                      if last == expected:
-                          return True, last
+                      if generated_at == expected and public_sha256 == expected_sha256:
+                          return True, generated_at
                   except Exception as error:
                       last = f'error: {error}'
                       print(f'public cache poll attempt={attempt} poll={poll} {last}', flush=True)
@@ -178,6 +185,7 @@ jobs:
                       f'run={run_id}',
                       f'attempt={attempt + 1}',
                       f'expectedGeneratedAt={expected}',
+                      f'expectedSha256={expected_sha256}',
                       f'createdAt={datetime.now(timezone.utc).isoformat()}',
                       '',
                   ]),
