@@ -39,6 +39,7 @@ jobs:
         env:
           CACHE_MANIFEST_URL: https://polarmeter.polarbearworks.com/market-snapshot-manifest.json
           MIN_MINUTES_BEFORE_NEXT_REFRESH: '15'
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           python3 - <<'PY'
           import json
@@ -47,11 +48,24 @@ jobs:
           from datetime import datetime, timezone
 
           event_name = os.environ.get('GITHUB_EVENT_NAME', '')
+          event_schedule = os.environ.get('GITHUB_EVENT_SCHEDULE', '')
           threshold = float(os.environ.get('MIN_MINUTES_BEFORE_NEXT_REFRESH', '10'))
+          critical_market_schedules = {
+              '35 0 * * 1-5',
+              '5 1 * * 1-5',
+              '50 6 * * 1-5',
+              '35 7 * * 1-5',
+              '5 14,15 * * 1-5',
+              '35 14,15 * * 1-5',
+              '20 20,21 * * 1-5',
+              '5 21,22 * * 1-5',
+          }
           should_build = True
           reason = 'manual dispatch always builds'
 
-          if event_name != 'workflow_dispatch':
+          if event_name == 'schedule' and event_schedule in critical_market_schedules:
+              reason = f'critical market confirmation schedule forces build: {event_schedule}'
+          elif event_name != 'workflow_dispatch':
               url = os.environ['CACHE_MANIFEST_URL']
               try:
                   request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache', 'Pragma': 'no-cache'})
