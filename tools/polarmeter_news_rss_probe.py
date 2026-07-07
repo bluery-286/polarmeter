@@ -989,6 +989,12 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     explicit_rate_hike_expectation_relief = re.search(r'(금리\s*인상\s*기대|rate\s*hike\s*expectations?).{0,24}(낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)', text, re.I)
     explicit_inflation_burden = inflation_stress_signal(text)
     title_burden = re.search(r'(부담|압박|압력|공포|악재|위험회피|불확실|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I) and not dampened_burden and not (explicit_index_relief and fx_relief_marker)
+    explicit_tech_burden = re.search(
+        r'(반도체|기술주|AI주|ai\s+stocks?|semiconductor|chip(?:s|makers?)?|tech(?:nology)?\s+stocks?).{0,36}(약세|하락|급락|부담|압박|압력|weak|lower|fall|falls|drop|drops|slump|sell-?off|pressure)|'
+        r'(약세|하락|급락|부담|압박|압력|weak|lower|fall|falls|drop|drops|slump|sell-?off|pressure).{0,36}(반도체|기술주|AI주|ai\s+stocks?|semiconductor|chip(?:s|makers?)?|tech(?:nology)?\s+stocks?)',
+        text,
+        re.I,
+    )
     explicit_company_burden = has_bellwether_context and (down or title_burden)
     explicit_company_relief = has_bellwether_context and up and not title_burden
     explicit_fx_burden = fx_or_foreign_balance_stress(text)
@@ -1024,6 +1030,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         return 'negative'
     if explicit_oil_relief:
         return 'positive'
+    if explicit_tech_burden:
+        return 'negative'
     if explicit_geo_relief and (explicit_index_relief or up or explicit_oil_relief) and not (explicit_index_burden or title_burden or explicit_inflation_burden or explicit_fx_burden or explicit_oil_burden):
         return 'positive'
     if explicit_foreign_flow_burden:
@@ -1417,7 +1425,12 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons['UNTRANSLATED_ENGLISH_HEADLINE'] = filtered_reasons.get('UNTRANSLATED_ENGLISH_HEADLINE', 0) + 1
                 continue
             translated_from_english = bool(translated_headline and not has_korean(headline))
-            final_impact_tone = market_burden_tone(display_headline or headline, relevance['impactTone'])
+            final_impact_tone = market_burden_tone(headline, relevance['impactTone'])
+            if final_impact_tone == 'neutral':
+                final_impact_tone = market_burden_tone(display_headline or headline, relevance['impactTone'])
+            display_impact_tone = market_burden_tone(display_headline or headline, final_impact_tone)
+            if display_impact_tone in {'positive', 'negative'} and display_impact_tone != final_impact_tone:
+                final_impact_tone = display_impact_tone
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if display_key in seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
