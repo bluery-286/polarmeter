@@ -730,9 +730,15 @@ def english_market_context_translation(headline: str) -> str | None:
         return '연준 신호에 금·은 가격 약세, 안전자산 수요 약화'
     if re.search(r'bond\s+yields?.{0,24}falling|yields?.{0,24}falling', lower) and has_inflation:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
+    if re.search(r'(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체).{0,48}(rebound|rebounds|rally|rallies|recover|recovers|반등|회복)|(rebound|rebounds|rally|rallies|recover|recovers|반등|회복).{0,48}(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체)', text, re.I) and re.search(r'(oil|crude|유가|원유).{0,36}(weak|lower|fall|falls|drop|drops|하락|약세|내림)|(weak|lower|fall|falls|drop|drops|하락|약세|내림).{0,36}(oil|crude|유가|원유)', text, re.I):
+        return '반도체 반등과 유가 하락은 시장 부담 완화 신호'
     if has_inflation and has_chip and re.search(r'micron|apple|chip\s+stocks?|semiconductor|technology\s+stocks?', lower):
         return 'PCE 물가 부담과 반도체·대형 기술주 약세 압력'
-    if re.search(r's&p\s*500|nasdaq', lower) and re.search(r'losing\s+momentum|under\s+pressure|ai\s+stocks?', lower):
+    if re.search(r's&p\s*500|nasdaq', lower) and re.search(
+        r'losing\s+momentum|under\s+pressure|ai\s+stocks?.{0,36}(?:under\s+pressure|pressure|weak|lower|fall|falls|drop|drops|slump|sell[-\s]?off|pull\s*back)|'
+        r'(?:under\s+pressure|pressure|weak|lower|fall|falls|drop|drops|slump|sell[-\s]?off|pull\s*back).{0,36}ai\s+stocks?',
+        lower,
+    ):
         return 'AI주 압박에 S&P500·나스닥 약세 압력'
     if has_inflation and re.search(r'hotter[-\s]?than[-\s]?expected|hot|high(?:er|est)?|sticky|elevated', lower) and (positive or has_wall_street):
         return '지수 선물은 반등하지만 물가 부담은 남아 있음'
@@ -941,7 +947,7 @@ def headline_tone(headline: str) -> str:
             return 'positive'
     if any(token in headline for token in ['종전', '휴전', '합의', '환호']) or any(token in text for token in ['ceasefire', 'truce', 'deal coming soon', 'deal signed']):
         return 'positive'
-    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담']) or any(token in text for token in ['fall', 'drop', 'dropped', 'dip', 'dips', 'dipped', 'slide', 'slides', 'sliding', 'lower', 'risk', 'selloff', 'volatility', 'crash', 'tumble', 'weakens', 'weaken', 'under pressure', 'losing momentum']):
+    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담', '압박', '압력']) or any(token in text for token in ['fall', 'drop', 'dropped', 'dip', 'dips', 'dipped', 'slide', 'slides', 'sliding', 'lower', 'risk', 'selloff', 'volatility', 'crash', 'tumble', 'weakens', 'weaken', 'under pressure', 'losing momentum']):
         return 'negative'
     if any(token in headline for token in ['상승', '강세', '반등', '급등']) or any(token in text for token in ['rally', 'rallies', 'rise', 'rises', 'gain', 'gains', 'higher', 'rebound', 'rebounds', 'climb', 'climbs']):
         return 'positive'
@@ -964,7 +970,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     index_down = re.search(index_subject + r'.{0,42}(급락|하락|약세|폭락|slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes)|' + r'(급락|하락|약세|폭락|slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes).{0,42}' + index_subject, text, re.I)
     index_up = re.search(index_subject + r'.{0,42}(급등|상승|반등|회복|강세|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|gain|gains)|' + r'(급등|상승|반등|회복|강세|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|gain|gains).{0,42}' + index_subject, text, re.I)
     explicit_index_pressure = has_index and re.search(r'losing\s+momentum|under\s+pressure|압박|둔화|약세\s*압력', text, re.I)
-    explicit_index_burden = bool(index_down or explicit_index_pressure)
+    fx_relief_marker = re.search(r'(달러|dollar).{0,12}(↓|하락|약세|lower|fall|falls|drop|drops|weak)|↓.{0,12}(달러|dollar)', text, re.I)
+    explicit_index_burden = bool(index_down or explicit_index_pressure) and not (index_up and fx_relief_marker)
     explicit_index_relief = bool(index_up)
     explicit_index_oil_relief = (
         explicit_index_relief
@@ -981,7 +988,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     explicit_rate_relief = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(완화|하락|인하|내림|낮아|ease|eases|fall|falls|drop|drops|lower|decline)|(완화|하락|인하|내림|낮아|ease|fall|drop|lower).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I)
     explicit_rate_hike_expectation_relief = re.search(r'(금리\s*인상\s*기대|rate\s*hike\s*expectations?).{0,24}(낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)', text, re.I)
     explicit_inflation_burden = inflation_stress_signal(text)
-    title_burden = re.search(r'(부담|공포|악재|위험회피|불확실|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I) and not dampened_burden
+    title_burden = re.search(r'(부담|압박|압력|공포|악재|위험회피|불확실|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I) and not dampened_burden and not (explicit_index_relief and fx_relief_marker)
     explicit_company_burden = has_bellwether_context and (down or title_burden)
     explicit_company_relief = has_bellwether_context and up and not title_burden
     explicit_fx_burden = fx_or_foreign_balance_stress(text)
@@ -1066,7 +1073,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if has_oil:
         if explicit_oil_relief:
             return 'positive'
-        if explicit_oil_burden or up:
+        if explicit_oil_burden:
             return 'negative'
     if has_rate:
         if re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(상승|급등|높|고공|higher|rise|rises|rising|jump|surge)', text, re.I):
@@ -1079,7 +1086,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         if down:
             return 'positive'
     if has_index:
-        if down:
+        if down and not (up and fx_relief_marker):
             return 'negative'
         if up:
             return 'positive'

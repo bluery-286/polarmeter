@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,8 @@ MAX_STALE_SIGNAL_AGE_HOURS = {
     # showing an old number is worse than clearly marking it unavailable.
     'vix': 72,
 }
+KST = timezone(timedelta(hours=9))
+KR_INTRADAY_STALE_KEYS = {'kospi', 'kosdaq', 'kr_samsung'}
 
 CORE_SIGNALS = {'kospi', 'usd_krw', 'sp500', 'vix', 'wti'}
 CORE_GROUPS = {
@@ -41,8 +43,8 @@ CORE_GROUPS = {
 SANITY_RANGES = {
     # abs(changePct) <= suspect is normal; > reject is hidden unless last-known-good exists.
     # 2026 POC cross-check: KOSPI genuinely trades in the 7,000~8,000 range.
-    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': True},
-    'kosdaq': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 10.0, 'requiresChangePct': True},
+    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 18.0, 'requiresChangePct': True},
+    'kosdaq': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': True},
     'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
@@ -85,6 +87,36 @@ def parse_utc_datetime(value: Any) -> datetime | None:
         return parsed.astimezone(timezone.utc)
     except (TypeError, ValueError, OSError):
         return None
+
+
+def candidate_data_date_kst(value: Any) -> Any:
+    raw = str(value or '').strip()
+    if len(raw) == 8 and raw.isdigit():
+        try:
+            return datetime.strptime(raw, '%Y%m%d').date()
+        except ValueError:
+            return None
+    parsed = parse_utc_datetime(value)
+    if not parsed:
+        return None
+    return parsed.astimezone(KST).date()
+
+
+def is_kr_intraday_guard_active(now: datetime | None = None) -> bool:
+    current = (now or datetime.now(timezone.utc)).astimezone(KST)
+    if current.weekday() >= 5:
+        return False
+    return time(9, 30) <= current.time() <= time(16, 40)
+
+
+def kr_intraday_stale_reason(key: str, provider: str, item: dict[str, Any]) -> str | None:
+    if key not in KR_INTRADAY_STALE_KEYS or not is_kr_intraday_guard_active():
+        return None
+    data_date = candidate_data_date_kst(item.get('asOf'))
+    current_date = datetime.now(timezone.utc).astimezone(KST).date()
+    if data_date is not None and data_date < current_date:
+        return f'kr_intraday_prior_day_data provider={provider} dataAsOf={item.get("asOf")}'
+    return None
 
 
 def stale_signal_age_hours(signal: dict[str, Any]) -> float | None:
@@ -303,6 +335,9 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
         return None
     if stale_signal_is_too_old(key, previous):
         return None
+    previous_as_of = previous.get('dataAsOf') or previous.get('lastSuccessfulAt') or previous.get('fetchedAt')
+    if kr_intraday_stale_reason(key, previous.get('provider') or 'last-known-good', {'asOf': previous_as_of}):
+        return None
     previous_quality, previous_reason = validate_candidate(key, {
         'status': 'ok',
         'price': previous.get('value'),
@@ -339,6 +374,9 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
             if item.get('key') != key:
                 continue
             quality, reason = validate_candidate(key, item)
+            stale_reason = kr_intraday_stale_reason(key, provider, item)
+            if stale_reason and quality in {'ok', 'suspect', 'partial'}:
+                quality, reason = 'stale', stale_reason
             failure = {
                 'provider': provider,
                 'status': item.get('status'),
