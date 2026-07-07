@@ -796,6 +796,10 @@ def english_market_context_translation(headline: str) -> str | None:
         return '반도체·AI주 약세는 미국 기술주 부담'
     if has_chip and equity_positive:
         return '반도체·AI주 반등은 미국 기술주 부담을 덜어주는 신호'
+    if has_futures and (has_sp500 or has_nasdaq or has_dow) and re.search(r'positive\s+open', lower):
+        if re.search(r'meta|nvidia|tech\s+stocks?', lower, re.I):
+            return '미국 지수 선물 상승 출발, 메타·엔비디아 등 기술주 주목'
+        return '미국 지수 선물 상승 출발은 개장 전 부담 완화 신호'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
         return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
