@@ -40,8 +40,9 @@ DEFAULT_PREVIOUS_PUBLIC_CACHE_URL = os.environ.get(
 TEMPERATURE_HISTORY_RETENTION_DAYS = 7
 WEEKDAY_NEWS_TTL_MINUTES = 30
 WEEKEND_NEWS_TTL_MINUTES = 60
+MARKET_DATA_TTL_MINUTES = 60
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
-MARKET_DATA_RECOMMENDED_SCHEDULE = 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations'
+MARKET_DATA_RECOMMENDED_SCHEDULE = 'market_aware_60min_daily_kr_us_open_close_confirmations'
 CRITICAL_MARKET_REFRESHES = [
     {
         'key': 'kr_open_plus_30',
@@ -185,8 +186,7 @@ def recommended_news_ttl_minutes(now: datetime | None = None) -> int:
 
 
 def recommended_market_ttl_minutes(now: datetime | None = None) -> int:
-    current = now or datetime.now(timezone.utc)
-    return 60 if current.weekday() >= 5 else 30
+    return MARKET_DATA_TTL_MINUTES
 
 
 def iso_add_minutes(value: Any, minutes: int) -> str | None:
@@ -208,12 +208,12 @@ def public_refresh_policy() -> dict[str, Any]:
         'marketDataRecommendedSchedule': MARKET_DATA_RECOMMENDED_SCHEDULE,
         'newsRecommendedSchedule': NEWS_RECOMMENDED_SCHEDULE,
         'baseCadence': {
-            'weekdays': '30분',
+            'weekdays': '60분',
             'weekends': '60분',
         },
         'criticalMarketRefreshes': CRITICAL_MARKET_REFRESHES,
         'notes': [
-            '정기 30분 주기에 더해 국내장/미장 개장 후와 마감 후 확인 스냅샷을 중요 갱신점으로 둡니다.',
+            '정기 60분 주기에 더해 국내장/미장 개장 후와 마감 후 확인 스냅샷을 중요 갱신점으로 둡니다.',
             '무료/지연 제공처가 아직 새 값을 주지 않으면 추정으로 채우지 않고 dataAsOf와 freshness 상태를 표시합니다.',
         ],
     }

@@ -3,10 +3,9 @@ name: PolarMeter Cache Pages
 on:
   workflow_dispatch:
   schedule:
-    # Weekdays: check every 10 minutes as the baseline. The guard below skips
-    # fresh caches, so these extra slots are schedule redundancy, not provider
-    # calls. This avoids relying on a single near-expiry GitHub cron.
-    - cron: '7,17,27,37,47,57 * * * 1-5'
+    # Weekdays: hourly baseline for a market temperature briefing app. Critical
+    # market confirmation crons below still force builds around open/close.
+    - cron: '7 * * * 1-5'
     # Korea market confirmation points:
     # 09:30/10:00 KST after open, 15:45/16:30 KST after close/final delayed data.
     - cron: '35 0 * * 1-5'
@@ -19,9 +18,9 @@ on:
     - cron: '35 14,15 * * 1-5'
     - cron: '20 20,21 * * 1-5'
     - cron: '5 21,22 * * 1-5'
-    # Weekends: same redundancy. GitHub scheduled workflows can arrive late or
-    # be skipped; frequent guarded checks keep the public cache from going stale.
-    - cron: '7,17,27,37,47,57 * * * 0,6'
+    # Weekends: hourly headline/cache check. The worker keeps market data
+    # labeled by dataAsOf instead of pretending closed markets are live.
+    - cron: '17 * * * 0,6'
 
 permissions:
   contents: write

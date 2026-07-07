@@ -547,7 +547,7 @@ def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = No
         'status': status,
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
-        'defaultTtlMinutes': 30,
+        'defaultTtlMinutes': 60,
         'probeStatus': probe.get('status'),
         'providerMetrics': provider_metrics(probe),
         'dataQuality': quality,

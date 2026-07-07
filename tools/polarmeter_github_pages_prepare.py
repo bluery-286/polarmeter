@@ -164,7 +164,7 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('manifest must expose market data TTL and next refresh metadata')
     if manifest.get('newsRecommendedSchedule') != '30min_weekdays_60min_weekends_public_headline_cache':
         raise AssertionError('manifest news schedule metadata mismatch')
-    if manifest.get('marketDataRecommendedSchedule') != 'market_aware_30min_weekdays_60min_weekends_kr_us_open_close_confirmations':
+    if manifest.get('marketDataRecommendedSchedule') != 'market_aware_60min_daily_kr_us_open_close_confirmations':
         raise AssertionError('manifest market data schedule metadata mismatch')
     critical_refreshes = manifest.get('criticalMarketRefreshes')
     if not isinstance(critical_refreshes, list) or len(critical_refreshes) < 8:
