@@ -77,6 +77,14 @@ CRITICAL_MARKET_REFRESHES = [
         'reason': '지연 제공처의 종가 반영 시간을 감안해 국내 종가 기준 스냅샷을 다시 만듭니다.',
     },
     {
+        'key': 'us_open_plus_5_dst',
+        'market': 'US',
+        'label': '미장 개장 직후 확인',
+        'localTime': '09:30 ET + 5m (US daylight)',
+        'utcCron': '35 13 * * 1-5',
+        'reason': '미국 서머타임 정규장 시작 직후 SPY·QQQ·IWM·VIX 기준시각 stale window를 줄이기 위한 강제 확인입니다.',
+    },
+    {
         'key': 'us_open_plus_30',
         'market': 'US',
         'label': '미장 개장 후 30분 확인',

@@ -13,7 +13,8 @@ on:
     - cron: '50 6 * * 1-5'
     - cron: '35 7 * * 1-5'
     # US market confirmation points. Includes both US daylight and standard time.
-    # 09:30 ET +30/+60m, 16:00 ET +15/+60m.
+    # 09:30 ET +5m daylight, +35/+65m both seasons, 16:00 ET +15/+60m.
+    - cron: '35 13 * * 1-5'
     - cron: '5 14,15 * * 1-5'
     - cron: '35 14,15 * * 1-5'
     - cron: '20 20,21 * * 1-5'
@@ -54,6 +55,7 @@ jobs:
               '5 1 * * 1-5',
               '50 6 * * 1-5',
               '35 7 * * 1-5',
+              '35 13 * * 1-5',
               '5 14,15 * * 1-5',
               '35 14,15 * * 1-5',
               '20 20,21 * * 1-5',

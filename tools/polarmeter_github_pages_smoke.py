@@ -93,11 +93,11 @@ def main() -> int:
         if manifest.get('marketDataRecommendedSchedule') != 'market_aware_60min_daily_kr_us_open_close_confirmations':
             raise AssertionError('manifest market data schedule metadata mismatch')
         critical_refreshes = manifest.get('criticalMarketRefreshes')
-        if not isinstance(critical_refreshes, list) or len(critical_refreshes) < 8:
+        if not isinstance(critical_refreshes, list) or len(critical_refreshes) < 9:
             raise AssertionError('manifest must expose KR/US open-close critical refreshes')
         required_refresh_keys = {
             'kr_open_plus_30', 'kr_open_plus_60', 'kr_close_plus_15', 'kr_close_plus_60',
-            'us_open_plus_30', 'us_open_plus_60', 'us_close_plus_15', 'us_close_plus_60',
+            'us_open_plus_5_dst', 'us_open_plus_30', 'us_open_plus_60', 'us_close_plus_15', 'us_close_plus_60',
         }
         actual_refresh_keys = {item.get('key') for item in critical_refreshes if isinstance(item, dict)}
         if required_refresh_keys - actual_refresh_keys:

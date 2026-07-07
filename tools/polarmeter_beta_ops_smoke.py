@@ -32,6 +32,7 @@ REQUIRED_REFRESH_KEYS = {
     'kr_open_plus_60',
     'kr_close_plus_15',
     'kr_close_plus_60',
+    'us_open_plus_5_dst',
     'us_open_plus_30',
     'us_open_plus_60',
     'us_close_plus_15',
