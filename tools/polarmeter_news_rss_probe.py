@@ -800,6 +800,8 @@ def english_market_context_translation(headline: str) -> str | None:
         if re.search(r'meta|nvidia|tech\s+stocks?', lower, re.I):
             return '미국 지수 선물 상승 출발, 메타·엔비디아 등 기술주 주목'
         return '미국 지수 선물 상승 출발은 개장 전 부담 완화 신호'
+    if re.search(r'micron|마이크론', lower, re.I) and re.search(r'meta|메타', lower, re.I) and re.search(r'nasdaq\s*100|nasdaq', lower, re.I):
+        return '마이크론·메타 비중 차이는 나스닥100 반도체 신호'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
         return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
