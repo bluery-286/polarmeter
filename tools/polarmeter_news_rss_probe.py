@@ -219,6 +219,16 @@ THEME_OR_OPINION_NOISE_PATTERNS = [
     re.compile(r'(Prediction:|Could\s+Crush|Should\s+You\s+Actually|Smarter\s+Buy|Best\s+.+\s+To\s+Buy)', re.I),
 ]
 
+SINGLE_COMPANY_NARRATIVE_NOISE_PATTERNS = [
+    re.compile(r'(K-?놀부전|소금과\s*도둑질|성장\s*비결|한\s*코스닥\s*상장사|가봤더니|비결은\?)', re.I),
+    re.compile(r'(주식창|새파랗게\s*질린|온통\s*파란|안\s*보려고\s*해요|반도체\s*비중\s*축소\s*권고|반도체\s*관심도\s*감소|과연\s*고점)', re.I),
+]
+
+SINGLE_COMPANY_NARRATIVE_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(코스피|코스닥\s*지수|나스닥|S&P\s*500|S&P500|SP500|다우|증시|지수|수급|외국인|기관)', re.I),
+    re.compile(r'(실적\s*(?:충격|호조|부진)|가이던스|컨센서스|반도체\s*(?:업황|섹터|업종).{0,24}(급락|급등|하락|상승|약세|강세))', re.I),
+]
+
 CORPORATE_CRIME_NONMARKET_PATTERNS = [
     re.compile(r'(기술|영업\s*비밀|자료|정보).{0,24}(유출|넘긴|빼돌|절취|실형|징역|구속|재판|기소)', re.I),
     re.compile(r'(실형|징역|구속|재판|기소|횡령|배임).{0,24}(반도체|기술|임원|연구원|직원)', re.I),
@@ -308,6 +318,12 @@ def is_low_impact_policy_noise(text: str) -> bool:
 def is_local_semiconductor_policy_noise(text: str) -> bool:
     return any(pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_NOISE_PATTERNS) and not any(
         pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_single_company_narrative_noise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_NOISE_PATTERNS) and not any(
+        pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_MARKET_OVERRIDE_PATTERNS
     )
 
 
@@ -766,8 +782,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '유가 하락은 물가·비용 부담을 낮추는 완화 신호'
     if has_oil_geo and re.search(r'oil|crude|hormuz', lower):
         if not re.search(r'tension|risk|pressure|war|hormuz|threat|threaten|uncertainty', lower):
-            return '중동·유가 이슈는 시장 분위기를 바꿀 수 있는 참고 신호'
-        return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
+            return '중동·유가 뉴스는 원유 공급과 지수 반응 확인'
+        return '중동 긴장은 유가와 대표 지수 반응 확인'
     if has_oil_geo:
         return '중동 이슈는 시장을 조심스럽게 만드는 참고 신호'
     if has_inflation:
@@ -1252,6 +1268,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'LOW_IMPACT_POLICY_NOT_MARKET_TEMPERATURE'
     if is_local_semiconductor_policy_noise(full_text):
         return None, 'LOCAL_SEMICONDUCTOR_POLICY_NOT_MARKET_TEMPERATURE'
+    if is_single_company_narrative_noise(full_text):
+        return None, 'SINGLE_COMPANY_NARRATIVE_NOT_MARKET_TEMPERATURE'
     if is_theme_or_opinion_noise(full_text):
         return None, 'OPINION_OR_THEME_NOT_DIRECT_MARKET_TEMPERATURE'
     if is_market_history_or_obituary(full_text):
