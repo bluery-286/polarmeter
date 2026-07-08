@@ -28,6 +28,7 @@ DEFAULT_OUTPUT = PROJECT / '_site'
 PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
 LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 PUBLIC_BASE_URL = 'https://polarmeter.polarbearworks.com'
+MIN_PUBLISHABLE_NEWS_ITEMS = 10
 
 
 def copy_site(site_dir: Path, output_dir: Path) -> None:
@@ -66,18 +67,22 @@ def public_payload_is_publishable(output_dir: Path) -> bool:
     try:
         health = json.loads((output_dir / 'health.json').read_text(encoding='utf-8'))
         snapshot = json.loads((output_dir / 'market-snapshot-latest.json').read_text(encoding='utf-8'))
+        manifest = json.loads((output_dir / 'market-snapshot-manifest.json').read_text(encoding='utf-8'))
     except Exception:
         return False
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     history = snapshot.get('temperatureHistory') or {}
     daily_delta_status = (history.get('dailyDelta') or {}).get('status')
+    news_count = len((snapshot.get('news') or {}).get('items') or [])
+    manifest_news_count = manifest.get('okNewsCount') or 0
     return (
         health.get('ok') is True
         and isinstance(core_coverage, (int, float))
         and core_coverage >= 0.6
         and data_quality.get('displayMode') != 'collecting'
-        and len((snapshot.get('news') or {}).get('items') or []) > 0
+        and news_count >= MIN_PUBLISHABLE_NEWS_ITEMS
+        and manifest_news_count >= MIN_PUBLISHABLE_NEWS_ITEMS
         and history.get('version') == 'temperature-history-v1'
         and history.get('retentionDays') == 7
         and isinstance(history.get('items'), list)
