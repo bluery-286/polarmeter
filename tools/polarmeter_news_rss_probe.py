@@ -211,7 +211,9 @@ LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS = [
 
 LOCAL_SEMICONDUCTOR_POLICY_NOISE_PATTERNS = [
     re.compile(r'(노조|노노\s*갈등|탈퇴|임단협|쟁의|노사\s*갈등).{0,40}(삼성|하이닉스|반도체)|(삼성|하이닉스|반도체).{0,40}(노조|노노\s*갈등|탈퇴|임단협|쟁의|노사\s*갈등)', re.I),
-    re.compile(r'(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소).{0,48}(반도체|소부장)|(반도체|소부장).{0,48}(호남|광주|전남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소)', re.I),
+    re.compile(r'(호남|광주|전남|전북|경북|경남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|인재\s*선순환|계약학과|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소).{0,48}(반도체|소부장|주력주|조선|방산|원전)|(반도체|소부장|주력주|조선|방산|원전).{0,48}(호남|광주|전남|전북|경북|경남|지역갈등|여의도\s*정치|정면충돌|특혜|직권남용|이천시|산단|소부장\s*거점|고졸\s*인재|인재\s*선순환|계약학과|고교|특성화고|마이스터고|충북반도체고|학생|예산\s*축소)', re.I),
+    re.compile(r'(청와대|회의|점검회의|간담회|현장\s*방문|추진단|협의체|지자체|기관|민주당|국민의힘|기자수첩).{0,48}(반도체|소부장|클러스터)|(반도체|소부장|클러스터).{0,48}(청와대|회의|점검회의|간담회|현장\s*방문|추진단|협의체|지자체|기관|민주당|국민의힘|기자수첩)', re.I),
+    re.compile(r'(반도체\s*영토|계약학과|인재\s*선순환|AI[·\s]*반도체에\s*밀린)', re.I),
 ]
 
 LOCAL_SEMICONDUCTOR_POLICY_MARKET_OVERRIDE_PATTERNS = [
@@ -227,6 +229,7 @@ THEME_OR_OPINION_NOISE_PATTERNS = [
 SINGLE_COMPANY_NARRATIVE_NOISE_PATTERNS = [
     re.compile(r'(K-?놀부전|소금과\s*도둑질|성장\s*비결|한\s*코스닥\s*상장사|가봤더니|비결은\?)', re.I),
     re.compile(r'(주식창|새파랗게\s*질린|온통\s*파란|안\s*보려고\s*해요|반도체\s*비중\s*축소\s*권고|반도체\s*관심도\s*감소|과연\s*고점)', re.I),
+    re.compile(r'(용인\s*반도체.*기자수첩|민주당은\s*하나의\s*답|경남\s*주력주|조선[·\s]*방산[·\s]*원전\s*숨고르기|경북.*반도체\s*영토)', re.I),
 ]
 
 SINGLE_COMPANY_NARRATIVE_MARKET_OVERRIDE_PATTERNS = [
@@ -507,6 +510,7 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
 ]
 
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'oil\s+prices?\s+surge\s+5%.*stocks?\s+tumble.*trump\s+says\s+iran\s+ceasefire\s+is.*over', re.I), '유가 급등과 이란 휴전 불안은 미국 지수 부담'),
     (re.compile(r'indigo\s+shares?\s+fall.*spicejet\s+down.*trump.*iran\s+ceasefire\s+remarks?', re.I), '이란 휴전 발언 뒤 항공주 하락은 중동 리스크 재평가 신호'),
     (re.compile(r'kevin\s+warsh\s+plans?\s+to\s+stop\s+scripting\s+the\s+fed.{0,80}wild\s+ride\s+for\s+traders?', re.I), '연준 인사 발언은 금리 변동성 부담'),
     (re.compile(r'this\s+strategist\s+sees\s+the\s+s&p\s*500\s+hitting\s+8,?500.*one\s+thing\s+changed\s+her\s+mind', re.I), 'S&P500 8,500 전망은 지수 기대 재평가'),
