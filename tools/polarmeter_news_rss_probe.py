@@ -815,6 +815,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '마이크론·메타 비중 차이는 나스닥100 반도체 신호'
     if has_nasdaq and has_dow and re.search(r'chip\s+stocks?|semiconductors?|반도체', lower, re.I) and re.search(r'dow\s+jones.*(?:53,?000|first\s+time)|(?:53,?000|first\s+time).*dow\s+jones', lower, re.I):
         return '다우 53,000 돌파와 반도체주가 나스닥을 지탱'
+    if has_sp500 and re.search(r'yardeni', lower, re.I) and re.search(r'ai.{0,32}(real\s+deal|not\s+a\s+bubble)|(?:real\s+deal|not\s+a\s+bubble).{0,32}ai', lower, re.I) and re.search(r'targets?.{0,24}8,?250|8,?250.{0,24}year-?end', lower, re.I):
+        return '야데니, AI 거품론 반박하며 S&P500 연말 8,250 전망'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
         return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
