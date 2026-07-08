@@ -507,6 +507,8 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
 ]
 
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'indigo\s+shares?\s+fall.*spicejet\s+down.*trump.*iran\s+ceasefire\s+remarks?', re.I), '이란 휴전 발언 뒤 항공주 하락은 중동 리스크 재평가 신호'),
+    (re.compile(r'kevin\s+warsh\s+plans?\s+to\s+stop\s+scripting\s+the\s+fed.{0,80}wild\s+ride\s+for\s+traders?', re.I), '연준 인사 발언은 금리 변동성 부담'),
     (re.compile(r'forget\s+ai\s+software.*autonomous\s+weapons', re.I), 'AI 소프트웨어보다 자율무기 투자에 자금이 몰린다는 분석'),
     (re.compile(r'us\s+markets\s+plunge.*dow\s+jones.*s&p\s*500.*nasdaq.*iran.*risk-off', re.I), '이란 위협에 위험회피 확산, 다우·S&P500·나스닥 급락'),
     (re.compile(r'first\s+trillion-dollar\s+etf.*elon\s+musk', re.I), '첫 1조달러 ETF가 시장 관심을 독점한다는 분석'),
@@ -794,7 +796,7 @@ def english_market_context_translation(headline: str) -> str | None:
             return '중동·유가 뉴스는 원유 공급과 지수 반응 확인'
         return '중동 긴장은 유가와 대표 지수 반응 확인'
     if has_oil_geo:
-        return '중동 이슈는 시장을 조심스럽게 만드는 참고 신호'
+        return '중동 긴장은 유가와 대표 지수 반응 확인'
     if has_inflation:
         return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
     if has_dollar and has_fed:
@@ -802,7 +804,7 @@ def english_market_context_translation(headline: str) -> str | None:
     if has_futures and positive and re.search(r'fed\s*minutes?|fomc\s*minutes?', lower, re.I) and re.search(r'earnings?\s+loom|earnings?', lower, re.I):
         return '연준 의사록·실적 대기는 지수 선물 반등 속 부담'
     if has_fed:
-        return '연준·미국 금리 흐름은 시장 부담을 바꾸는 변수'
+        return '연준 뉴스는 금리 변동성 확인 포인트'
     if has_chip and equity_negative:
         return '반도체·AI주 약세는 미국 기술주 부담'
     if has_chip and equity_positive:
