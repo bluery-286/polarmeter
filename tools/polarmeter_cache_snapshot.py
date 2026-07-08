@@ -316,7 +316,19 @@ def validate_candidate(key: str, item: dict[str, Any]) -> tuple[str, str | None]
 
 
 def signal_reliability(key: str, provider: str, status: str, reason: str | None = None, data_as_of: Any = None) -> dict[str, Any]:
+    if status == 'stale':
+        return {
+            'sourceClass': 'stale_last_known_good',
+            'displayBadge': '지연된 값 · 참고만',
+            'confidencePolicy': 'low_stale_last_known_good',
+        }
     if key == 'usd_krw':
+        if status == 'suspect':
+            return {
+                'sourceClass': 'market_rate_large_move',
+                'displayBadge': '변동 큼 · 참고용 환율',
+                'confidencePolicy': 'low_large_move_until_official_fx',
+            }
         official = provider == 'bok-ecos-free'
         return {
             'sourceClass': 'official_reference' if official else 'market_rate',
@@ -343,6 +355,18 @@ def signal_reliability(key: str, provider: str, status: str, reason: str | None 
         return {'sourceClass': 'public_dollar_index', 'displayBadge': '지연 시세', 'confidencePolicy': 'normal'}
     if key in {'iwm', 'eem'}:
         return {'sourceClass': 'diversification_index_etf', 'displayBadge': '지연 시세', 'confidencePolicy': 'normal'}
+    if status == 'suspect' and key in {'kospi', 'kosdaq'} and provider == 'public-chart-delayed':
+        return {
+            'sourceClass': 'worker_side_public_chart_large_move',
+            'displayBadge': '변동 큼 · 공공차트 확인',
+            'confidencePolicy': 'low_until_corroborated_public_chart',
+        }
+    if status == 'suspect':
+        return {
+            'sourceClass': 'delayed_market_data_large_move',
+            'displayBadge': '변동 큼 · 보조 확인',
+            'confidencePolicy': 'low_until_corroborated_large_move',
+        }
     if key in {'kospi', 'kosdaq'} and provider == 'public-chart-delayed':
         return {'sourceClass': 'worker_side_public_chart_intraday', 'displayBadge': kr_index_display_badge(data_as_of), 'confidencePolicy': 'normal_with_fallback_to_public_close'}
     if key in {'kospi', 'kosdaq'}:
