@@ -790,6 +790,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
     if has_dollar and has_fed:
         return '연준·금리 신호는 달러와 환율 부담을 바꿀 수 있음'
+    if has_futures and positive and re.search(r'fed\s*minutes?|fomc\s*minutes?', lower, re.I) and re.search(r'earnings?\s+loom|earnings?', lower, re.I):
+        return '연준 의사록·실적 대기는 지수 선물 반등 속 부담'
     if has_fed:
         return '연준·미국 금리 흐름은 시장 부담을 바꾸는 변수'
     if has_chip and equity_negative:
@@ -802,6 +804,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '미국 지수 선물 상승 출발은 개장 전 부담 완화 신호'
     if re.search(r'micron|마이크론', lower, re.I) and re.search(r'meta|메타', lower, re.I) and re.search(r'nasdaq\s*100|nasdaq', lower, re.I):
         return '마이크론·메타 비중 차이는 나스닥100 반도체 신호'
+    if has_nasdaq and has_dow and re.search(r'chip\s+stocks?|semiconductors?|반도체', lower, re.I) and re.search(r'dow\s+jones.*(?:53,?000|first\s+time)|(?:53,?000|first\s+time).*dow\s+jones', lower, re.I):
+        return '다우 53,000 돌파와 반도체주가 나스닥을 지탱'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
         return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
