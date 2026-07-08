@@ -102,7 +102,7 @@ jobs:
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
         run: |
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
-          python3 tools/polarmeter_github_pages_smoke.py
+          python3 tools/polarmeter_github_pages_smoke.py --prepared-site ./_site
       - uses: actions/upload-pages-artifact@v3
         if: steps.cache_guard.outputs.should_build == 'true'
         with:
