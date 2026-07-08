@@ -817,6 +817,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '다우 53,000 돌파와 반도체주가 나스닥을 지탱'
     if has_sp500 and re.search(r'yardeni', lower, re.I) and re.search(r'ai.{0,32}(real\s+deal|not\s+a\s+bubble)|(?:real\s+deal|not\s+a\s+bubble).{0,32}ai', lower, re.I) and re.search(r'targets?.{0,24}8,?250|8,?250.{0,24}year-?end', lower, re.I):
         return '야데니, AI 거품론 반박하며 S&P500 연말 8,250 전망'
+    if has_sp500 and re.search(r'july|best\s+month', lower, re.I) and re.search(r'tech\s+stocks?|beat\s+the\s+market', lower, re.I):
+        return '7월 S&P500 계절 강세와 기술주 초과수익'
     if has_nasdaq and has_sp500 and has_dow and negative and positive:
         return '나스닥·S&P500과 다우 흐름이 엇갈려 미국장 온도 차이 발생'
 
@@ -837,7 +839,7 @@ def english_market_context_translation(headline: str) -> str | None:
             return f'{subject} 상승 흐름은 미국장 부담을 덜 수 있는 신호'
         if equity_negative or negative:
             return f'{subject} 약세 흐름은 미국장 부담을 키울 수 있음'
-        return f'{subject}은 방향보다 가격 위치를 볼 뉴스'
+        return f'{subject} 가격 위치와 후속 지수 반응 확인'
     return None
 
 
