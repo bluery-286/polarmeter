@@ -509,6 +509,8 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'indigo\s+shares?\s+fall.*spicejet\s+down.*trump.*iran\s+ceasefire\s+remarks?', re.I), '이란 휴전 발언 뒤 항공주 하락은 중동 리스크 재평가 신호'),
     (re.compile(r'kevin\s+warsh\s+plans?\s+to\s+stop\s+scripting\s+the\s+fed.{0,80}wild\s+ride\s+for\s+traders?', re.I), '연준 인사 발언은 금리 변동성 부담'),
+    (re.compile(r'this\s+strategist\s+sees\s+the\s+s&p\s*500\s+hitting\s+8,?500.*one\s+thing\s+changed\s+her\s+mind', re.I), 'S&P500 8,500 전망은 지수 기대 재평가'),
+    (re.compile(r'nasdaq\s*100\s+forecast.*ndx\s+falls?.*ai\s+chip\s+worries.*spacex\s+joins\s+the\s+index', re.I), 'AI 칩 우려와 스페이스X 편입은 나스닥100 부담'),
     (re.compile(r'forget\s+ai\s+software.*autonomous\s+weapons', re.I), 'AI 소프트웨어보다 자율무기 투자에 자금이 몰린다는 분석'),
     (re.compile(r'us\s+markets\s+plunge.*dow\s+jones.*s&p\s*500.*nasdaq.*iran.*risk-off', re.I), '이란 위협에 위험회피 확산, 다우·S&P500·나스닥 급락'),
     (re.compile(r'first\s+trillion-dollar\s+etf.*elon\s+musk', re.I), '첫 1조달러 ETF가 시장 관심을 독점한다는 분석'),
@@ -836,7 +838,11 @@ def english_market_context_translation(headline: str) -> str | None:
     if subjects:
         subject = '·'.join(subjects[:3])
         if re.search(r'could|ahead|forecast|prediction|critical crossroads|signal more losses|전망|가능', lower):
-            return f'{subject} 추가 변동 가능성은 배경 뉴스로 반영'
+            if equity_negative or negative:
+                return f'{subject} 약세 전망은 후속 지수 부담 확인'
+            if equity_positive or positive:
+                return f'{subject} 상승 전망은 후속 지수 반응 확인'
+            return f'{subject} 전망은 후속 지수 반응 확인'
         if equity_positive or (positive and not equity_negative):
             return f'{subject} 상승 흐름은 미국장 부담을 덜 수 있는 신호'
         if equity_negative or negative:
