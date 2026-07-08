@@ -177,6 +177,11 @@ RETAIL_FUEL_MARKET_OVERRIDE_PATTERNS = [
     re.compile(r'(WTI|브렌트|Brent|원유\s*선물|정유주|에너지주|OPEC|호르무즈|중동|이란|CPI|물가|인플레이션)', re.I),
 ]
 
+MARKET_QUOTE_PAGE_PATTERNS = [
+    re.compile(r'(?:e-?mini\s+)?s&p\s*500\s+futures?.{0,40}price\s+trend\s+today.{0,20}quotes?\s*&\s*news', re.I),
+    re.compile(r'(?:nasdaq|dow\s+jones|s&p\s*500).{0,40}(?:price\s+trend\s+today|quotes?\s*&\s*news|stock\s+quote)', re.I),
+]
+
 SINGLE_COMPANY_LISTING_PATTERNS = [
     re.compile(r'(이전\s*상장|이전상장|상장\s*예비\s*심사|상장예비심사|상장\s*예심|코스피\s*이전)', re.I),
     re.compile(r'(나스닥|뉴욕|미국).{0,12}(상장|adr|주식예탁증서)|(?:adr|주식예탁증서).{0,16}(발행|상장)', re.I),
@@ -271,6 +276,10 @@ def is_retail_fuel_price_story(text: str) -> bool:
     return any(pattern.search(text) for pattern in RETAIL_FUEL_PRICE_PATTERNS) and not any(
         pattern.search(text) for pattern in RETAIL_FUEL_MARKET_OVERRIDE_PATTERNS
     )
+
+
+def is_market_quote_page(text: str) -> bool:
+    return any(pattern.search(text) for pattern in MARKET_QUOTE_PAGE_PATTERNS)
 
 
 def is_single_company_listing_story(text: str) -> bool:
@@ -1254,6 +1263,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'SOURCE_LOW_RELEVANCE'
     if is_personal_finance_story(full_text):
         return None, 'PERSONAL_FINANCE_NOT_MARKET_TEMPERATURE'
+    if is_market_quote_page(full_text):
+        return None, 'QUOTE_PAGE_NOT_MARKET_TEMPERATURE'
     if any(hint.lower() in headline_lower for hint in EXCLUDED_HEADLINE_HINTS):
         return None, 'INVESTMENT_ACTION_OR_SINGLE_STOCK_NOISE'
     if ('?' in headline or 'should you' in headline_lower) and any(token in headline_lower for token in ['buy', 'stocks instead', 'smarter']):
