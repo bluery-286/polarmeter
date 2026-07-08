@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from polarmeter_market_calendar import is_kr_market_active, is_us_market_active
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -22,12 +25,28 @@ DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
 NEWS_SNAPSHOT_MAX_ITEMS = 30
 MAX_STALE_SIGNAL_AGE_HOURS = {
-    # VIX is a fast-moving risk signal. If free providers are blocked for days,
-    # showing an old number is worse than clearly marking it unavailable.
+    # Display-facing market values may be delayed, but multi-day-old numbers must
+    # not be recycled as current.
+    'sp500': 72,
+    'nasdaq100': 72,
+    'iwm': 72,
+    'soxx': 72,
+    'smh': 72,
+    'eem': 72,
     'vix': 72,
+    'usd_krw': 72,
+    'wti': 72,
+    'kospi': 96,
+    'kosdaq': 96,
+    'us10y': 96,
+    'dxy': 96,
+    'gold': 96,
 }
 KST = timezone(timedelta(hours=9))
 KR_INTRADAY_STALE_KEYS = {'kospi', 'kosdaq', 'kr_samsung'}
+ACTIVE_MARKET_MAX_AGE_HOURS = 3.0
+KR_ACTIVE_MARKET_STALE_KEYS = {'kospi', 'kosdaq', 'usd_krw'}
+US_ACTIVE_MARKET_STALE_KEYS = {'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix'}
 
 CORE_SIGNALS = {'kospi', 'usd_krw', 'sp500', 'vix', 'wti'}
 CORE_GROUPS = {
@@ -53,8 +72,8 @@ SANITY_RANGES = {
     'vix_aux': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'requiresChangePct': False},
     'wti': {'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': False},
     'gold': {'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
-    'soxx': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
-    'smh': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
+    'soxx': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': False},
+    'smh': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': False},
     'iwm': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
     'eem': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
 }
@@ -116,6 +135,30 @@ def kr_intraday_stale_reason(key: str, provider: str, item: dict[str, Any]) -> s
     current_date = datetime.now(timezone.utc).astimezone(KST).date()
     if data_date is not None and data_date < current_date:
         return f'kr_intraday_prior_day_data provider={provider} dataAsOf={item.get("asOf")}'
+    return None
+
+
+def active_market_stale_reason(key: str, provider: str, item: dict[str, Any]) -> str | None:
+    now = datetime.now(timezone.utc)
+    if key in KR_ACTIVE_MARKET_STALE_KEYS and not is_kr_market_active(now, time(9, 30), time(16, 40)):
+        return None
+    if key in US_ACTIVE_MARKET_STALE_KEYS and not is_us_market_active(now, time(9, 30), time(17, 30)):
+        return None
+    if key not in KR_ACTIVE_MARKET_STALE_KEYS and key not in US_ACTIVE_MARKET_STALE_KEYS:
+        return None
+    age_hours = candidate_age_hours(item)
+    if age_hours is None or age_hours > ACTIVE_MARKET_MAX_AGE_HOURS:
+        return f'active_market_stale provider={provider} dataAsOf={item.get("asOf")} ageHours={age_hours}'
+    return None
+
+
+def hard_stale_reason(key: str, provider: str, item: dict[str, Any]) -> str | None:
+    max_age = MAX_STALE_SIGNAL_AGE_HOURS.get(key)
+    if max_age is None:
+        return None
+    age_hours = candidate_age_hours(item)
+    if age_hours is None or age_hours > max_age:
+        return f'hard_stale provider={provider} dataAsOf={item.get("asOf")} ageHours={age_hours} maxAgeHours={max_age}'
     return None
 
 
@@ -201,6 +244,15 @@ def load_last_known_good(path: Path | None) -> dict[str, Any]:
         return payload.get('signals') if isinstance(payload.get('signals'), dict) else {}
     except Exception:
         return {}
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=path.parent, delete=False) as tmp:
+        json.dump(payload, tmp, ensure_ascii=False, indent=2)
+        tmp.write('\n')
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
 
 
 def provider_items(probe: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -356,6 +408,7 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
         'qualityReason': reason if previous_quality == 'ok' else previous_reason,
         'reliability': signal_reliability(key, previous.get('provider') or 'free-cache', 'stale', reason),
         'staleSource': 'last_known_good',
+        'dataAgeHours': round(stale_signal_age_hours(previous), 2) if stale_signal_age_hours(previous) is not None else None,
         'staleAgeHours': stale_signal_age_hours(previous),
         'maxStaleAgeHours': MAX_STALE_SIGNAL_AGE_HOURS.get(key),
         'fetchedAt': utc_now(),
@@ -374,7 +427,11 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
             if item.get('key') != key:
                 continue
             quality, reason = validate_candidate(key, item)
-            stale_reason = kr_intraday_stale_reason(key, provider, item)
+            stale_reason = (
+                kr_intraday_stale_reason(key, provider, item)
+                or active_market_stale_reason(key, provider, item)
+                or hard_stale_reason(key, provider, item)
+            )
             if stale_reason and quality in {'ok', 'suspect', 'partial'}:
                 quality, reason = 'stale', stale_reason
             failure = {
@@ -511,7 +568,7 @@ def write_last_known_good(path: Path | None, snapshot: dict[str, Any]) -> None:
         if quality != 'invalid':
             merged[key] = value
     merged.update(good_signals)
-    path.write_text(json.dumps({'updatedAt': utc_now(), 'signals': merged}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    atomic_write_json(path, {'updatedAt': utc_now(), 'signals': merged})
 
 
 def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
@@ -611,7 +668,7 @@ def main() -> int:
     args = parser.parse_args()
 
     snapshot = build_snapshot(load_probe(args.probe), load_news_probe(args.news_probe), load_last_known_good(args.last_known_good))
-    args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    atomic_write_json(args.output, snapshot)
     write_last_known_good(args.last_known_good, snapshot)
     if args.json:
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
