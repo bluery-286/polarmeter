@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ DEFAULT_SITE = PROJECT / 'github-pages-site'
 DEFAULT_OUTPUT = PROJECT / '_site'
 PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
 LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
+PUBLIC_BASE_URL = 'https://polarmeter.polarbearworks.com'
 
 
 def copy_site(site_dir: Path, output_dir: Path) -> None:
@@ -48,6 +50,16 @@ def read_public_files(output_dir: Path) -> dict[str, str]:
 def restore_public_files(output_dir: Path, payload: dict[str, str]) -> None:
     for name, text in payload.items():
         (output_dir / name).write_text(text, encoding='utf-8')
+
+
+def read_remote_public_files(base_url: str = PUBLIC_BASE_URL) -> dict[str, str]:
+    payload = {}
+    for name in PUBLIC_FILES:
+        url = f"{base_url.rstrip('/')}/{name}"
+        request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache', 'Pragma': 'no-cache'})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload[name] = response.read().decode('utf-8')
+    return payload
 
 
 def public_payload_is_publishable(output_dir: Path) -> bool:
@@ -104,22 +116,43 @@ def seed_last_known_good_from_site(site_dir: Path, output_path: Path) -> bool:
     return True
 
 
-def run_worker(output_dir: Path, last_known_good: Path) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix='polarmeter-pages-worker-') as tmp:
-        tmp_path = Path(tmp)
-        cmd = [
-            sys.executable,
-            str(TOOLS / 'polarmeter_free_cache_worker.py'),
-            '--report', str(tmp_path / 'free-provider-probe-report.json'),
-            '--news-report', str(tmp_path / 'news-rss-probe-report.json'),
-            '--snapshot', str(tmp_path / 'free-cache-snapshot.json'),
-            '--public-dir', str(output_dir),
-            '--last-known-good', str(last_known_good),
-            '--skip-fixture',
-            '--json',
-        ]
-        result = subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
-        return json.loads(result.stdout)
+def tail_text(text: str, limit: int = 3000) -> str:
+    text = text or ''
+    return text[-limit:]
+
+
+def run_worker(output_dir: Path, last_known_good: Path, *, attempts: int = 2) -> dict[str, Any]:
+    last_result: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(1, attempts + 1):
+        with tempfile.TemporaryDirectory(prefix='polarmeter-pages-worker-') as tmp:
+            tmp_path = Path(tmp)
+            cmd = [
+                sys.executable,
+                str(TOOLS / 'polarmeter_free_cache_worker.py'),
+                '--report', str(tmp_path / 'free-provider-probe-report.json'),
+                '--news-report', str(tmp_path / 'news-rss-probe-report.json'),
+                '--snapshot', str(tmp_path / 'free-cache-snapshot.json'),
+                '--public-dir', str(output_dir),
+                '--last-known-good', str(last_known_good),
+                '--skip-fixture',
+                '--json',
+            ]
+            result = subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True)
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            last_result = result
+            print(
+                f'polarmeter_free_cache_worker attempt {attempt}/{attempts} failed with exit {result.returncode}',
+                file=sys.stderr,
+            )
+            if result.stdout:
+                print(tail_text(result.stdout), file=sys.stderr)
+            if result.stderr:
+                print(tail_text(result.stderr), file=sys.stderr)
+    raise RuntimeError(
+        'polarmeter_free_cache_worker failed after '
+        f'{attempts} attempts with exit {last_result.returncode if last_result else "unknown"}'
+    )
 
 
 def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
@@ -239,10 +272,33 @@ def main() -> int:
 
     copy_site(args.site, args.output)
     baseline_public_files = read_public_files(args.output)
+    try:
+        remote_public_files = read_remote_public_files()
+    except Exception as error:
+        print(f'warning: could not fetch current public cache fallback: {error}', file=sys.stderr)
+        remote_public_files = {}
+    fallback_public_files = remote_public_files or baseline_public_files
     seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
-    summary = run_worker(args.output, LAST_KNOWN_GOOD)
-    if not public_payload_is_publishable(args.output) and baseline_public_files:
-        restore_public_files(args.output, baseline_public_files)
+    try:
+        summary = run_worker(args.output, LAST_KNOWN_GOOD)
+    except Exception as error:
+        if not fallback_public_files:
+            raise
+        print(f'warning: worker failed; trying current public cache fallback: {error}', file=sys.stderr)
+        restore_public_files(args.output, fallback_public_files)
+        if not public_payload_is_publishable(args.output):
+            raise
+        summary = summary_from_public_payload(
+            args.output,
+            {
+                'freshnessAudit': 'passed',
+                'workerFallbackUsed': True,
+                'workerError': str(error),
+            },
+            reused_existing=True,
+        )
+    if not public_payload_is_publishable(args.output) and fallback_public_files:
+        restore_public_files(args.output, fallback_public_files)
         summary = summary_from_public_payload(args.output, summary, reused_existing=True)
     else:
         summary = summary_from_public_payload(args.output, summary, reused_existing=False)
@@ -257,6 +313,7 @@ def main() -> int:
         'okNewsCount': summary.get('okNewsCount'),
         'freshnessAudit': summary.get('freshnessAudit'),
         'usedExistingPublicSnapshot': summary.get('usedExistingPublicSnapshot') is True,
+        'workerFallbackUsed': summary.get('workerFallbackUsed') is True,
         'seededLastKnownGoodFromSite': seeded_last_known_good,
         'publicUrls': {
             'snapshot': 'market-snapshot-latest.json',
