@@ -107,6 +107,9 @@ EXCLUDED_HEADLINE_HINTS = [
     'too good to be true',
     'dividend stocks',
     '주요공시',
+    '중복상장',
+    '상장규정',
+    '시행세칙',
     '칼럼',
     '오피니언',
     '정치논리',
@@ -799,16 +802,18 @@ def english_market_context_translation(headline: str) -> str | None:
         return '유가 하락은 물가·비용 부담을 낮추는 완화 신호'
     if has_oil_geo and re.search(r'oil|crude|hormuz', lower):
         if not re.search(r'tension|risk|pressure|war|hormuz|threat|threaten|uncertainty', lower):
-            return '중동·유가 뉴스는 원유 공급과 지수 반응 확인'
-        return '중동 긴장은 유가와 대표 지수 반응 확인'
+            return '중동·유가 뉴스는 원유 공급과 지수에 영향을 주는 배경'
+        return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
     if has_oil_geo:
-        return '중동 긴장은 유가와 대표 지수 반응 확인'
+        return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
     if has_inflation:
         return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
     if has_dollar and has_fed:
         return '연준·금리 신호는 달러와 환율 부담을 바꿀 수 있음'
     if has_futures and positive and re.search(r'fed\s*minutes?|fomc\s*minutes?', lower, re.I) and re.search(r'earnings?\s+loom|earnings?', lower, re.I):
         return '연준 의사록·실적 대기는 지수 선물 반등 속 부담'
+    if re.search(r'(kevin\s+warsh|warsh).*fomc\s+minutes?', lower, re.I):
+        return '연준 의사록 축소 논의는 금리 경로 변동성 신호'
     if has_fed:
         return '연준 뉴스는 금리 변동성 확인 포인트'
     if has_chip and equity_negative:
@@ -843,15 +848,15 @@ def english_market_context_translation(headline: str) -> str | None:
         subject = '·'.join(subjects[:3])
         if re.search(r'could|ahead|forecast|prediction|critical crossroads|signal more losses|전망|가능', lower):
             if equity_negative or negative:
-                return f'{subject} 약세 전망은 후속 지수 부담 확인'
+                return f'{subject} 약세 전망은 대표지수 부담 변수'
             if equity_positive or positive:
-                return f'{subject} 상승 전망은 후속 지수 반응 확인'
-            return f'{subject} 전망은 후속 지수 반응 확인'
+                return f'{subject} 상승 전망은 대표지수 기대 변수'
+            return f'{subject} 전망은 대표지수 온도 변수'
         if equity_positive or (positive and not equity_negative):
             return f'{subject} 상승 흐름은 미국장 부담을 덜 수 있는 신호'
         if equity_negative or negative:
             return f'{subject} 약세 흐름은 미국장 부담을 키울 수 있음'
-        return f'{subject} 가격 위치와 후속 지수 반응 확인'
+        return f'{subject} 흐름은 대표지수 온도 변수'
     return None
 
 
