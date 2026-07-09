@@ -53,6 +53,8 @@ EXCLUDED_SOURCE_HINTS = [
 
 EXCLUDED_HEADLINE_HINTS = [
     '목표가',
+    '목표 주가',
+    '목표주가',
     '추천주',
     '특징주',
     '상한가',
@@ -64,6 +66,8 @@ EXCLUDED_HEADLINE_HINTS = [
     ' buy',
     'sell ',
     ' sell',
+    'price target',
+    'target price',
     'free cash flow',
     'capital gains',
     'cap gains',
@@ -147,7 +151,7 @@ SOURCE_QUALITY_PENALTY_PATTERNS = [
 ]
 
 INVESTMENT_ADVICE_PATTERNS = [
-    re.compile(r'(목표가|추천주|상한가|공모주|청약|매수|매도|should\s+you\s+buy|which\s+stock)', re.I),
+    re.compile(r'(목표\s*(?:주가|가)|추천주|상한가|공모주|청약|매수|매도|price\s+target|target\s+price|should\s+you\s+buy|which\s+stock)', re.I),
 ]
 
 CIVIC_LIFESTYLE_POLICY_PATTERNS = [
