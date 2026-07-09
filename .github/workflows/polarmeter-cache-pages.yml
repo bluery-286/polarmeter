@@ -126,6 +126,8 @@ jobs:
         env:
           PUBLIC_SNAPSHOT_URL: https://polarmeter.polarbearworks.com/market-snapshot-latest.json
           PAGES_PUBLIC_VERIFY_RETRIES: '2'
+          PAGES_PUBLIC_VERIFY_SECONDS: '240'
+          PAGES_PUBLIC_VERIFY_POLL_SECONDS: '10'
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -150,6 +152,8 @@ jobs:
           public_url = os.environ['PUBLIC_SNAPSHOT_URL']
           run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
           retries = int(os.environ.get('PAGES_PUBLIC_VERIFY_RETRIES', '2'))
+          verify_seconds = int(os.environ.get('PAGES_PUBLIC_VERIFY_SECONDS', '240'))
+          poll_seconds = int(os.environ.get('PAGES_PUBLIC_VERIFY_POLL_SECONDS', '10'))
 
           def public_snapshot(attempt: int, poll: int) -> tuple[str | None, str]:
               cache_bust = int(time.time())
@@ -163,7 +167,7 @@ jobs:
               payload = json.loads(body.decode('utf-8'))
               return payload.get('generatedAt'), hashlib.sha256(body).hexdigest()
 
-          def wait_for_public(attempt: int, seconds: int = 120) -> tuple[bool, str | None]:
+          def wait_for_public(attempt: int, seconds: int = verify_seconds) -> tuple[bool, str | None]:
               deadline = time.time() + seconds
               last = None
               poll = 0
@@ -183,7 +187,7 @@ jobs:
                   except Exception as error:
                       last = f'error: {error}'
                       print(f'public cache poll attempt={attempt} poll={poll} {last}', flush=True)
-                  time.sleep(10)
+                  time.sleep(poll_seconds)
               return False, last
 
           last_seen = None
