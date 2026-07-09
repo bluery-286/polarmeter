@@ -87,6 +87,9 @@ def validate_payload(out: Path) -> dict:
             raise AssertionError(f'pages snapshot showable signal missing dataAgeHours: {key}')
         if not isinstance(signal.get('freshnessRank'), int):
             raise AssertionError(f'pages snapshot showable signal missing freshnessRank: {key}')
+        if signal.get('status') in {'suspect', 'stale'}:
+            if not signal.get('publicReasonCode') or not signal.get('publicReasonLabel'):
+                raise AssertionError(f'pages snapshot non-ok signal missing public reason: {key}')
     news = snapshot.get('news') or {}
     if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
         raise AssertionError('cached news policy fields must be false')

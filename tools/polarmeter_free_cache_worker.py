@@ -656,7 +656,51 @@ def sanitize_public_signal(signal: dict[str, Any]) -> dict[str, Any]:
         'reliability', 'lastSuccessfulAt',
         'staleSource',
     }
-    return {key: value for key, value in signal.items() if key in allowed}
+    out = {key: value for key, value in signal.items() if key in allowed}
+    public_reason = public_signal_reason(signal)
+    if public_reason:
+        out.update(public_reason)
+    return out
+
+
+def public_signal_reason(signal: dict[str, Any]) -> dict[str, str] | None:
+    """Map internal quality diagnostics to safe public reason copy.
+
+    Public JSON intentionally omits qualityReason/fallbackChain because those can
+    leak worker internals. The app and ops checks still need to explain why a
+    showable value is low-confidence, so expose a small stable reason vocabulary.
+    """
+    status = str(signal.get('status') or '')
+    reason = str(signal.get('qualityReason') or '')
+    reliability = signal.get('reliability') if isinstance(signal.get('reliability'), dict) else {}
+    reliability_text = ' '.join(str(reliability.get(key) or '') for key in ('sourceClass', 'displayBadge', 'confidencePolicy'))
+
+    if status == 'suspect':
+        if 'changePct_suspect' in reason or 'large_move' in reliability_text:
+            return {
+                'publicReasonCode': 'large_move_review',
+                'publicReasonLabel': '변동폭이 커서 확인 전',
+            }
+        if 'price_' in reason or 'out_of_range' in reason:
+            return {
+                'publicReasonCode': 'range_review',
+                'publicReasonLabel': '값 범위 확인 전',
+            }
+        return {
+            'publicReasonCode': 'low_confidence_review',
+            'publicReasonLabel': '확인 전 낮은 신뢰도',
+        }
+    if status == 'stale':
+        return {
+            'publicReasonCode': 'delayed_or_last_successful',
+            'publicReasonLabel': '지연 또는 마지막 성공값',
+        }
+    if status in {'invalid', 'unavailable'}:
+        return {
+            'publicReasonCode': 'unavailable_or_hidden',
+            'publicReasonLabel': '표시 가능한 값 없음',
+        }
+    return None
 
 
 def sanitize_public_news(news: dict[str, Any]) -> dict[str, Any]:
