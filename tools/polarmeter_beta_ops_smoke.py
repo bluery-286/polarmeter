@@ -15,6 +15,8 @@ from datetime import datetime, time, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from polarmeter_cache_snapshot import validate_candidate
+
 DEFAULT_BASE_URL = 'https://polarmeter.polarbearworks.com'
 CORE_SIGNALS = {
     'sp500': 'S&P500 / SPY',
@@ -85,6 +87,28 @@ def signal_age_hours(signal: dict[str, Any], now: datetime) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def displayed_signal_sanity(key: str, signal: dict[str, Any]) -> dict[str, Any] | None:
+    status = signal.get('status')
+    if status not in {'ok', 'suspect'}:
+        return None
+    quality, reason = validate_candidate(key, {
+        'status': 'ok',
+        'price': signal.get('value'),
+        'changePct': signal.get('changePct'),
+        'reason': signal.get('qualityReason'),
+    })
+    return {
+        'key': key,
+        'status': status,
+        'qualityStatus': signal.get('qualityStatus'),
+        'valuePolicy': signal.get('valuePolicy'),
+        'expectedQuality': quality,
+        'expectedReason': reason,
+        'value': signal.get('value'),
+        'changePct': signal.get('changePct'),
+    }
+
+
 def assert_public_cache(args: argparse.Namespace) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     health = fetch_json(args.base_url, 'health.json')
@@ -113,6 +137,31 @@ def assert_public_cache(args: argparse.Namespace) -> dict[str, Any]:
         errors.append(f'missing critical refresh keys: {sorted(missing_refresh)}')
 
     signals = snapshot.get('signals') or {}
+    sanity_findings: list[dict[str, Any]] = []
+    for key, signal in signals.items():
+        if not isinstance(signal, dict):
+            continue
+        finding = displayed_signal_sanity(key, signal)
+        if not finding:
+            continue
+        sanity_findings.append(finding)
+        status = finding.get('status')
+        expected_quality = finding.get('expectedQuality')
+        value_policy = finding.get('valuePolicy')
+        label = signal.get('label') or key
+        if value_policy == 'show' and expected_quality == 'invalid':
+            errors.append(
+                f'{label} is displayed with invalid sanity: '
+                f"value={finding.get('value')} changePct={finding.get('changePct')} "
+                f"reason={finding.get('expectedReason')}"
+            )
+        if status == 'ok' and expected_quality != 'ok':
+            errors.append(
+                f'{label} is status=ok but sanity expects {expected_quality}: '
+                f"value={finding.get('value')} changePct={finding.get('changePct')} "
+                f"reason={finding.get('expectedReason')}"
+            )
+
     for key, label in CORE_SIGNALS.items():
         signal = signals.get(key)
         if not isinstance(signal, dict):
@@ -165,6 +214,7 @@ def assert_public_cache(args: argparse.Namespace) -> dict[str, Any]:
         'krActive': kr_active,
         'usActive': us_active,
         'coreSignals': core_signal_status,
+        'sanityFindings': sanity_findings,
         'errors': errors,
     }
     if errors:

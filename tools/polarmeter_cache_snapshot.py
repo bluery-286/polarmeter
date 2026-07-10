@@ -60,10 +60,11 @@ CORE_GROUPS = {
 }
 
 SANITY_RANGES = {
-    # abs(changePct) <= suspect is normal; > reject is hidden unless last-known-good exists.
     # 2026 POC cross-check: KOSPI genuinely trades in the 7,000~8,000 range.
-    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 18.0, 'requiresChangePct': True},
-    'kosdaq': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': True},
+    # Displayed index values remain temperature inputs even when low-confidence:
+    # range/change violations publish as suspect/show, not invalid/hide.
+    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 18.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
+    'kosdaq': {'minPrice': 400, 'maxPrice': 1500, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
     'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
@@ -72,10 +73,10 @@ SANITY_RANGES = {
     'vix_aux': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'requiresChangePct': False},
     'wti': {'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': False},
     'gold': {'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
-    'soxx': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': False},
-    'smh': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'requiresChangePct': False},
-    'iwm': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
-    'eem': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'requiresChangePct': False},
+    'soxx': {'minPrice': 100, 'maxPrice': 1200, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
+    'smh': {'minPrice': 50, 'maxPrice': 1000, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
+    'iwm': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
+    'eem': {'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 9.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
 }
 
 
@@ -299,17 +300,18 @@ def validate_candidate(key: str, item: dict[str, Any]) -> tuple[str, str | None]
     if price is not None:
         min_price = rule.get('minPrice')
         max_price = rule.get('maxPrice')
+        price_out_of_range_status = str(rule.get('priceOutOfRangeStatus') or 'invalid')
         if min_price is not None and price < float(min_price):
-            return 'invalid', f'price_below_range<{min_price}'
+            return price_out_of_range_status, f'price_below_range<{min_price}'
         if max_price is not None and price > float(max_price):
-            return 'invalid', f'price_above_range>{max_price}'
+            return price_out_of_range_status, f'price_above_range>{max_price}'
     change_pct = as_float(item.get('changePct'))
     if rule.get('requiresChangePct') and change_pct is None:
         return 'partial', 'missing_changePct'
     if change_pct is not None:
         abs_change = abs(change_pct)
         if abs_change > float(rule.get('rejectAbsChangePct', 999)):
-            return 'invalid', f'changePct_out_of_range>{rule.get("rejectAbsChangePct")}'
+            return str(rule.get('rejectAbsChangeStatus') or 'invalid'), f'changePct_out_of_range>{rule.get("rejectAbsChangePct")}'
         if abs_change > float(rule.get('suspectAbsChangePct', 999)):
             return 'suspect', f'changePct_suspect>{rule.get("suspectAbsChangePct")}'
     return 'ok', None

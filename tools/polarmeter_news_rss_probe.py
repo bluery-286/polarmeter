@@ -84,6 +84,8 @@ EXCLUDED_HEADLINE_HINTS = [
     'median earner needs',
     'outperforming the broader market',
     'these stocks instead',
+    'nontech holdings',
+    'could be really good news for your',
     'roth ira',
     'social security',
     'tax breaks',
@@ -774,6 +776,13 @@ def english_market_context_translation(headline: str) -> str | None:
         return '반도체 반등과 유가 하락은 시장 부담 완화 신호'
     if has_inflation and has_chip and re.search(r'micron|apple|chip\s+stocks?|semiconductor|technology\s+stocks?', lower):
         return 'PCE 물가 부담과 반도체·대형 기술주 약세 압력'
+    if has_wall_street and has_chip and negative and re.search(
+        r'(oil(?:\s+prices?)?|crude).{0,40}(jump|jumps|jumped|surge|surges|rises|rise|rising|higher)|'
+        r'(jump|jumps|jumped|surge|surges|rises|rise|rising|higher).{0,40}(oil(?:\s+prices?)?|crude)',
+        lower,
+        re.I,
+    ):
+        return 'AI주 약세와 유가 상승은 미국장 부담'
     if re.search(r's&p\s*500|nasdaq', lower) and re.search(
         r'losing\s+momentum|under\s+pressure|ai\s+stocks?.{0,36}(?:under\s+pressure|pressure|weak|lower|fall|falls|drop|drops|slump|sell[-\s]?off|pull\s*back)|'
         r'(?:under\s+pressure|pressure|weak|lower|fall|falls|drop|drops|slump|sell[-\s]?off|pull\s*back).{0,36}ai\s+stocks?',
@@ -782,12 +791,26 @@ def english_market_context_translation(headline: str) -> str | None:
         return 'AI주 압박에 S&P500·나스닥 약세 압력'
     if has_inflation and re.search(r'hotter[-\s]?than[-\s]?expected|hot|high(?:er|est)?|sticky|elevated', lower) and (positive or has_wall_street):
         return '지수 선물은 반등하지만 물가 부담은 남아 있음'
-    if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and not broad_index_negative:
+    if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and not broad_index_negative and not has_oil_geo:
         return '미국 지수 선물 반등은 개장 전 부담 완화 신호'
-    if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_negative:
+    if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_negative and not has_oil_geo:
         return '미국 지수 선물 약세는 개장 전 부담 신호'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and positive and has_fed:
         return '연준 금리 결정을 앞두고 미국 주요 지수 선물이 소폭 상승'
+    if has_oil_geo and broad_index_positive and re.search(
+        r'(oil(?:\s+prices?)?|crude)\s+(slide|slides|sliding|slip|slips|fall|falls|drop|drops|lower)|'
+        r'(slide|slides|sliding|slip|slips|fall|falls|drop|drops|lower)\s+(oil(?:\s+prices?)?|crude)',
+        lower,
+        re.I,
+    ) and re.search(r'iran|middle\s*east|war|worries|conflict|tension', lower, re.I):
+        return '지수 반등에도 중동 부담은 남아 있음'
+    if has_oil_geo and broad_index_negative and re.search(
+        r'(oil(?:\s+prices?)?|crude).{0,40}(rise|rises|rising|jump|jumps|surge|surges|higher)|'
+        r'(rise|rises|rising|jump|jumps|surge|surges|higher).{0,40}(oil(?:\s+prices?)?|crude)',
+        lower,
+        re.I,
+    ):
+        return '유가 상승과 지수 약세는 중동 부담 신호'
     if has_futures and has_oil_geo and re.search(r'(oil|crude).{0,24}(rise|rises|rising|higher|surge|surges)|(rise|rises|rising|higher|surge|surges|lift|lifts|lifted).{0,24}(oil|crude)', lower):
         if re.search(r'mixed', lower):
             return '이란·중동 긴장에 유가 상승 부담, 미국 지수 선물은 혼조'
@@ -795,7 +818,7 @@ def english_market_context_translation(headline: str) -> str | None:
             return '중동 긴장에 유가 상승 부담, 지수 선물은 소폭 상승'
         return '중동 긴장에 유가 상승 부담'
     if has_futures and has_oil_geo:
-        return '중동 이슈는 지수 선물과 유가를 함께 흔드는 배경'
+        return '중동 이슈는 지수 선물과 유가 부담을 키우는 변수'
     if has_oil_geo and re.search(r'(oil\s+prices?.{0,24}return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?|return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?.{0,24}oil|pre[-\s]?war\s+levels?)', lower):
         return '유가가 전쟁 전 수준으로 돌아오며 비용 부담 완화'
     if has_oil_geo and (broad_index_negative or negative) and has_wall_street:
@@ -1104,7 +1127,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         text,
         re.I,
     ):
-        return 'positive'
+        return 'negative'
     if title_burden and not explicit_oil_relief and re.search(r'(이란|중동|호르무즈|전쟁|휴전|충돌|공습|iran|hormuz|middle\s*east|ceasefire|airstrike)', text, re.I):
         return 'negative'
     if explicit_geo_supply_burden:
@@ -1211,7 +1234,7 @@ def oil_relief_signal(text: str) -> bool:
         r'(하락|급락|내림|낮아|안정|전쟁\s*(?:이전|전)|이전\s*수준|pre[-\s]?war\s*(?:levels?)?|'
         r'최고(?:가|가격)?(?:\s*전망)?\s*하향|가격\s*(?:전망\s*)?하향|고점\s*(?:전망\s*)?하향|피크\s*(?:전망\s*)?하향|'
         r'프리미엄\s*(?:축소|해소)|부담\s*완화|공급\s*(?:불안|차질).{0,12}(?:완화|해소)|'
-        r'예상보다\s*빠른\s*회복|회복|재개|정상화|falls?|drops?|lower|eases?|de-?escalat|resume|resumes|reopen)'
+        r'예상보다\s*빠른\s*회복|회복|재개|정상화|falls?|drops?|lower|crash(?:es|ed)?|plunge(?:s|d)?|eases?|de-?escalat|resume|resumes|reopen)'
     )
     return bool(re.search(oil + r'.{0,48}' + relief + r'|' + relief + r'.{0,48}' + oil, text, re.I))
 
