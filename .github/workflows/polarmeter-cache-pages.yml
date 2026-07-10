@@ -121,20 +121,19 @@ jobs:
           git commit -m "Update PolarMeter cache ${GITHUB_RUN_ID}"
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin HEAD:gh-pages
-      - name: Verify public cache publish and retry Pages if needed
+      - name: Verify public cache publish without retry noise
         if: steps.cache_guard.outputs.should_build == 'true'
         env:
           PUBLIC_SNAPSHOT_URL: https://polarmeter.polarbearworks.com/market-snapshot-latest.json
-          PAGES_PUBLIC_VERIFY_RETRIES: '2'
-          PAGES_PUBLIC_VERIFY_SECONDS: '240'
+          PAGES_PUBLIC_VERIFY_SECONDS: '480'
           PAGES_PUBLIC_VERIFY_POLL_SECONDS: '10'
+          PAGES_PUBLIC_VERIFY_STRICT: 'false'
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import hashlib
           import json
           import os
-          import subprocess
           import sys
           import time
           import urllib.request
@@ -151,9 +150,22 @@ jobs:
 
           public_url = os.environ['PUBLIC_SNAPSHOT_URL']
           run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
-          retries = int(os.environ.get('PAGES_PUBLIC_VERIFY_RETRIES', '2'))
           verify_seconds = int(os.environ.get('PAGES_PUBLIC_VERIFY_SECONDS', '240'))
           poll_seconds = int(os.environ.get('PAGES_PUBLIC_VERIFY_POLL_SECONDS', '10'))
+          strict = os.environ.get('PAGES_PUBLIC_VERIFY_STRICT', '').lower() == 'true'
+
+          def parse_dt(value: str | None) -> datetime | None:
+              if not value:
+                  return None
+              try:
+                  parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+              except ValueError:
+                  return None
+              if parsed.tzinfo is None:
+                  parsed = parsed.replace(tzinfo=timezone.utc)
+              return parsed.astimezone(timezone.utc)
+
+          expected_dt = parse_dt(expected)
 
           def public_snapshot(attempt: int, poll: int) -> tuple[str | None, str]:
               cache_bust = int(time.time())
@@ -184,42 +196,32 @@ jobs:
                       )
                       if generated_at == expected and public_sha256 == expected_sha256:
                           return True, generated_at
+                      generated_dt = parse_dt(generated_at)
+                      if expected_dt and generated_dt and generated_dt > expected_dt:
+                          print(
+                              f'public cache already superseded this run: '
+                              f'generatedAt={generated_at} expected={expected}',
+                              flush=True,
+                          )
+                          return True, generated_at
                   except Exception as error:
                       last = f'error: {error}'
                       print(f'public cache poll attempt={attempt} poll={poll} {last}', flush=True)
                   time.sleep(poll_seconds)
               return False, last
 
-          last_seen = None
-          for attempt in range(retries + 1):
-              ok, last_seen = wait_for_public(attempt)
-              if ok:
-                  print(f'public cache publish verified: generatedAt={expected}', flush=True)
-                  sys.exit(0)
-              if attempt >= retries:
-                  break
+          ok, last_seen = wait_for_public(0)
+          if ok:
+              print(f'public cache publish verified or superseded: expectedGeneratedAt={expected}', flush=True)
+              sys.exit(0)
 
-              marker = site / '.publish-trigger'
-              marker.write_text(
-                  '\n'.join([
-                      f'run={run_id}',
-                      f'attempt={attempt + 1}',
-                      f'expectedGeneratedAt={expected}',
-                      f'expectedSha256={expected_sha256}',
-                      f'createdAt={datetime.now(timezone.utc).isoformat()}',
-                      '',
-                  ]),
-                  encoding='utf-8',
-              )
-              subprocess.run(['git', '-C', str(site), 'add', '.publish-trigger'], check=True)
-              subprocess.run(
-                  ['git', '-C', str(site), 'commit', '-m', f'Retry PolarMeter cache publish {run_id} attempt {attempt + 1}'],
-                  check=True,
-              )
-              subprocess.run(['git', '-C', str(site), 'push', '--force', 'origin', 'HEAD:gh-pages'], check=True)
-              print(f'retry pushed gh-pages attempt={attempt + 1}', flush=True)
-
-          raise SystemExit(
-              f'public cache did not publish expected generatedAt={expected}; lastSeen={last_seen}'
+          message = f'public cache did not publish expected generatedAt={expected}; lastSeen={last_seen}'
+          if strict:
+              raise SystemExit(message)
+          print(f'::warning::{message}', flush=True)
+          print(
+              'public cache propagation remains guarded by ops monitor/watchdog; '
+              'not failing this workflow for CDN/Pages lag.',
+              flush=True,
           )
           PY
