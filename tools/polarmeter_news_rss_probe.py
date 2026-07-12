@@ -197,6 +197,7 @@ SINGLE_COMPANY_LISTING_PATTERNS = [
     re.compile(r'(나스닥|뉴욕|미국).{0,8}(택한|택했다|선택한).{0,24}(하이닉스|삼성|기업|회사)|(?:하이닉스|삼성|기업|회사).{0,24}(나스닥|뉴욕|미국).{0,8}(택한|택했다|선택한)', re.I),
     re.compile(r'코스닥.{0,16}(데뷔|입성)|(?:데뷔|입성).{0,16}코스닥', re.I),
     re.compile(r'(나스닥|뉴욕|미국).{0,20}(데뷔|입성|오프닝\s*벨|시대\s*열)|(?:데뷔|입성|오프닝\s*벨).{0,24}(나스닥|뉴욕|미국)', re.I),
+    re.compile(r'(하이닉스|삼성).{0,80}(JFK|공항|상장\s*열기|상장\s*행사)|(JFK|공항|상장\s*열기|상장\s*행사).{0,80}(하이닉스|삼성)', re.I),
 ]
 
 LISTING_MARKET_OVERRIDE_PATTERNS = [
@@ -347,6 +348,20 @@ def is_single_company_narrative_noise(text: str) -> bool:
     return any(pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_NOISE_PATTERNS) and not any(
         pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_MARKET_OVERRIDE_PATTERNS
     )
+
+
+def is_narrow_company_result_noise(text: str) -> bool:
+    company_result = re.search(
+        r'^[\s"\'‘’“”\[\]]*[가-힣A-Za-z0-9&.()·\s]{2,28},.{0,96}(사상\s*최대\s*매출|매출|영업이익|영업적자|순이익|실적)',
+        text,
+        re.I,
+    )
+    broad_market_context = re.search(
+        r'(업종|섹터|항공주|은행주|자동차주|시장\s*전반|증시|지수|코스피|코스닥|나스닥|s&p|sp500|dow|다우|업계\s*전반)',
+        text,
+        re.I,
+    )
+    return bool(company_result and not broad_market_context and not has_bellwether_company_context(text))
 
 
 def is_market_history_or_obituary(text: str) -> bool:
@@ -725,6 +740,7 @@ DEFAULT_FEEDS = [
 def clean_text(value: str | None) -> str:
     text = re.sub(r'<[^>]+>', '', value or '')
     text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'\s+by\s+[a-z0-9가-힣._-]{2,32}\s*$', '', text, flags=re.I)
     return re.sub(r'\s*[|｜·・:：;,\-–—]+\s*$', '', text).strip()
 
 
@@ -1297,7 +1313,11 @@ def keyword_matches_headline(keyword: str, headline_lower: str) -> bool:
 
 
 def rule_matches_headline(rule: dict[str, Any], headline: str, headline_lower: str) -> bool:
-    if any(keyword_matches_headline(keyword, headline_lower) for keyword in rule['keywords']):
+    semantic_headline_lower = headline_lower
+    if rule['category'] == 'semiconductor_bridge':
+        # "blue-chip index" means a large-cap index, not a semiconductor chip.
+        semantic_headline_lower = re.sub(r'\bblue[-\s]?chip\b', 'large-cap', headline_lower, flags=re.I)
+    if any(keyword_matches_headline(keyword, semantic_headline_lower) for keyword in rule['keywords']):
         return True
     if rule['category'] == 'market_event' and FOREIGN_FLOW_MARKET_PATTERN.search(headline):
         return True
@@ -1340,6 +1360,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'LOCAL_SEMICONDUCTOR_POLICY_NOT_MARKET_TEMPERATURE'
     if is_single_company_narrative_noise(full_text):
         return None, 'SINGLE_COMPANY_NARRATIVE_NOT_MARKET_TEMPERATURE'
+    if is_narrow_company_result_noise(full_text):
+        return None, 'SINGLE_COMPANY_RESULT_NOT_MARKET_TEMPERATURE'
     if is_theme_or_opinion_noise(full_text):
         return None, 'OPINION_OR_THEME_NOT_DIRECT_MARKET_TEMPERATURE'
     if is_market_history_or_obituary(full_text):
@@ -1357,7 +1379,15 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
             matched_rules.append(rule)
     if not matched_rules:
         return None, 'MARKET_IMPACT_LOW'
-    if has_bellwether_company_context(full_text):
+    multi_topic_calendar = (
+        re.search(r'(물가|cpi|pce|인플레이션|inflation)', headline, re.I)
+        and re.search(r'(금통위|한국은행|중앙은행|연준|fed|fomc|금리)', headline, re.I)
+        and re.search(r'(tsmc|반도체|실적)', headline, re.I)
+        and re.search(r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?)', headline, re.I)
+    )
+    if multi_topic_calendar:
+        matched_rules.sort(key=lambda rule: 0 if rule.get('category') == 'market_event' else 1)
+    elif has_bellwether_company_context(full_text):
         matched_rules.sort(key=lambda rule: 0 if rule.get('category') == 'bellwether_company' else 1)
 
 
@@ -1390,7 +1420,7 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     why = primary['why']
     if inflation_stress_signal(headline):
         why = '물가가 높으면 금리 인하가 늦어질 수 있습니다. 그래서 주식시장에는 부담입니다.'
-    elif impact.get('hasBellwetherCompanyContext'):
+    elif not multi_topic_calendar and impact.get('hasBellwetherCompanyContext'):
         why = '지수 비중이 큰 대표기업 뉴스라 개별 종목 판단이 아니라 시장 온도 근거로 봅니다.'
     elif impact['singleBrandEvent'] and impact['hasListedCompanyContext']:
         why = '단일 브랜드 이슈라도 실적·수출·업종·주가 맥락이 확인되어 시장 온도 참고 뉴스로 분류했습니다.'
