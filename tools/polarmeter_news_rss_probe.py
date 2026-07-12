@@ -326,7 +326,7 @@ def is_theme_or_opinion_noise(text: str) -> bool:
 
 def is_personal_finance_story(text: str) -> bool:
     return re.search(
-        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|은퇴|연금|개인\s*포트폴리오)',
+        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|은퇴|연금|개인\s*포트폴리오)',
         text,
         re.I,
     ) is not None
