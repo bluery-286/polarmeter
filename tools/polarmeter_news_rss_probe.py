@@ -538,6 +538,8 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'oil\s+prices?\s+surge\s+5%.*stocks?\s+tumble.*trump\s+says\s+iran\s+ceasefire\s+is.*over', re.I), '유가 급등과 이란 휴전 불안은 미국 지수 부담'),
     (re.compile(r'indigo\s+shares?\s+fall.*spicejet\s+down.*trump.*iran\s+ceasefire\s+remarks?', re.I), '이란 휴전 발언 뒤 항공주 하락은 중동 리스크 재평가 신호'),
     (re.compile(r'kevin\s+warsh\s+plans?\s+to\s+stop\s+scripting\s+the\s+fed.{0,80}wild\s+ride\s+for\s+traders?', re.I), '연준 인사 발언은 금리 변동성 부담'),
+    (re.compile(r'july\s+rate\s+hike\s+from\s+the\s+fed.*odds\s+are\s+rising', re.I), '연준 7월 금리 인상 가능성이 커졌다는 분석'),
+    (re.compile(r'tech\s+rebound\s+lifts\s+dow\s+to\s+record.*oil\s+prices?\s+edge\s+up', re.I), '미국 지수는 반등했지만 유가도 올라 신호 엇갈림'),
     (re.compile(r'this\s+strategist\s+sees\s+the\s+s&p\s*500\s+hitting\s+8,?500.*one\s+thing\s+changed\s+her\s+mind', re.I), 'S&P500 8,500 전망은 지수 기대 재평가'),
     (re.compile(r'nasdaq\s*100\s+forecast.*ndx\s+falls?.*ai\s+chip\s+worries.*spacex\s+joins\s+the\s+index', re.I), 'AI 칩 우려와 스페이스X 편입은 나스닥100 부담'),
     (re.compile(r'forget\s+ai\s+software.*autonomous\s+weapons', re.I), 'AI 소프트웨어보다 자율무기 투자에 자금이 몰린다는 분석'),

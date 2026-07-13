@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -102,6 +103,12 @@ def validate_payload(out: Path) -> dict:
             raise AssertionError('pages snapshot news must expose category and market-temperature evidence anchor')
         if not item.get('issueClusterKey'):
             raise AssertionError('pages snapshot news must expose issueClusterKey for app grouping')
+        for title_key in ('headline', 'displayHeadline'):
+            title = str(item.get(title_key) or '')
+            if re.search(r'\s+By\s+[A-Za-z0-9가-힣][A-Za-z0-9가-힣 ._&/+()-]{1,63}\s*$', title):
+                raise AssertionError(f'pages snapshot news {title_key} leaked a publisher suffix')
+            if '물가이션' in title:
+                raise AssertionError(f'pages snapshot news {title_key} leaked a partial inflation replacement')
     if manifest.get('okNewsCount', 0) < 10:
         raise AssertionError('manifest must expose cached news count')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):

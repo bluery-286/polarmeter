@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -722,12 +723,23 @@ def sanitize_public_news(news: dict[str, Any]) -> dict[str, Any]:
     out['clientDirectProviderCalls'] = False
     out['bodyScrapingEnabled'] = False
     out['imageScrapingEnabled'] = False
-    out['items'] = [
-        {key: value for key, value in item.items() if key in allowed_item}
-        for item in news.get('items') or []
-        if isinstance(item, dict)
-    ]
+    out['items'] = []
+    for item in news.get('items') or []:
+        if not isinstance(item, dict):
+            continue
+        public_item = {key: value for key, value in item.items() if key in allowed_item}
+        for title_key in ('headline', 'displayHeadline'):
+            if public_item.get(title_key):
+                public_item[title_key] = sanitize_public_news_title(public_item[title_key])
+        out['items'].append(public_item)
     return out
+
+
+def sanitize_public_news_title(value: Any) -> str:
+    text = re.sub(r'\s+', ' ', str(value or '')).strip()
+    text = re.sub(r'인플레이션', '물가', text)
+    text = re.sub(r'\s+By\s+[A-Za-z0-9가-힣][A-Za-z0-9가-힣 ._&/+()-]{1,63}\s*$', '', text)
+    return re.sub(r'\s*[|｜·・:：;,\-–—]+\s*$', '', text).strip()
 
 
 def sanitize_public_data_quality(data_quality: dict[str, Any]) -> dict[str, Any]:
@@ -797,6 +809,12 @@ def assert_public_payload_safe(*payloads: dict[str, Any]) -> None:
         for item in news.get('items') or []:
             if item.get('body') or item.get('imageUrl') or item.get('description'):
                 raise AssertionError('public news item must not expose body/image/description fields')
+            for title_key in ('headline', 'displayHeadline'):
+                title = str(item.get(title_key) or '')
+                if re.search(r'\s+By\s+[A-Za-z0-9가-힣][A-Za-z0-9가-힣 ._&/+()-]{1,63}\s*$', title):
+                    raise AssertionError(f'public news {title_key} must not expose a publisher suffix')
+                if '물가이션' in title:
+                    raise AssertionError(f'public news {title_key} must not expose a partial inflation replacement')
 
 
 def publish_public_artifacts(public_dir: Path, snapshot: dict[str, Any], snapshot_name: str) -> dict[str, str]:
