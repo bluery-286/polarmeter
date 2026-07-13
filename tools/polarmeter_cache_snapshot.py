@@ -63,7 +63,9 @@ SANITY_RANGES = {
     # 2026 POC cross-check: KOSPI genuinely trades in the 7,000~8,000 range.
     # Displayed index values remain temperature inputs even when low-confidence:
     # range/change violations publish as suspect/show, not invalid/hide.
-    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 9.0, 'rejectAbsChangePct': 18.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
+    # B2.67: a 6% KOSPI move is already an exceptional intraday condition.
+    # Keep the value in temperature, but disclose low confidence until corroborated.
+    'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 18.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
     'kosdaq': {'minPrice': 400, 'maxPrice': 1500, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
     'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
     'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},

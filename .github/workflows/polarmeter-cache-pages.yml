@@ -101,6 +101,7 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
         run: |
+          python3 tools/polarmeter_provider_change_smoke.py
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
           python3 tools/polarmeter_github_pages_smoke.py --prepared-site ./_site
       - uses: actions/upload-pages-artifact@v3

@@ -75,16 +75,32 @@ def as_float(value: Any) -> float | None:
         return None
 
 
-def yahoo_chart_change_fields(meta: dict[str, Any], closes: list[Any]) -> tuple[float | None, float | None, float | None, float | None, str]:
+def yahoo_chart_change_fields(
+    meta: dict[str, Any],
+    closes: list[Any],
+    *,
+    prefer_daily_series_previous: bool = False,
+) -> tuple[float | None, float | None, float | None, float | None, str]:
     """Calculate chart price/change without shifting previous close across null slots."""
     raw_closes = [as_float(item) for item in closes]
     numeric_closes = [value for value in raw_closes if value is not None]
     meta_price = as_float(meta.get('regularMarketPrice'))
     price = meta_price if meta_price is not None else (numeric_closes[-1] if numeric_closes else None)
-    previous = as_float(first_present(meta, ['regularMarketPreviousClose', 'previousClose', 'chartPreviousClose']))
+    previous = as_float(meta.get('regularMarketPreviousClose'))
     change = as_float(first_present(meta, ['regularMarketChange']))
     change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
     source = 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close'
+    if previous in (None, 0) and prefer_daily_series_previous and numeric_closes:
+        last_close = numeric_closes[-1]
+        if price is not None and abs(last_close - price) <= max(0.01, abs(price) * 0.000001) and len(numeric_closes) >= 2:
+            previous = numeric_closes[-2]
+        else:
+            previous = last_close
+        source = 'daily_series_previous_close'
+    if previous in (None, 0):
+        previous = as_float(first_present(meta, ['previousClose', 'chartPreviousClose']))
+        if previous not in (None, 0):
+            source = 'meta_range_previous_close'
     if previous in (None, 0) and len(numeric_closes) >= 2:
         previous_candidates = [value for value in raw_closes[:-1] if value is not None]
         previous = previous_candidates[-1] if previous_candidates else numeric_closes[-2]
@@ -255,7 +271,11 @@ def yahoo_chart_probe() -> dict[str, Any]:
             meta = result.get('meta') or {}
             quote = (result.get('indicators', {}).get('quote') or [{}])[0]
             closes = quote.get('close') or []
-            price, change, change_pct, previous, change_source = yahoo_chart_change_fields(meta, closes)
+            price, change, change_pct, previous, change_source = yahoo_chart_change_fields(
+                meta,
+                closes,
+                prefer_daily_series_previous=True,
+            )
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
         except Exception as exc:  # pragma: no cover - network diagnostic
