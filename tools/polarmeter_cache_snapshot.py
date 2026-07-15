@@ -47,6 +47,59 @@ KR_INTRADAY_STALE_KEYS = {'kospi', 'kosdaq', 'kr_samsung'}
 ACTIVE_MARKET_MAX_AGE_HOURS = 3.0
 KR_ACTIVE_MARKET_STALE_KEYS = {'kospi', 'kosdaq', 'usd_krw'}
 US_ACTIVE_MARKET_STALE_KEYS = {'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix'}
+MACRO_RELEASE_GRACE = timedelta(hours=2)
+SCHEDULED_MACRO_EVENTS = {
+    'us_nonfarm_payrolls': [
+        ('2026-07-02T12:30:00Z', '6월 고용'),
+        ('2026-08-07T12:30:00Z', '7월 고용'),
+        ('2026-09-04T12:30:00Z', '8월 고용'),
+        ('2026-10-02T12:30:00Z', '9월 고용'),
+        ('2026-11-06T13:30:00Z', '10월 고용'),
+        ('2026-12-04T13:30:00Z', '11월 고용'),
+    ],
+    'us_cpi': [
+        ('2026-07-14T12:30:00Z', '6월 CPI'),
+        ('2026-08-12T12:30:00Z', '7월 CPI'),
+        ('2026-09-11T12:30:00Z', '8월 CPI'),
+        ('2026-10-14T12:30:00Z', '9월 CPI'),
+        ('2026-11-10T13:30:00Z', '10월 CPI'),
+        ('2026-12-10T13:30:00Z', '11월 CPI'),
+    ],
+    'fomc_rate': [
+        ('2026-06-17T18:00:00Z', '6월 FOMC'),
+        ('2026-07-29T18:00:00Z', '7월 FOMC'),
+        ('2026-09-16T18:00:00Z', '9월 FOMC'),
+        ('2026-10-28T18:00:00Z', '10월 FOMC'),
+        ('2026-12-09T19:00:00Z', '12월 FOMC'),
+    ],
+}
+LAST_MACRO_RELEASES = {
+    'us_nonfarm_payrolls': {
+        'label': '6월 고용',
+        'releasedAt': '2026-07-02T12:30:00Z',
+        'resultLabel': '일자리 +5.7만명 · 실업률 4.2%',
+        'detail': '지난 발표에서는 일자리 증가가 둔화됐고 실업률은 4.2%였습니다. 고용 둔화가 금리 기대를 낮추는지, 경기 걱정을 키우는지 함께 봅니다.',
+        'sourceLabel': 'BLS Employment Situation · 2026-07-02',
+        'sourceUrl': 'https://www.bls.gov/news.release/empsit.nr0.htm',
+    },
+    'us_cpi': {
+        'label': '6월 CPI',
+        'releasedAt': '2026-07-14T12:30:00Z',
+        'resultLabel': '물가 전월 대비 -0.4% · 전년 대비 +3.5%',
+        'detail': '6월 물가는 에너지 가격 하락 영향으로 전월 대비 0.4% 내렸습니다. 물가 부담은 완화됐지만 전년 대비 3.5%라 금리 부담이 더 낮아지는지 이어서 봅니다.',
+        'sourceLabel': 'BLS CPI · 2026-07-14',
+        'sourceUrl': 'https://www.bls.gov/news.release/cpi.nr0.htm',
+        'burdenScore': 46,
+    },
+    'fomc_rate': {
+        'label': '6월 FOMC',
+        'releasedAt': '2026-06-17T18:00:00Z',
+        'resultLabel': '기준금리 3.50~3.75% 동결',
+        'detail': '미국 중앙은행은 금리를 유지했고, 이후 물가와 고용 발표가 다음 확인 포인트입니다.',
+        'sourceLabel': 'Federal Reserve FOMC · 2026-06-17',
+        'sourceUrl': 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260617a.htm',
+    },
+}
 
 CORE_SIGNALS = {'kospi', 'usd_krw', 'sp500', 'vix', 'wti'}
 CORE_GROUPS = {
@@ -109,6 +162,36 @@ def parse_utc_datetime(value: Any) -> datetime | None:
         return parsed.astimezone(timezone.utc)
     except (TypeError, ValueError, OSError):
         return None
+
+
+def build_macro_events(now: datetime | None = None) -> dict[str, Any]:
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    events: dict[str, Any] = {}
+    for key, schedule in SCHEDULED_MACRO_EVENTS.items():
+        parsed_schedule = [
+            (parsed, label)
+            for iso_value, label in schedule
+            if (parsed := parse_utc_datetime(iso_value)) is not None
+        ]
+        last_release = dict(LAST_MACRO_RELEASES.get(key) or {})
+        released_at = parse_utc_datetime(last_release.get('releasedAt'))
+        due = [item for item in parsed_schedule if item[0] <= current - MACRO_RELEASE_GRACE]
+        if due and (released_at is None or released_at < due[-1][0]):
+            raise AssertionError(
+                f'macro release stale after official event: {key} '
+                f'due={due[-1][0].isoformat()} releasedAt={last_release.get("releasedAt")}'
+            )
+        upcoming = next((item for item in parsed_schedule if item[0] > current), None)
+        events[key] = {
+            'status': 'ok' if last_release else 'unavailable',
+            'sourcePolicy': 'official_release_registry_with_expiry_gate',
+            'lastRelease': last_release or None,
+            'nextRelease': {
+                'scheduledAt': upcoming[0].isoformat().replace('+00:00', 'Z'),
+                'label': upcoming[1],
+            } if upcoming else None,
+        }
+    return events
 
 
 def candidate_data_date_kst(value: Any) -> Any:
@@ -682,6 +765,7 @@ def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = No
             for provider in probe.get('providers', [])
         },
         'signals': signals,
+        'macroEvents': build_macro_events(),
         'news': cached_news(news_probe),
     }
 

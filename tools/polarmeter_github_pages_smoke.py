@@ -91,6 +91,16 @@ def validate_payload(out: Path) -> dict:
         if signal.get('status') in {'suspect', 'stale'}:
             if not signal.get('publicReasonCode') or not signal.get('publicReasonLabel'):
                 raise AssertionError(f'pages snapshot non-ok signal missing public reason: {key}')
+    macro_events = snapshot.get('macroEvents') or {}
+    cpi = macro_events.get('us_cpi') or {}
+    cpi_last = cpi.get('lastRelease') or {}
+    cpi_next = cpi.get('nextRelease') or {}
+    if cpi_last.get('resultLabel') != '물가 전월 대비 -0.4% · 전년 대비 +3.5%':
+        raise AssertionError('pages snapshot must expose the official June 2026 CPI result')
+    if cpi_next.get('scheduledAt') != '2026-08-12T12:30:00Z':
+        raise AssertionError('pages snapshot must roll CPI forward to the August 12 release')
+    if cpi.get('sourcePolicy') != 'official_release_registry_with_expiry_gate':
+        raise AssertionError('pages snapshot CPI must use the official release expiry gate')
     news = snapshot.get('news') or {}
     if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
         raise AssertionError('cached news policy fields must be false')
@@ -109,6 +119,13 @@ def validate_payload(out: Path) -> dict:
                 raise AssertionError(f'pages snapshot news {title_key} leaked a publisher suffix')
             if '물가이션' in title:
                 raise AssertionError(f'pages snapshot news {title_key} leaked a partial inflation replacement')
+        tone = item.get('impactTone')
+        why = str(item.get('whyImportant') or '')
+        if tone == 'negative' and re.search(r'(걱정|부담|압박).{0,18}(줄|낮아|완화|덜)', why):
+            raise AssertionError(f'negative news must not carry a relief explanation: {item.get("displayHeadline") or item.get("headline")}')
+        headline_bundle = ' '.join(str(item.get(key) or '') for key in ('headline', 'displayHeadline', 'originalHeadline'))
+        if re.search(r'\bcpi\b', headline_bundle, re.I) and re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview', headline_bundle, re.I):
+            raise AssertionError(f'pages snapshot must not keep an expired CPI preview: {item.get("headline")}')
     if manifest.get('okNewsCount', 0) < 10:
         raise AssertionError('manifest must expose cached news count')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):

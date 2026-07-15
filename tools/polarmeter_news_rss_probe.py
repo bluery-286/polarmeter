@@ -27,6 +27,13 @@ USER_AGENT = 'PolarMeter-B1-NewsCache/0.1 (+https://bluery-286.github.io/polarme
 MAX_NEWS_AGE_HOURS = 24
 DEFAULT_NEWS_TTL_MINUTES = 30
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
+MACRO_PREVIEW_RELEASE_GRACE = timedelta(hours=2)
+LATEST_COMPLETED_MACRO_RELEASES = {
+    'cpi': datetime(2026, 7, 14, 12, 30, tzinfo=timezone.utc),
+}
+NEXT_SCHEDULED_MACRO_RELEASES = {
+    'cpi': datetime(2026, 8, 12, 12, 30, tzinfo=timezone.utc),
+}
 
 CRITICAL_NEWS_KEYWORDS = [
     # 지정학 완화/악화 — 시장 위험선호와 유가·변동성에 직접 연결되는 이벤트
@@ -808,8 +815,12 @@ def english_market_context_translation(headline: str) -> str | None:
         lower,
     ):
         return 'AI주 압박에 S&P500·나스닥 약세 압력'
-    if has_inflation and re.search(r'hotter[-\s]?than[-\s]?expected|hot|high(?:er|est)?|sticky|elevated', lower) and (positive or has_wall_street):
-        return '지수 선물은 반등하지만 물가 부담은 남아 있음'
+    if has_inflation and inflation_stress_signal(text) and (positive or has_wall_street):
+        return '높은 물가는 미국 지수와 금리 기대의 부담 신호'
+    if has_inflation and inflation_relief_signal(text):
+        return '물가 부담이 줄었다는 발언은 금리 압박 완화 단서'
+    if has_inflation and inflation_stress_signal(text):
+        return '물가 부담은 금리 압박을 키울 수 있음'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and not broad_index_negative and not has_oil_geo:
         return '미국 지수 선물 반등은 개장 전 부담 완화 신호'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_negative and not has_oil_geo:
@@ -1035,6 +1046,18 @@ def parse_utc(value: str | None) -> datetime | None:
         return None
 
 
+def expired_macro_event_preview(headline: str, published_at: str | None, now: datetime | None = None) -> bool:
+    text = str(headline or '').lower()
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    release_at = LATEST_COMPLETED_MACRO_RELEASES['cpi']
+    next_release_at = NEXT_SCHEDULED_MACRO_RELEASES['cpi']
+    if current < release_at + MACRO_PREVIEW_RELEASE_GRACE or current >= next_release_at - timedelta(days=3):
+        return False
+    has_cpi = re.search(r'\bcpi\b|소비자\s*물가', text, re.I)
+    is_preview = re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview|앞두|대기|예고|발표\s*전', text, re.I)
+    return bool(has_cpi and is_preview)
+
+
 def headline_tone(headline: str) -> str:
     text = headline.lower()
     if is_outlook_commentary(headline):
@@ -1071,7 +1094,12 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     index_subject = r'(코스피|코스닥|나스닥|nasdaq|s&p|s\s*p\s*500|sp500|dow|다우|지수|선물|futures?|뉴욕증시|증시|주가|wall street|stocks?)'
     index_down = re.search(index_subject + r'.{0,42}(급락|하락|약세|폭락|slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes)|' + r'(급락|하락|약세|폭락|slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes).{0,42}' + index_subject, text, re.I)
     index_up = re.search(index_subject + r'.{0,42}(급등|상승|반등|회복|강세|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|gain|gains)|' + r'(급등|상승|반등|회복|강세|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|gain|gains).{0,42}' + index_subject, text, re.I)
-    explicit_index_pressure = has_index and re.search(r'losing\s+momentum|under\s+pressure|압박|둔화|약세\s*압력', text, re.I)
+    explicit_index_pressure = re.search(
+        index_subject + r'.{0,24}(losing\s+momentum|under\s+pressure|압박|약세\s*압력)|'
+        r'(losing\s+momentum|under\s+pressure|압박|약세\s*압력).{0,24}' + index_subject,
+        text,
+        re.I,
+    )
     fx_relief_marker = re.search(r'(달러|dollar).{0,12}(↓|하락|약세|lower|fall|falls|drop|drops|weak)|↓.{0,12}(달러|dollar)', text, re.I)
     explicit_index_burden = bool(index_down or explicit_index_pressure) and not (index_up and fx_relief_marker)
     explicit_index_relief = bool(index_up)
@@ -1088,7 +1116,13 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     dampened_burden = dampened_burden_signal(text)
     explicit_rate_burden = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(부담|공포|우려|상승|급등|높|고공|higher|rise|rises|rising|jump|surge)|(부담|공포|우려).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I) and not dampened_burden
     explicit_rate_relief = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(완화|하락|인하|내림|낮아|ease|eases|fall|falls|drop|drops|lower|decline)|(완화|하락|인하|내림|낮아|ease|fall|drop|lower).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I)
-    explicit_rate_hike_expectation_relief = re.search(r'(금리\s*인상\s*기대|rate\s*hike\s*expectations?).{0,24}(낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)', text, re.I)
+    explicit_rate_hike_expectation_relief = re.search(
+        r'(금리\s*인상\s*(?:기대|우려|압박|가능성|론)|rate\s*hike\s*(?:expectations?|concerns?|pressure))'
+        r'.{0,24}(뚝|꺾|낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)',
+        text,
+        re.I,
+    )
+    explicit_inflation_relief = inflation_relief_signal(text)
     explicit_inflation_burden = inflation_stress_signal(text)
     title_burden = re.search(r'(부담|압박|압력|공포|악재|위험회피|불확실|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I) and not dampened_burden and not (explicit_index_relief and fx_relief_marker)
     explicit_tech_burden = re.search(
@@ -1161,6 +1195,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         return 'negative'
     if explicit_foreign_flow_burden:
         return 'negative'
+    if explicit_inflation_relief and not (explicit_index_burden or explicit_fx_burden or explicit_oil_burden or explicit_rate_burden):
+        return 'positive'
     if explicit_inflation_burden:
         return 'negative'
     if explicit_rate_hike_expectation_relief and not explicit_index_burden:
@@ -1273,7 +1309,40 @@ def dampened_burden_signal(text: str) -> bool:
     return bool(re.search(r'(부담|pressure).{0,12}(관망|제한|완화|둔화|낮아|줄|덜|limited|contained|eases?|wanes?)', text, re.I))
 
 
+def inflation_relief_signal(text: str) -> bool:
+    stress = (
+        r'too\s+high|sticky|hotter[-\s]?than[-\s]?expected|hot\b|elevated|'
+        r'fuel(?:s|ed|ing)?\s+inflation|inflation.{0,32}fuel|'
+        r'rate\s+hikes?\s+may\s+be\s+necessary|금리\s*인상.{0,16}필요|물가.{0,18}(부담|압력).{0,12}(커|키우|높|상승|확대)'
+    )
+    if re.search(stress, text, re.I):
+        return False
+    relief = (
+        r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?).{0,56}'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정)|'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정).{0,56}'
+        r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?)'
+    )
+    rate_hike_relief = (
+        r'(pce|cpi|물가|인플레이션|inflation).{0,80}'
+        r'(금리\s*인상|rate\s+hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
+        r'.{0,16}(뚝|꺾|낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)|'
+        r'(금리\s*인상|rate\s+hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
+        r'.{0,16}(뚝|꺾|낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)'
+        r'.{0,80}(pce|cpi|물가|인플레이션|inflation)'
+    )
+    return bool(re.search(relief, text, re.I) or re.search(rate_hike_relief, text, re.I))
+
+
 def inflation_stress_signal(text: str) -> bool:
+    if inflation_relief_signal(text):
+        return False
+    if re.search(
+        r'(pce|cpi|물가|인플레이션|inflation).{0,32}(부담|압력|stress|pressure).{0,18}(남아|이어|지속|여전|remain|remains|persist|persists)',
+        text,
+        re.I,
+    ):
+        return True
     if re.search(r'(물가|인플레이션|비용|inflation).{0,24}(부담|압력|고점|상승|높|쑥|stress|pressure)', text, re.I):
         return True
     return bool(re.search(
@@ -1330,6 +1399,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     source_lower = source_name.lower()
     headline_lower = headline.lower()
     full_text = f'{headline} {source_name}'
+    if expired_macro_event_preview(headline, published_at):
+        return None, 'EXPIRED_MACRO_EVENT_PREVIEW'
     if any(hint.lower() in source_lower for hint in EXCLUDED_SOURCE_HINTS):
         return None, 'SOURCE_LOW_RELEVANCE'
     if is_personal_finance_story(full_text):
@@ -1420,7 +1491,9 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         quality_score += 0.05
 
     why = primary['why']
-    if inflation_stress_signal(headline):
+    if inflation_relief_signal(headline):
+        why = '물가 걱정이 줄면 금리 압박이 낮아져 시장 부담을 덜 수 있습니다.'
+    elif inflation_stress_signal(headline):
         why = '물가가 높으면 금리 인하가 늦어질 수 있습니다. 그래서 주식시장에는 부담입니다.'
     elif not multi_topic_calendar and impact.get('hasBellwetherCompanyContext'):
         why = '지수 비중이 큰 대표기업 뉴스라 개별 종목 판단이 아니라 시장 온도 근거로 봅니다.'

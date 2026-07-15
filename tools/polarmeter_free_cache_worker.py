@@ -750,6 +750,24 @@ def sanitize_public_data_quality(data_quality: dict[str, Any]) -> dict[str, Any]
     return {key: value for key, value in data_quality.items() if key in allowed}
 
 
+def sanitize_public_macro_events(macro_events: dict[str, Any]) -> dict[str, Any]:
+    allowed_release = {'label', 'releasedAt', 'resultLabel', 'detail', 'sourceLabel', 'sourceUrl', 'burdenScore'}
+    allowed_next = {'scheduledAt', 'label'}
+    result: dict[str, Any] = {}
+    for key, event in macro_events.items():
+        if not isinstance(event, dict):
+            continue
+        last_release = event.get('lastRelease') if isinstance(event.get('lastRelease'), dict) else {}
+        next_release = event.get('nextRelease') if isinstance(event.get('nextRelease'), dict) else None
+        result[str(key)] = {
+            'status': event.get('status') or 'unavailable',
+            'sourcePolicy': 'official_release_registry_with_expiry_gate',
+            'lastRelease': {name: value for name, value in last_release.items() if name in allowed_release} or None,
+            'nextRelease': {name: value for name, value in next_release.items() if name in allowed_next} if next_release else None,
+        }
+    return result
+
+
 def sanitize_public_provider_status_by_name(status_by_name: dict[str, Any]) -> dict[str, str]:
     safe: dict[str, str] = {}
     for key, value in status_by_name.items():
@@ -789,6 +807,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
             for key, value in (snapshot.get('signals') or {}).items()
             if isinstance(value, dict)
         },
+        'macroEvents': sanitize_public_macro_events(snapshot.get('macroEvents') or {}),
         'news': sanitize_public_news(snapshot.get('news') or {}),
     }
 
