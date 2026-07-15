@@ -1315,7 +1315,7 @@ def dampened_burden_signal(text: str) -> bool:
 def inflation_relief_signal(text: str) -> bool:
     stress = (
         r'too\s+high|sticky|hotter[-\s]?than[-\s]?expected|hot\b|elevated|'
-        r'fuel(?:s|ed|ing)?\s+inflation|inflation.{0,32}fuel|'
+        r'fuel(?:s|ed|ing)?\s+inflation|inflation.{0,32}fuel(?:s|ed|ing)?\s+(?:rate|yield|cost|price|burden|pressure)|'
         r'rate\s+hikes?\s+may\s+be\s+necessary|금리\s*인상.{0,16}필요|물가.{0,18}(부담|압력).{0,12}(커|키우|높|상승|확대)'
     )
     if re.search(stress, text, re.I):
