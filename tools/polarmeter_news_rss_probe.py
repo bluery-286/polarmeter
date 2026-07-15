@@ -973,6 +973,8 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
     raw = ' '.join(part for part in [headline, visible] if part).strip()
     if not raw:
         return visible or None
+    if re.search(r'cpi.{0,80}(?:sk\s*하이닉스|하이닉스).{0,80}주식.{0,24}채권.{0,24}달러', raw, re.I):
+        return 'CPI 호재는 주식·채권 부담 완화 신호'
 
     has_fx = re.search(r'(환율|원[·\s/-]?달러|달러[·\s/-]?원|고환율|usd/krw)', raw, re.I)
     has_high_fx = re.search(r'(15\d{2}|1,5\d{2}|1천\s*5백|1,600|1600|고환율)', raw, re.I)
