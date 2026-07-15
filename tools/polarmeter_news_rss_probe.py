@@ -1058,7 +1058,8 @@ def expired_macro_event_preview(headline: str, published_at: str | None, now: da
     if current < release_at + MACRO_PREVIEW_RELEASE_GRACE or current >= next_release_at - timedelta(days=3):
         return False
     published = parse_utc(published_at)
-    if published and published > release_at + MACRO_PREVIEW_RELEASE_GRACE:
+    completed_period = re.search(r'\b(?:june|jun\.?)\s+(?:cpi|inflation|consumer\s+price)|6월\s*(?:cpi|소비자\s*물가|물가)', text, re.I)
+    if published and published > release_at + MACRO_PREVIEW_RELEASE_GRACE and not completed_period:
         return False
     has_cpi = re.search(r'\bcpi\b|소비자\s*물가|inflation\s+(?:data|report|release)', text, re.I)
     is_preview = re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview|앞두|대기|예고|발표\s*전', text, re.I)
