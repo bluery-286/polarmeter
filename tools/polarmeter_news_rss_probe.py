@@ -1090,6 +1090,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if is_outlook_commentary(headline):
         return 'neutral'
     text = headline.lower()
+    if re.search(r'(긴축|금리\s*인상).{0,16}(우려|부담|압박).{0,12}(완화|낮아|줄|덜)', text, re.I):
+        return 'positive'
     if inflation_relief_signal(text) and re.search(r'(nasdaq|s&p|sp500|지수).{0,48}(rise|rises|higher|상승)', text, re.I) and re.search(r'withdraws?\s+plan|drops?\s+plan|scraps?\s+plan', text, re.I):
         return 'positive'
     up = re.search(r'(급등|상승|오름|올랐|강세|↑|\brise\b|\brises\b|\brising\b|\bhigher\b|\bsurge\b|\bsurges\b|\bjump\b|\bjumps\b|\bgain\b|\bgains\b|\brally\b|\brallies\b|\brebound\b|\brebounds\b|\bclimb\b|\bclimbs\b|\bclimbing\b)', text, re.I)
