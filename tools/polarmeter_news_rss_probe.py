@@ -1289,7 +1289,7 @@ def explicit_fx_relief_signal(text: str) -> bool:
     ):
         return False
     return bool(re.search(
-        r'(달러\s*약세|원화.{0,14}(강세|안정|진정)|환율.{0,14}(급락|하락|내림|낮아|진정|안정)|고환율.{0,10}(진정|안정)|고환율\s*부담\s*완화|수급\s*부담\s*완화|외국인.{0,24}(순매수|유입|매수세)|usd/krw.{0,12}(lower|fall|drop))',
+        r'(달러.{0,10}(약세|급락|하락|내림|낮아)|원화.{0,14}(강세|안정|진정)|환율.{0,14}(급락|하락|내림|낮아|진정|안정)|고환율.{0,10}(진정|안정)|고환율\s*부담\s*완화|수급\s*부담\s*완화|외국인.{0,24}(순매수|유입|매수세)|usd/krw.{0,12}(lower|fall|drop))',
         text,
         re.I,
     ))
@@ -1331,8 +1331,8 @@ def inflation_relief_signal(text: str) -> bool:
         return False
     relief = (
         r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?).{0,56}'
-        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정)|'
-        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정).{0,56}'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|호재|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정)|'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|호재|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정).{0,56}'
         r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?)'
     )
     rate_hike_relief = (
@@ -1470,7 +1470,14 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         and re.search(r'(tsmc|반도체|실적)', headline, re.I)
         and re.search(r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?)', headline, re.I)
     )
-    if multi_topic_calendar:
+    multi_asset_macro_relief = (
+        re.search(r'(물가|cpi|pce|인플레이션|inflation)', headline, re.I)
+        and re.search(r'(호재|완화|둔화|낮아|하락|cool|ease|soft)', headline, re.I)
+        and re.search(r'(주식|증시|지수|stock|equity).{0,40}(채권|국채|bond|treasury)|(채권|국채|bond|treasury).{0,40}(주식|증시|지수|stock|equity)', headline, re.I)
+    )
+    if multi_asset_macro_relief:
+        matched_rules.sort(key=lambda rule: 0 if rule.get('category') == 'macro' else 1)
+    elif multi_topic_calendar:
         matched_rules.sort(key=lambda rule: 0 if rule.get('category') == 'market_event' else 1)
     elif has_bellwether_company_context(full_text):
         matched_rules.sort(key=lambda rule: 0 if rule.get('category') == 'bellwether_company' else 1)
