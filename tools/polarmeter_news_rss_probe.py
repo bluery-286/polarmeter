@@ -1053,7 +1053,10 @@ def expired_macro_event_preview(headline: str, published_at: str | None, now: da
     next_release_at = NEXT_SCHEDULED_MACRO_RELEASES['cpi']
     if current < release_at + MACRO_PREVIEW_RELEASE_GRACE or current >= next_release_at - timedelta(days=3):
         return False
-    has_cpi = re.search(r'\bcpi\b|소비자\s*물가', text, re.I)
+    published = parse_utc(published_at)
+    if published and published > release_at + MACRO_PREVIEW_RELEASE_GRACE:
+        return False
+    has_cpi = re.search(r'\bcpi\b|소비자\s*물가|inflation\s+(?:data|report|release)', text, re.I)
     is_preview = re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview|앞두|대기|예고|발표\s*전', text, re.I)
     return bool(has_cpi and is_preview)
 
