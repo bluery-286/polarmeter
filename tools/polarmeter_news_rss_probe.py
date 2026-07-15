@@ -788,6 +788,10 @@ def english_market_context_translation(headline: str) -> str | None:
     broad_index_positive = re.search(broad_index_subject + r'.{0,42}(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains)|' + r'(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains).{0,42}' + broad_index_subject, lower) is not None
     broad_index_negative = re.search(broad_index_subject + r'.{0,42}(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes)|' + r'(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes).{0,42}' + broad_index_subject, lower) is not None
 
+    if re.search(r'warsh.{0,100}(regime\s+change|inflation.{0,20}tax)', lower, re.I):
+        return '연준 정책 변화 발언은 물가·금리 경로 부담 신호'
+    if inflation_relief_signal(text) and broad_index_positive and re.search(r'withdraws?\s+plan|drops?\s+plan|scraps?\s+plan', lower, re.I):
+        return '물가 하락·호르무즈 통행료 철회에 미국 지수 상승'
     if 'eur/usd weekly outlook' in lower and 'fomc' in lower:
         return 'FOMC 이후 달러 강세 가능성은 환율 부담 신호'
     if re.search(r'ship\s+attack|shipping[-\s]?insurance|war[-\s]?risk\s+premiums?', lower):
@@ -1086,6 +1090,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if is_outlook_commentary(headline):
         return 'neutral'
     text = headline.lower()
+    if inflation_relief_signal(text) and re.search(r'(nasdaq|s&p|sp500|지수).{0,48}(rise|rises|higher|상승)', text, re.I) and re.search(r'withdraws?\s+plan|drops?\s+plan|scraps?\s+plan', text, re.I):
+        return 'positive'
     up = re.search(r'(급등|상승|오름|올랐|강세|↑|\brise\b|\brises\b|\brising\b|\bhigher\b|\bsurge\b|\bsurges\b|\bjump\b|\bjumps\b|\bgain\b|\bgains\b|\brally\b|\brallies\b|\brebound\b|\brebounds\b|\bclimb\b|\bclimbs\b|\bclimbing\b)', text, re.I)
     down = re.search(r'(급락|하락|내림|내렸|떨어|약세|↓|\bfall\b|\bfalls\b|\bfalling\b|\bdip\b|\bdips\b|\bdipped\b|\bdrop\b|\bdrops\b|\bdropped\b|\bslide\b|\bslides\b|\bsliding\b|\blower\b|\bslip\b|\bslips\b|\bdecline\b|\bdeclines\b|\bplunge\b|\bplunges\b|\bcrash\b|\bcrashes\b|\bcrashed\b|\btumble\b|\btumbles\b|\bweakens\b|\bweaken\b)', text, re.I)
     has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil)', text, re.I)
@@ -1322,8 +1328,8 @@ def inflation_relief_signal(text: str) -> bool:
         return False
     relief = (
         r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?).{0,56}'
-        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정)|'
-        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정).{0,56}'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정)|'
+        r'(less\s+risk|lower\s+risk|poses?\s+less\s+risk|eas(?:e|es|ed|ing)|cool(?:s|ed|ing)?|slow(?:s|ed|ing)?|soft(?:er|est)?|soften(?:s|ed|ing)?|moderate(?:s|d|ing)?|fall(?:s|ing)?|declin(?:e|es|ed|ing)|완화|둔화|낮아|줄(?:었|어|고|면|어들|어든)?|진정).{0,56}'
         r'(pce|cpi|물가|인플레이션|inflation|price\s+pressures?)'
     )
     rate_hike_relief = (
