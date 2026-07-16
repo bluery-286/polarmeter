@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from polarmeter_cache_snapshot import validate_candidate
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
-from polarmeter_news_rss_probe import english_market_context_translation, market_burden_tone
+from polarmeter_news_rss_probe import cause_aware_display_headline, english_market_context_translation, market_burden_tone
 
 
 def main() -> int:
@@ -48,6 +48,11 @@ def main() -> int:
     assert translated == "CPI 둔화에 AI·반도체주 동반 상승"
     assert market_burden_tone(cpi_relief_headline, "neutral") == "positive"
     assert market_burden_tone(translated, "neutral") == "positive"
+
+    wti_relief_headline = "국제유가, 중동 긴장에도 숨고르기…WTI 0.8%↓"
+    wti_display = cause_aware_display_headline(wti_relief_headline, wti_relief_headline)
+    assert wti_display == f"유가 부담 완화 · {wti_relief_headline}"
+    assert market_burden_tone(wti_display, "negative") == "positive"
     print("PolarMeter provider change smoke: PASS")
     return 0
 

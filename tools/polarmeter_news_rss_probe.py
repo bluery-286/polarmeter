@@ -1152,7 +1152,16 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
     if not raw:
         return visible or None
     if is_specific_korean_market_headline(headline):
-        return clean_text(headline)
+        cleaned = clean_text(headline)
+        competing_market_burden = re.search(
+            r'(코스피|코스닥|나스닥|다우|s&p\s*500|지수|증시|선물).{0,36}(하락|급락|폭락|약세)|'
+            r'(환율|원화|금리|반도체|기술주).{0,36}(부담|상승|급등|약세|하락)',
+            cleaned,
+            re.I,
+        )
+        if oil_relief_signal(cleaned) and not inflation_stress_signal(cleaned) and not competing_market_burden:
+            return f'유가 부담 완화 · {cleaned}'
+        return cleaned
     if re.search(r'cpi.{0,80}(?:sk\s*하이닉스|하이닉스).{0,80}주식.{0,24}채권.{0,24}달러', raw, re.I):
         return 'CPI 호재는 주식·채권 부담 완화 신호'
 
