@@ -13,6 +13,7 @@ import email.utils
 import json
 import re
 import sys
+import tempfile
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -201,6 +202,7 @@ MARKET_QUOTE_PAGE_PATTERNS = [
 
 SINGLE_COMPANY_LISTING_PATTERNS = [
     re.compile(r'(이전\s*상장|이전상장|상장\s*예비\s*심사|상장예비심사|상장\s*예심|코스피\s*이전)', re.I),
+    re.compile(r'(최(?:소|저)\s*입찰가\s*요건|minimum\s*bid|규정\s*준수.{0,20}(연장|기간)|compliance.{0,24}(extension|period)|180일.{0,20}연장|상장\s*폐지|delist(?:ing|ed)?)', re.I),
     re.compile(r'(나스닥|뉴욕|미국).{0,12}(상장|adr|주식예탁증서)|(?:adr|주식예탁증서).{0,16}(발행|상장)', re.I),
     re.compile(r'(나스닥|뉴욕|미국).{0,8}(택한|택했다|선택한).{0,24}(하이닉스|삼성|기업|회사)|(?:하이닉스|삼성|기업|회사).{0,24}(나스닥|뉴욕|미국).{0,8}(택한|택했다|선택한)', re.I),
     re.compile(r'코스닥.{0,16}(데뷔|입성)|(?:데뷔|입성).{0,16}코스닥', re.I),
@@ -274,7 +276,22 @@ POLITICAL_CONTEXT_MARKET_OVERRIDE_PATTERNS = [
 ]
 
 
+def is_market_warning_commentary(text: str) -> bool:
+    return bool(re.search(
+        r'(warns?|warning|threatens?|could\s+trigger|jeopardiz(?:e|es|ed|ing)).{0,80}'
+        r'(stock[-\s]?market|stocks?|equities|market|economy|s&p\s*500|nasdaq).{0,80}'
+        r'(slump|sell-?off|crash|plunge|risk|jeopardiz(?:e|es|ed|ing)|recession|downturn)|'
+        r'(stock[-\s]?market|stocks?|equities|market|economy).{0,80}'
+        r'(slump|sell-?off|crash|plunge|jeopardiz(?:e|es|ed|ing)|downturn).{0,80}'
+        r'(warns?|warning|could\s+trigger|threatens?)',
+        text,
+        re.I,
+    ))
+
+
 def is_outlook_commentary(text: str) -> bool:
+    if is_market_warning_commentary(text):
+        return False
     market = re.search(r'(코스피|코스닥|나스닥|s&p|sp500|다우|증시|지수|시장|wall street|stocks?)', text, re.I)
     outlook = re.search(r'(전망|분석|예상|내다봤|가능|목표치|could|prediction|forecast|target|targets|강세장이면|숨고르기)', text, re.I)
     future_or_conditional = re.search(r'(향후|내년|올해|까지|10년|2026|강세장이면|가능|could|prediction|forecast|target|targets|숨고르기)', text, re.I)
@@ -310,6 +327,36 @@ def is_single_company_listing_story(text: str) -> bool:
     )
 
 
+def is_source_headline_nonmarket_noise(text: str) -> bool:
+    north_korea_fx = bool(re.search(
+        r'(북한|north\s*korea).{0,32}(환율|달러|currency|exchange\s*rate)|'
+        r'(환율|달러|currency|exchange\s*rate).{0,32}(북한|north\s*korea)',
+        text,
+        re.I,
+    )) and not bool(re.search(
+        r'(코스피|코스닥|한국\s*증시|국내\s*증시|kospi|kosdaq|south\s+korea.{0,24}(stocks?|market))',
+        text,
+        re.I,
+    ))
+    facility_expansion = bool(re.search(
+        r'(maker|manufacturer|contractor|company|업체|제조사).{0,96}'
+        r'(open|opens|opening|build|builds|building|construct|건설|신설|설립).{0,96}'
+        r'(shipyard|factory|plant|facility|조선소|공장|시설)|'
+        r'(shipyard|factory|plant|facility|조선소|공장|시설).{0,96}'
+        r'(open|opens|opening|build|builds|building|construct|건설|신설|설립)',
+        text,
+        re.I,
+    ))
+    direct_market_anchor = bool(re.search(
+        r'(stocks?|shares?|market|index|indices|s&p|nasdaq|dow|kospi|kosdaq|oil|crude|wti|'
+        r'inflation|cpi|pce|interest\s*rate|fed|treasury|yield|earnings|revenue|semiconductor|chip|'
+        r'supply\s*chain|증시|지수|주가|유가|원유|물가|금리|연준|실적|반도체|공급망)',
+        text,
+        re.I,
+    ))
+    return north_korea_fx or (facility_expansion and not direct_market_anchor)
+
+
 def is_science_tech_nonmarket_story(text: str) -> bool:
     return any(pattern.search(text) for pattern in SCIENCE_TECH_NONMARKET_PATTERNS) and not any(
         pattern.search(text) for pattern in SCIENCE_TECH_MARKET_OVERRIDE_PATTERNS
@@ -332,26 +379,6 @@ def is_theme_or_opinion_noise(text: str) -> bool:
     return any(pattern.search(text) for pattern in THEME_OR_OPINION_NOISE_PATTERNS)
 
 
-def is_personal_finance_story(text: str) -> bool:
-    return re.search(
-        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|은퇴|연금|개인\s*포트폴리오)',
-        text,
-        re.I,
-    ) is not None
-
-
-def is_low_impact_policy_noise(text: str) -> bool:
-    return any(pattern.search(text) for pattern in LOW_IMPACT_POLICY_NOISE_PATTERNS) and not any(
-        pattern.search(text) for pattern in LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS
-    )
-
-
-def is_local_semiconductor_policy_noise(text: str) -> bool:
-    return any(pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_NOISE_PATTERNS) and not any(
-        pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_MARKET_OVERRIDE_PATTERNS
-    )
-
-
 def is_single_company_narrative_noise(text: str) -> bool:
     return any(pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_NOISE_PATTERNS) and not any(
         pattern.search(text) for pattern in SINGLE_COMPANY_NARRATIVE_MARKET_OVERRIDE_PATTERNS
@@ -370,6 +397,26 @@ def is_narrow_company_result_noise(text: str) -> bool:
         re.I,
     )
     return bool(company_result and not broad_market_context and not has_bellwether_company_context(text))
+
+
+def is_personal_finance_story(text: str) -> bool:
+    return re.search(
+        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|은퇴|연금|개인\s*포트폴리오)',
+        text,
+        re.I,
+    ) is not None
+
+
+def is_low_impact_policy_noise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in LOW_IMPACT_POLICY_NOISE_PATTERNS) and not any(
+        pattern.search(text) for pattern in LOW_IMPACT_POLICY_MARKET_OVERRIDE_PATTERNS
+    )
+
+
+def is_local_semiconductor_policy_noise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_NOISE_PATTERNS) and not any(
+        pattern.search(text) for pattern in LOCAL_SEMICONDUCTOR_POLICY_MARKET_OVERRIDE_PATTERNS
+    )
 
 
 def is_market_history_or_obituary(text: str) -> bool:
@@ -542,7 +589,34 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
     ('AI', 'AI'),
 ]
 
+
+def hormuz_transit_reopening_signal(text: str) -> bool:
+    transport = r'(shipping\s+traffic|traffic|transit|vessels?|tankers?|ships?|선박|통행|운항)'
+    reopen = r'(pick(?:s|ed|ing)?\s+up|increase(?:s|d|ing)?|rise(?:s|n)?\s+again|resume(?:s|d|ing)?|reopen(?:s|ed|ing)?|recover(?:s|ed|ing)?|return(?:s|ed|ing)?|재개|회복|증가|늘)'
+    route = r'(hormuz|strait|호르무즈|해협)'
+    return bool(re.search(
+        route + r'.{0,56}' + transport + r'.{0,56}' + reopen + r'|'
+        + transport + r'.{0,56}' + route + r'.{0,56}' + reopen + r'|'
+        + transport + r'.{0,56}' + reopen + r'.{0,56}' + route + r'|'
+        + reopen + r'.{0,56}' + transport + r'.{0,56}' + route,
+        text,
+        re.I,
+    ))
+
+
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'strait\s+of\s+hormuz\s+tanker\s+traffic\s+erodes\s+further.*oil\s+prices?\s+rise', re.I), '호르무즈 해협 유조선 통행 더 감소, 유가 상승'),
+    (re.compile(r'short[-\s]?term\s+capital\s+rotation.*cooling\s+inflation.*mid[-\s]?game\s+battle.*ai\s+rally', re.I), '물가 둔화 속 단기 자금 순환, AI 랠리 향방 주목'),
+    (re.compile(r'us\s+futures?\s+edge\s+lower.*chip\s+stock\s+weakness.*iran\s+tensions', re.I), '반도체주 약세·이란 긴장에 미국 지수 선물 하락'),
+    (re.compile(r'us\s+stock\s+market\s+today.*dow\s+jones\s+rises.*s&p\s*500\s+and\s+nasdaq\s+fall.*chip\s+stocks?\s+slide.*ai\s+jitters', re.I), '다우 상승, S&P500·나스닥 하락…AI 불안에 반도체주 약세'),
+    (re.compile(r's&p\s*500.*nasdaq.*dow\s+futures?\s+edge\s+higher.*fed\s+rate\s+decision', re.I), 'S&P500·나스닥·다우 선물 상승, 연준 금리 결정 대기'),
+    (re.compile(r'us\s+pre[-\s]?market.*nasdaq\s+futures?\s+rebound\s+over\s+100\s+points.*micron\s+rises?\s+over\s+4%.*semiconductor\s+sector\s+rallies.*gold\s+falls?\s+below\s+\$?4,?100', re.I), '나스닥 선물 100포인트 넘게 반등, 마이크론 4% 넘게 상승·반도체 강세, 금값 4,100달러 아래'),
+    (re.compile(r'dow\s+jones\s+us\s+stock\s+market\s+today.*dow\s+jumps\s+0\.23%.*oil\s+prices?\s+surge.*tech\s+shares?\s+retreat', re.I), '다우 0.23% 상승, 유가 급등·기술주 하락으로 신호 엇갈림'),
+    (re.compile(r'why\s+is\s+us\s+stock\s+market\s+up\s+today.*dow\s+jones.*nasdaq.*s&p\s*500\s+edge\s+higher.*ai\s+chips?.*inflation\s+rally.*fed\s+rate\s+hike', re.I), '다우·나스닥·S&P500 상승, AI칩 강세 속 물가·금리 인상 부담'),
+    (re.compile(r'asian\s+shares?\s+mostly\s+decline.*south\s+korea.?s\s+kospi\s+down\s+6\.6%.*oil\s+prices?\s+slip', re.I), '아시아 증시 대체로 하락, 코스피 6.6% 하락·유가도 하락'),
+    (re.compile(r'u\.?s\.?\s+stocks?\s+rise\s+within\s+0\.5%\s+of\s+their\s+record.*oil\s+prices?\s+keep\s+climbing', re.I), '유가 상승 속 미국 증시, 사상 최고치 0.5% 이내로 상승'),
+    (re.compile(r'dallas\s+fed\s+president\s+logan\s+calls?\s+for.*modestly.*higher\s+interest\s+rates?', re.I), '로건 댈러스 연은 총재, 소폭 금리 인상 필요 주장'),
+    (re.compile(r'maker\s+of\s+drone\s+boats?.*iran\s+war.*open\s+new\s+texas\s+shipyard', re.I), '이란전에 쓰인 무인 보트 제조사, 텍사스에 새 조선소 건설'),
     (re.compile(r'us\s+markets\s+today.*dow.*s&p\s*500.*nasdaq\s+futures\s+indicate\s+mixed\s+open.*tsmc.*netflix.*earnings', re.I), '다우·S&P500·나스닥 선물 혼조, TSMC·넷플릭스 실적 주목'),
     (re.compile(r's&p\s*500\s+and\s+nasdaq\s+stuck.*market\s+rotation.*magnificent\s+seven.*chip\s+stocks', re.I), '매그니피센트7·반도체주 순환매 속 S&P500·나스닥 정체'),
     (re.compile(r's&p\s*500\s+forecast.*spx\s+struggles.*ai\s+jitters.*resilient\s+retail\s+sales', re.I), '소매판매 호조에도 AI 불안으로 S&P500 약세'),
@@ -563,8 +637,10 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'tech\s+rebound\s+lifts\s+dow\s+to\s+record.*oil\s+prices?\s+edge\s+up', re.I), '미국 지수는 반등했지만 유가도 올라 신호 엇갈림'),
     (re.compile(r'this\s+strategist\s+sees\s+the\s+s&p\s*500\s+hitting\s+8,?500.*one\s+thing\s+changed\s+her\s+mind', re.I), 'S&P500 8,500 전망은 지수 기대 재평가'),
     (re.compile(r'nasdaq\s*100\s+forecast.*ndx\s+falls?.*ai\s+chip\s+worries.*spacex\s+joins\s+the\s+index', re.I), 'AI 칩 우려와 스페이스X 편입은 나스닥100 부담'),
+    (re.compile(r'central\s+bank\s+of\s+central\s+banks\s+warns\s+ai\s+frenzy\s+could\s+trigger\s+stock[-\s]?market\s+slump\s+and\s+jeopardize\s+economy', re.I), 'AI 과열이 주식시장 급락과 경기 부담을 부를 수 있다는 중앙은행권 경고'),
     (re.compile(r'forget\s+ai\s+software.*autonomous\s+weapons', re.I), 'AI 소프트웨어보다 자율무기 투자에 자금이 몰린다는 분석'),
     (re.compile(r'us\s+markets\s+plunge.*dow\s+jones.*s&p\s*500.*nasdaq.*iran.*risk-off', re.I), '이란 위협에 위험회피 확산, 다우·S&P500·나스닥 급락'),
+    (re.compile(r'wall\s+street\s+dips?\s+amid\s+rising\s+us[-\s]?iran\s+tensions?', re.I), '미·이란 긴장 고조에 미국 증시 약세 부담'),
     (re.compile(r'first\s+trillion-dollar\s+etf.*elon\s+musk', re.I), '첫 1조달러 ETF가 시장 관심을 독점한다는 분석'),
     (re.compile(r'catastrophe\s+bonds.*uncorrelated.*macroeconomic\s+uncertainty', re.I), '거시 불확실성 속 비상관 자산으로 주목받는 재해채권'),
     (re.compile(r'xdte.*friday\s+income.*s&p\s*500.*0dte\s+covered\s+call', re.I), 'XDTE가 S&P500 0DTE 커버드콜로 주간 인컴을 지급하는 방식'),
@@ -584,7 +660,6 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'us\s+stock\s+market\s+today.*wall\s+street\s+rebounds.*oil\s+slides.*s&p\s*500.*nasdaq\s+rise', re.I), '유가 하락과 이란 긴장 완화 속 S&P500·나스닥 반등'),
     (re.compile(r'nasdaq.*s&p\s*500.*dow\s+futures\s+mixed.*iran.*escalation.*lifts?\s+oil\s+prices?', re.I), '이란·중동 긴장에 유가 상승 부담, 미국 지수 선물은 혼조'),
     (re.compile(r'oil\s+prices?\s+rise.*stock\s+futures\s+inch\s+higher.*iran.*airstrikes?', re.I), '미·이란 공방에 유가 상승 부담, 지수 선물은 소폭 상승'),
-    (re.compile(r'wall\s+street\s+dips?\s+amid\s+rising\s+us[-\s]?iran\s+tensions?', re.I), '미·이란 긴장 고조에 미국 증시 약세 부담'),
     (re.compile(r'top\s+brokers\s+lift\s+s&p\s*500\s+targets.*forecast\s+gains', re.I), '브로커들이 S&P500 목표치를 상향한 전망성 기사'),
     (re.compile(r'reduce\s+reliance\s+on\s+strait\s+of\s+hormuz', re.I), '호르무즈 의존도 축소 논의는 에너지 공급망 부담을 낮출 수 있음'),
     (re.compile(r'u\.s\.\s+and\s+iran\s+begin\s+peace\s+talks.*strait\s+of\s+hormuz', re.I), '미·이란 대화는 호르무즈 불확실성과 유가 부담을 낮출 수 있음'),
@@ -594,9 +669,47 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
     (re.compile(r'while\s+the\s+world\s+scrambles\s+for\s+oil.*china\s+sits\s+on\s+full\s+tanks', re.I), '중국 원유 재고는 글로벌 유가 부담을 덜 수 있는 완화 신호'),
     (re.compile(r'mines,\s+logistics\s+and\s+deep\s+uncertainty\s+threaten\s+a\s+middle\s+east\s+oil\s+rebound', re.I), '물류·불확실성은 중동 원유 공급 회복을 늦추는 부담 신호'),
     (re.compile(r'iran\s+war\s+gets\s+hot\s+again.*trump.*iran.*oil', re.I), '이란 전쟁 긴장 재고조는 원유 리스크 부담'),
+    (re.compile(r'ai\s+surge.*asian\s+stocks.*records.*iran\s+war.*oil\s+shock', re.I), 'AI 강세 속에도 이란 전쟁·유가 충격 부담 남음'),
     (re.compile(r'exchange-traded\s+funds\s+rise.*us\s+equities\s+advance', re.I), '미국 증시 상승에 ETF 전반 강세'),
     (re.compile(r'stocks\s+supported\s+by\s+a\s+rebound\s+in\s+chipmakers\s+and\s+ai\s+stocks', re.I), '반도체·AI주 반등이 증시를 지지'),
 ]
+
+
+def source_index_direction(text: str) -> str | None:
+    subject = r'(shares?|stocks?|markets?|indices|index|s&p\s*500|sp500|nasdaq|dow|kospi|kosdaq|증시|지수|코스피|코스닥|나스닥|다우)'
+    down = r'(decline|declines|declined|fall|falls|falling|drop|drops|slip|slips|lower|tumble|plunge|하락|급락|약세|폭락)'
+    up = r'(rise|rises|rising|gain|gains|higher|climb|climbs|rally|rebound|상승|급등|강세|반등)'
+    if re.search(subject + r'.{0,56}' + down + r'|' + down + r'.{0,56}' + subject, text, re.I):
+        return 'negative'
+    if re.search(subject + r'.{0,56}' + up + r'|' + up + r'.{0,56}' + subject, text, re.I):
+        return 'positive'
+    return None
+
+
+def translation_preserves_source_facts(source: str, translated: str) -> bool:
+    source_direction = source_index_direction(source)
+    translated_direction = source_index_direction(translated)
+    if source_direction and translated_direction != source_direction:
+        return False
+    source_rate_direction = re.search(
+        r'\b(interest\s+rates?|fed\s+rate|rates?)\b.{0,28}(higher|rise|rises|rising|hike)|'
+        r'(higher|rise|rises|rising|hike).{0,28}\b(interest\s+rates?|fed\s+rate|rates?)\b',
+        source,
+        re.I,
+    )
+    if source_rate_direction and not re.search(r'(금리).{0,24}(인상|상승|높|올)|(인상|상승|높|올).{0,24}(금리)', translated, re.I):
+        return False
+    source_percentages = re.findall(r'\d+(?:\.\d+)?%', source)
+    if source_percentages and any(value not in translated for value in source_percentages):
+        return False
+    if re.search(r'(이란|중동|호르무즈)', translated, re.I) and not re.search(r'(iran|middle\s*east|hormuz|war|tension)', source, re.I):
+        return False
+    if re.search(r'(발언|말했|주장)', translated, re.I) and not re.search(r'(says?|said|speech|comments?|calls?\s+for|remarks?|testimony|warns?|pledges?|plans?)', source, re.I):
+        return False
+    if re.search(r'(tanker|ship|vessel)\s+traffic.{0,32}(erodes?|falls?|declines?|drops?)', source, re.I):
+        if not re.search(r'(유조선|선박).{0,24}(통행|운항).{0,24}(감소|하락|줄)|(통행|운항).{0,24}(감소|하락|줄)', translated, re.I):
+            return False
+    return True
 
 MARKET_RELEVANCE_RULES = [
     {
@@ -763,6 +876,7 @@ DEFAULT_FEEDS = [
 def clean_text(value: str | None) -> str:
     text = re.sub(r'<[^>]+>', '', value or '')
     text = re.sub(r'\s+', ' ', text).strip()
+    text = text.replace('물가을', '물가를')
     text = re.sub(r'\s+by\s+[a-z0-9가-힣._-]{2,32}\s*$', '', text, flags=re.I)
     return re.sub(r'\s*[|｜·・:：;,\-–—]+\s*$', '', text).strip()
 
@@ -772,6 +886,7 @@ def has_korean(value: str) -> bool:
 
 
 def is_specific_korean_market_headline(value: str | None) -> bool:
+    """Keep source facts when a Korean headline already names a market event."""
     text = clean_text(value or '')
     if not text or not has_korean(text):
         return False
@@ -812,14 +927,16 @@ def english_market_context_translation(headline: str) -> str | None:
     has_inflation = re.search(r'\bpce\b|\bcpi\b|inflation', lower) is not None
     has_oil_geo = re.search(r'iran|hormuz|middle east|ceasefire|trump.*iran|us-iran|oil|crude', lower) is not None
     has_chip = re.search(r'nvidia|chipmaker|semiconductor|micron|broadcom|ai stock|ai stocks', lower) is not None
-    positive = re.search(r'edge higher|higher|climb|climbs|climbing|rise|rises|rising|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|surge|surges|gain|gains', lower) is not None
-    negative = re.search(r'slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|falling|lower|sell-off|selloff|plunge|plunges|slump|slumps|risk-off|lost|decline|declines|tumble|tumbles|weakens|weaken', lower) is not None
+    up_words = r'edge\s+higher|\bhigher\b|\bclimb(?:s|ing)?\b|\brise(?:s|n)?\b|\brising\b|\brall(?:y|ies|ied)\b|\brebound(?:s|ed|ing)?\b|\badvance(?:s|d)?\b|\bjump(?:s|ed)?\b|\bsurge(?:s|d)?\b|\bgain(?:s|ed)?\b'
+    down_words = r'\bslide(?:s|d|ing)?\b|\bslip(?:s|ped|ping)?\b|\bdip(?:s|ped|ping)?\b|\bdrop(?:s|ped|ping)?\b|\bfall(?:s|ing)?\b|\bfell\b|\blower\b|\bsell-?off\b|\bplunge(?:s|d)?\b|\bslump(?:s|ed)?\b|melt\s*down|meltdown|pull\s*back|pullback|risk-?off|\blost\b|\bdecline(?:s|d)?\b|\btumble(?:s|d)?\b|\bweaken(?:s|ed)?\b|\bcrash(?:es|ed)?\b|\bdrown(?:s|ed|ing)?\b|\bsink(?:s|ing)?\b|\bsank\b'
+    positive = re.search(up_words, lower, re.I) is not None
+    negative = re.search(down_words, lower, re.I) is not None
     equity_subject = r'(s&p\s*500|sp500|nasdaq|dow|dow jones|wall street|stocks?|futures?|chipmakers?|semiconductors?|micron|intel|amd|nvidia)'
-    equity_positive = re.search(equity_subject + r'.{0,42}(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains)|' + r'(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains).{0,42}' + equity_subject, lower) is not None
-    equity_negative = re.search(equity_subject + r'.{0,42}(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes)|' + r'(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes).{0,42}' + equity_subject, lower) is not None
+    equity_positive = re.search(equity_subject + r'.{0,42}(' + up_words + r')|(' + up_words + r').{0,42}' + equity_subject, lower, re.I) is not None
+    equity_negative = re.search(equity_subject + r'.{0,42}(' + down_words + r')|(' + down_words + r').{0,42}' + equity_subject, lower, re.I) is not None
     broad_index_subject = r'(s&p\s*500|sp500|nasdaq|dow|dow jones|wall street|stocks?|futures?)'
-    broad_index_positive = re.search(broad_index_subject + r'.{0,42}(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains)|' + r'(edge higher|higher|climb|climbs|rise|rises|rally|rallies|rebound|rebounds|advance|advances|jump|jumps|gain|gains).{0,42}' + broad_index_subject, lower) is not None
-    broad_index_negative = re.search(broad_index_subject + r'.{0,42}(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes)|' + r'(slide|slides|sliding|slip|slips|dip|dips|dipped|drop|drops|dropped|fall|falls|lower|plunge|plunges|slump|slumps|tumble|tumbles|weakens|weaken|crash|crashes).{0,42}' + broad_index_subject, lower) is not None
+    broad_index_positive = re.search(broad_index_subject + r'.{0,42}(' + up_words + r')|(' + up_words + r').{0,42}' + broad_index_subject, lower, re.I) is not None
+    broad_index_negative = re.search(broad_index_subject + r'.{0,42}(' + down_words + r')|(' + down_words + r').{0,42}' + broad_index_subject, lower, re.I) is not None
 
     if re.search(r'warsh.{0,100}(regime\s+change|inflation.{0,20}tax)', lower, re.I):
         return '연준 정책 변화 발언은 물가·금리 경로 부담 신호'
@@ -835,12 +952,20 @@ def english_market_context_translation(headline: str) -> str | None:
         return '연준 신호에 금·은 가격 약세, 안전자산 수요 약화'
     if re.search(r'bond\s+yields?.{0,24}falling|yields?.{0,24}falling', lower) and has_inflation:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
+    if re.search(r'(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?).{0,24}(yields?|treasury|rates?)|(yields?|treasury|rates?).{0,24}(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?)', lower):
+        return '금리 상승은 미국 주식 부담 신호'
+    if has_inflation and inflation_stress_signal(text) and (positive or has_wall_street):
+        return '높은 물가는 미국 지수와 금리 기대의 부담 신호'
+    if has_inflation and inflation_relief_signal(text):
+        return '물가 부담이 줄었다는 발언은 금리 압박 완화 단서'
+    if has_inflation and inflation_stress_signal(text):
+        return '물가 부담은 금리 압박을 키울 수 있음'
     if re.search(r'(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체).{0,48}(rebound|rebounds|rally|rallies|recover|recovers|반등|회복)|(rebound|rebounds|rally|rallies|recover|recovers|반등|회복).{0,48}(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체)', text, re.I) and re.search(r'(oil|crude|유가|원유).{0,36}(weak|lower|fall|falls|drop|drops|하락|약세|내림)|(weak|lower|fall|falls|drop|drops|하락|약세|내림).{0,36}(oil|crude|유가|원유)', text, re.I):
         return '반도체 반등과 유가 하락은 시장 부담 완화 신호'
-    if has_inflation and has_chip and inflation_relief_signal(text) and equity_positive:
-        return 'CPI 둔화에 AI·반도체주 동반 상승'
     if has_inflation and has_chip and re.search(r'micron|apple|chip\s+stocks?|semiconductor|technology\s+stocks?', lower):
         return 'PCE 물가 부담과 반도체·대형 기술주 약세 압력'
+    if has_chip and has_nasdaq and re.search(r'bloodbath|sink(?:s|ing)?|sank|drown(?:s|ed|ing)?|smashed|slammed|rout', lower, re.I):
+        return '반도체·AI주 약세가 나스닥 부담으로 작용'
     if has_wall_street and has_chip and negative and re.search(
         r'(oil(?:\s+prices?)?|crude).{0,40}(jump|jumps|jumped|surge|surges|rises|rise|rising|higher)|'
         r'(jump|jumps|jumped|surge|surges|rises|rise|rising|higher).{0,40}(oil(?:\s+prices?)?|crude)',
@@ -854,12 +979,8 @@ def english_market_context_translation(headline: str) -> str | None:
         lower,
     ):
         return 'AI주 압박에 S&P500·나스닥 약세 압력'
-    if has_inflation and inflation_stress_signal(text) and (positive or has_wall_street):
-        return '높은 물가는 미국 지수와 금리 기대의 부담 신호'
-    if has_inflation and inflation_relief_signal(text):
-        return '물가 부담이 줄었다는 발언은 금리 압박 완화 단서'
-    if has_inflation and inflation_stress_signal(text):
-        return '물가 부담은 금리 압박을 키울 수 있음'
+    if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and broad_index_negative and not has_oil_geo:
+        return '미국 주요 지수 선물이 엇갈리는 혼조 흐름'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_positive and not broad_index_negative and not has_oil_geo:
         return '미국 지수 선물 반등은 개장 전 부담 완화 신호'
     if has_futures and (has_sp500 or has_nasdaq or has_dow) and broad_index_negative and not has_oil_geo:
@@ -880,7 +1001,10 @@ def english_market_context_translation(headline: str) -> str | None:
         re.I,
     ):
         return '유가 상승과 지수 약세는 중동 부담 신호'
-    if has_futures and has_oil_geo and re.search(r'(oil|crude).{0,24}(rise|rises|rising|higher|surge|surges)|(rise|rises|rising|higher|surge|surges|lift|lifts|lifted).{0,24}(oil|crude)', lower):
+    if (broad_index_positive and broad_index_negative) or (equity_positive and equity_negative and (has_sp500 or has_nasdaq or has_dow or has_wall_street)):
+        return '미국 주요 지수 흐름이 엇갈리는 혼조 신호'
+    oil_rise_pattern = r'(oil(?:\s+prices?)?|crude).{0,56}(rise|rises|rising|higher|surge|surges|inch(?:es|ed|ing)?\s+higher|edge(?:s|d|ing)?\s+up)|(rise|rises|rising|higher|surge|surges|lift|lifts|lifted|inch(?:es|ed|ing)?\s+higher|edge(?:s|d|ing)?\s+up).{0,56}(oil(?:\s+prices?)?|crude)'
+    if has_futures and has_oil_geo and re.search(oil_rise_pattern, lower):
         if re.search(r'mixed', lower):
             return '이란·중동 긴장에 유가 상승 부담, 미국 지수 선물은 혼조'
         if broad_index_positive or positive:
@@ -888,20 +1012,32 @@ def english_market_context_translation(headline: str) -> str | None:
         return '중동 긴장에 유가 상승 부담'
     if has_futures and has_oil_geo:
         return '중동 이슈는 지수 선물과 유가 부담을 키우는 변수'
+    if has_oil_geo and hormuz_transit_reopening_signal(text):
+        return '호르무즈 선박 통행 재개는 유가·공급 불안 완화 단서'
     if has_oil_geo and re.search(r'(oil\s+prices?.{0,24}return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?|return(?:s|ed)?\s+to\s+pre[-\s]?war\s+levels?.{0,24}oil|pre[-\s]?war\s+levels?)', lower):
         return '유가가 전쟁 전 수준으로 돌아오며 비용 부담 완화'
+    if has_oil_geo and re.search(r'(relative\s+winner|winner\s+from|emerges?\s+as\s+(?:a\s+)?winner)', lower):
+        return '호르무즈 위기는 국가별 영향이 갈리는 배경 뉴스'
+    if has_oil_geo and re.search(oil_rise_pattern, lower):
+        if broad_index_positive and not broad_index_negative:
+            return '미국 지수는 반등했지만 유가도 올라 신호 엇갈림'
+        return '유가 상승은 물가·비용 부담을 키울 수 있음'
+    if has_oil_geo and has_wall_street and re.search(r'(strike|attack|airstrike).{0,56}(spark|sparks|sparked|sparking|fuel|fuels|fueled|fueling|lift|lifts|lifted|lifting).{0,56}(rally|rallies|gain|gains|rise|rises|higher)|(rally|rallies|gain|gains|rise|rises|higher).{0,56}(after|following|despite|amid).{0,56}(strike|attack|airstrike)', lower):
+        return '이란 충격 뒤 미국 증시는 상승으로 반응'
     if has_oil_geo and (broad_index_negative or negative) and has_wall_street:
         return '이란·중동 이슈는 미국 증시 약세 부담'
+    if has_oil_geo and broad_index_positive and re.search(r'ongoing|war|shock|tension|risk|uncertainty|despite|amid', lower):
+        return '주식 강세 속에도 중동·유가 부담은 남아 있음'
     if has_oil_geo and broad_index_positive and has_wall_street:
         return '중동 긴장 완화는 미국 증시 상승 흐름에 우호적'
     if has_oil_geo and re.search(r'(oil|crude).{0,28}(slide|slides|sliding|fall|falls|drop|drops|lower)|(slide|slides|sliding|fall|falls|drop|drops|lower).{0,28}(oil|crude)', lower):
         return '유가 하락은 물가·비용 부담을 낮추는 완화 신호'
     if has_oil_geo and re.search(r'oil|crude|hormuz', lower):
         if not re.search(r'tension|risk|pressure|war|hormuz|threat|threaten|uncertainty', lower):
-            return '중동·유가 뉴스는 원유 공급과 지수에 영향을 주는 배경'
+            return '중동·유가 뉴스는 원유 공급과 지수 반응 확인'
         return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
     if has_oil_geo:
-        return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
+        return '중동 긴장은 유가와 대표 지수 반응 확인'
     if has_inflation:
         return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
     if has_dollar and has_fed:
@@ -949,7 +1085,7 @@ def english_market_context_translation(headline: str) -> str | None:
                 return f'{subject} 상승 전망은 대표지수 기대 변수'
             return f'{subject} 전망은 대표지수 온도 변수'
         if equity_positive or (positive and not equity_negative):
-            return f'{subject} 상승 흐름은 미국장 부담을 덜 수 있는 신호'
+            return f'{subject} 상승 흐름은 미국장 완화 신호'
         if equity_negative or negative:
             return f'{subject} 약세 흐름은 미국장 부담을 키울 수 있음'
         return f'{subject} 흐름은 대표지수 온도 변수'
@@ -965,7 +1101,7 @@ def koreanize_english_headline(headline: str) -> str | None:
             return translated
     market_translation = english_market_context_translation(text)
     if market_translation:
-        return market_translation
+        return market_translation if translation_preserves_source_facts(text, market_translation) else None
     for pattern, replacement in ENGLISH_HEADLINE_PATTERNS:
         if pattern.search(text):
             translated = pattern.sub(replacement, text)
@@ -1015,10 +1151,10 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
 
     has_fx = re.search(r'(환율|원[·\s/-]?달러|달러[·\s/-]?원|고환율|usd/krw)', raw, re.I)
     has_high_fx = re.search(r'(15\d{2}|1,5\d{2}|1천\s*5백|1,600|1600|고환율)', raw, re.I)
-    fx_falling = re.search(r'(↓|하락|내림|내려|내렸|내렸지만|내려도|낮아|떨어|0\.\d+%↓|lower|falls?|drops?)', raw, re.I)
+    fx_falling = re.search(r'(↓|급락|하락|내림|내려|내렸|내렸지만|내려도|낮아|떨어|0\.\d+%↓|lower|falls?|drops?)', raw, re.I)
     if has_fx and has_high_fx:
         if fx_falling:
-            return '환율은 내려도 1,500원대라 국내시장 부담'
+            return '환율 하락은 한국장 수급에 도움 되는 단서'
         return '환율 1,500원대는 국내시장 부담'
     if has_fx and explicit_fx_relief_signal(raw):
         return '환율 하락은 한국장 수급 부담을 덜 수 있음'
@@ -1041,12 +1177,10 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
             return '금리 인상·반도체 약세는 코스피 하락 부담'
         return '금리 상승·반도체 약세는 지수 부담'
 
-    if re.search(r'(이란|중동|iran|middle\s*east).{0,32}(무력\s*공방|공습|충돌|긴장|불안|살얼음판)|(무력\s*공방|공습|충돌|긴장|불안|살얼음판).{0,32}(이란|중동|iran|middle\s*east)', raw, re.I):
-        if re.search(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|증시|지수|시장)', raw, re.I):
-            return '중동 긴장은 지수 변동성 부담으로 이어질 수 있음'
-
+    geo_relief = re.search(r'(이란|중동|호르무즈|iran|hormuz|middle\s*east).{0,48}(완화|종전|휴전|협상|합의|긴장\s*완화|eas(?:e|es|ed|ing)|halt(?:s|ed|ing)?\s+attacks?|pause(?:s|d|ing)?\s+(?:further\s+)?escalation|de-?escalat|ceasefire|truce|deal|talks?)|(완화|종전|휴전|협상|합의|긴장\s*완화|eas(?:e|es|ed|ing)|halt(?:s|ed|ing)?\s+attacks?|pause(?:s|d|ing)?\s+(?:further\s+)?escalation|de-?escalat|ceasefire|truce|deal|talks?).{0,48}(이란|중동|호르무즈|iran|hormuz|middle\s*east)', raw, re.I)
+    broad_index_up = re.search(r'(코스피|코스닥|나스닥|다우|S&P\s*500|S&P500|증시|지수|시장|nasdaq|dow|s&p|sp500|stocks?|wall street).{0,56}(상승|강세|반등|회복|급등|higher|open\s+higher|rise|rises|rally|gain|gains|climb|climbs|rebound|rebounds|lift|lifts|lifted)|(상승|강세|반등|회복|급등|higher|open\s+higher|rise|rises|rally|gain|gains|climb|climbs|rebound|rebounds|lift|lifts|lifted).{0,56}(코스피|코스닥|나스닥|다우|S&P\s*500|S&P500|증시|지수|시장|nasdaq|dow|s&p|sp500|stocks?|wall street)', raw, re.I)
+    broad_index_down = re.search(r'(코스피|코스닥|나스닥|다우|S&P\s*500|S&P500|증시|지수|시장|nasdaq|dow|s&p|sp500|stocks?|wall street).{0,56}(하락|약세|급락|폭락|lower|fall|falls|drop|drops|slide|slides|plunge|plunges|crash|crashes)|(하락|약세|급락|폭락|lower|fall|falls|drop|drops|slide|slides|plunge|plunges|crash|crashes).{0,56}(코스피|코스닥|나스닥|다우|S&P\s*500|S&P500|증시|지수|시장|nasdaq|dow|s&p|sp500|stocks?|wall street)', raw, re.I)
     has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil|석유)', raw, re.I)
-    has_food_or_inflation = re.search(r'(먹거리|물가|인플레이션|비용|cpi|pce)', raw, re.I)
     oil_price_up = re.search(
         r'(유가|원유|브렌트|wti|crude|oil|석유).{0,24}(소폭\s*)?(상승|급등|올랐|오름|높아|higher|rise|rises|rising|jump|jumps|surge|surges)|'
         r'(상승|급등|올랐|오름|높아|higher|rise|rises|rising|jump|jumps|surge|surges).{0,16}(유가|원유|브렌트|wti|crude|oil|석유)',
@@ -1058,6 +1192,22 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
         if re.search(r'(반도체|기술주|나스닥|지수|증시).{0,40}(하락|약세|급락|폭락)', raw, re.I):
             return '반도체 약세와 유가 상승은 시장 부담 신호'
         return '유가 상승은 물가·비용 부담을 키울 수 있음'
+    if has_oil and oil_burden_signal(raw):
+        if broad_index_up and not broad_index_down and not inflation_stress_signal(raw):
+            return '미국 지수는 반등했지만 유가도 올라 신호 엇갈림'
+        return '유가 상승은 물가·비용 부담을 키울 수 있음'
+
+    mixed_burden = re.search(r'(AI|인공지능|메모리|반도체|소송|우려|부담|weak|pressure|lawsuit|concern)', raw, re.I)
+    if geo_relief and broad_index_up and mixed_burden:
+        return '중동 긴장 완화와 기술주 부담이 함께 나온 혼조 신호'
+    if geo_relief and broad_index_up:
+        return '중동 긴장 완화에 미국 지수 반등 확인'
+
+    if not geo_relief and re.search(r'(이란|중동|iran|middle\s*east).{0,32}(무력\s*공방|공습|충돌|긴장|불안|살얼음판)|(무력\s*공방|공습|충돌|긴장|불안|살얼음판).{0,32}(이란|중동|iran|middle\s*east)', raw, re.I):
+        if re.search(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|증시|지수|시장)', raw, re.I):
+            return '중동 긴장은 지수 변동성 부담으로 이어질 수 있음'
+
+    has_food_or_inflation = re.search(r'(먹거리|물가|인플레이션|비용|cpi|pce)', raw, re.I)
     if has_oil and ((oil_relief_signal(raw) and not oil_price_up) or oil_price_down):
         if has_food_or_inflation and re.search(r'(쑥|상승|높|고점|부담|3\.\d+%)', raw, re.I):
             return '유가는 내려도 물가 부담은 아직 남아 있음'
@@ -1123,6 +1273,16 @@ def expired_macro_event_preview(headline: str, published_at: str | None, now: da
     return bool(has_cpi and is_preview)
 
 
+def mixed_major_index_signal(text: str) -> bool:
+    index_subject = r'(코스피|코스닥|나스닥|nasdaq|s&p|s\s*p\s*500|sp500|dow|다우|지수|선물|futures?|뉴욕증시|증시|주가|wall street|stocks?)'
+    up_words = r'급등|상승|반등|회복|강세|\bhigher\b|\bclimb(?:s|ing)?\b|\brise(?:s|n)?\b|\brising\b|\brall(?:y|ies|ied)\b|\brebound(?:s|ed|ing)?\b|\badvance(?:s|d)?\b|\bjump(?:s|ed)?\b|\bsurge(?:s|d)?\b|\bgain(?:s|ed)?\b'
+    down_words = r'급락|하락|약세|폭락|\bslide(?:s|d|ing)?\b|\bslip(?:s|ped|ping)?\b|\bdip(?:s|ped|ping)?\b|\bdrop(?:s|ped|ping)?\b|\bfall(?:s|ing)?\b|\bfell\b|\blower\b|\bplunge(?:s|d)?\b|\bslump(?:s|ed)?\b|\btumble(?:s|d)?\b|\bweaken(?:s|ed)?\b|\bcrash(?:es|ed)?\b'
+    up = re.search(index_subject + r'.{0,56}(' + up_words + r')|(' + up_words + r').{0,56}' + index_subject, text, re.I)
+    down = re.search(index_subject + r'.{0,56}(' + down_words + r')|(' + down_words + r').{0,56}' + index_subject, text, re.I)
+    mixed_connector = re.search(r'\bwhile\b|\bbut\b|\bmixed\b|혼조|엇갈|반면', text, re.I)
+    return bool(up and down and mixed_connector)
+
+
 def broad_index_up_company_mixed_signal(text: str) -> bool:
     index_subject = r'(nasdaq|s&p|s\s*p\s*500|sp500|dow(?:\s+jones)?|나스닥|다우|미국\s*(?:주요\s*)?지수|주요\s*지수)'
     index_up = re.search(
@@ -1132,21 +1292,47 @@ def broad_index_up_company_mixed_signal(text: str) -> bool:
         re.I,
     )
     company_subject = r'(apple|adobe|amazon|paypal|intel|cisco|micron|nvidia|microsoft|meta|tesla|amd|alphabet|google|애플|어도비|아마존|페이팔|인텔|시스코|마이크론|엔비디아|마이크로소프트|메타|테슬라|알파벳|구글)'
-    company_up = re.search(company_subject + r'.{0,96}(surge(?:s|d)?|jump(?:s|ed)?|rise(?:s|n)?|rising|gain(?:s|ed)?|강세|상승|급등)', text, re.I)
-    company_down = re.search(company_subject + r'.{0,96}(sink(?:s|ing)?|sank|fall(?:s|ing)?|fell|drop(?:s|ped|ping)?|slip(?:s|ped|ping)?|weak(?:ness)?|약세|하락|급락)', text, re.I)
-    mixed_connector = re.search(r'\bwhile\b|\bbut\b|반면|한편|혼조|엇갈|강세(?:와|과).{0,80}약세|상승(?:와|과).{0,80}하락', text, re.I)
+    company_up = re.search(
+        company_subject + r'.{0,96}(surge(?:s|d)?|jump(?:s|ed)?|rise(?:s|n)?|rising|gain(?:s|ed)?|강세|상승|급등)',
+        text,
+        re.I,
+    )
+    company_down = re.search(
+        company_subject + r'.{0,96}(sink(?:s|ing)?|sank|fall(?:s|ing)?|fell|drop(?:s|ped|ping)?|slip(?:s|ped|ping)?|weak(?:ness)?|약세|하락|급락)',
+        text,
+        re.I,
+    )
+    mixed_connector = re.search(
+        r'\bwhile\b|\bbut\b|반면|한편|혼조|엇갈|강세(?:와|과).{0,80}약세|상승(?:와|과).{0,80}하락',
+        text,
+        re.I,
+    )
     return bool(index_up and company_up and company_down and mixed_connector)
 
 
 def headline_tone(headline: str) -> str:
     text = headline.lower()
+    if is_market_warning_commentary(headline):
+        return 'negative'
     if is_outlook_commentary(headline):
         return 'neutral'
-    if broad_index_up_company_mixed_signal(headline):
+    if mixed_major_index_signal(headline) or broad_index_up_company_mixed_signal(headline):
         return 'neutral'
     if re.search(r'(코스피|코스닥|나스닥|뉴욕증시|증시|지수|선물|wall street|stocks?)', headline, re.I):
+        if re.search(
+            r'(긴장|위험|리스크|불안|tension|risk).{0,24}(에도|불구|despite).{0,54}(상승|강세|출발|higher|open\s+higher|edge\s+higher|rise|rises)|'
+            r'(despite).{0,42}(tension|risk).{0,54}(higher|open\s+higher|rise|rises)',
+            headline,
+            re.I,
+        ):
+            return 'negative'
         if re.search(r'(급등|상승|반등|회복|rally|gain|higher|climb|climbs).{0,24}(후|뒤|이후|after).{0,24}(약세|하락|차익실현|밀려|내림|lower|drop|slip)', headline, re.I):
             return 'negative'
+        if (
+            re.search(r'(급락|폭락|하락|약세).{0,30}(후|뒤|이후).{0,42}(반등|회복|상승|급등)', headline, re.I)
+            and re.search(r'(널뛰기|롤러|변동성|이어질까|출렁|요동|불안)', headline, re.I)
+        ):
+            return 'neutral'
         if (
             re.search(r'(급락|폭락|하락|약세|빠졌던|밀렸던|떨어졌던|plunge|drop|slump).{0,30}(딛고|뒤|후|이후|만에|하루\s*만에|after).{0,42}(반등|회복|상승|급등|강세|rebound|recover|rally|gain|climb|climbs)', headline, re.I)
             or re.search(r'(반등|회복|상승\s*마감|강세\s*마감|급등|rebound|recover|rally|gain|climb|climbs).{0,24}(\d[\d,.]*선|마감|회복|close)', headline, re.I)
@@ -1154,7 +1340,7 @@ def headline_tone(headline: str) -> str:
             return 'positive'
     if any(token in headline for token in ['종전', '휴전', '합의', '환호']) or any(token in text for token in ['ceasefire', 'truce', 'deal coming soon', 'deal signed']):
         return 'positive'
-    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담', '압박', '압력']) or any(token in text for token in ['fall', 'drop', 'dropped', 'dip', 'dips', 'dipped', 'slide', 'slides', 'sliding', 'lower', 'risk', 'selloff', 'volatility', 'crash', 'tumble', 'weakens', 'weaken', 'under pressure', 'losing momentum']):
+    if any(token in headline for token in ['급등락', '널뛰기', '현기증', '공포', '투매', '하락', '약세', '급락', '폭락', '부담', '압박', '압력']) or any(token in text for token in ['fall', 'drop', 'dropped', 'dip', 'dips', 'dipped', 'slide', 'slides', 'sliding', 'lower', 'risk', 'selloff', 'volatility', 'crash', 'tumble', 'weakens', 'weaken', 'melt down', 'meltdown', 'pull back', 'pullback', 'under pressure', 'losing momentum']):
         return 'negative'
     if any(token in headline for token in ['상승', '강세', '반등', '급등']) or any(token in text for token in ['rally', 'rallies', 'rise', 'rises', 'gain', 'gains', 'higher', 'rebound', 'rebounds', 'climb', 'climbs']):
         return 'positive'
@@ -1162,6 +1348,8 @@ def headline_tone(headline: str) -> str:
 
 
 def market_burden_tone(headline: str, fallback: str | None = None) -> str:
+    if is_market_warning_commentary(headline):
+        return 'negative'
     if is_outlook_commentary(headline):
         return 'neutral'
     if broad_index_up_company_mixed_signal(headline):
@@ -1172,7 +1360,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if inflation_relief_signal(text) and re.search(r'(nasdaq|s&p|sp500|지수).{0,48}(rise|rises|higher|상승)', text, re.I) and re.search(r'withdraws?\s+plan|drops?\s+plan|scraps?\s+plan', text, re.I):
         return 'positive'
     up = re.search(r'(급등|상승|오름|올랐|강세|↑|\brise\b|\brises\b|\brising\b|\bhigher\b|\bsurge\b|\bsurges\b|\bjump\b|\bjumps\b|\bgain\b|\bgains\b|\brally\b|\brallies\b|\brebound\b|\brebounds\b|\bclimb\b|\bclimbs\b|\bclimbing\b)', text, re.I)
-    down = re.search(r'(급락|하락|내림|내렸|떨어|약세|↓|\bfall\b|\bfalls\b|\bfalling\b|\bdip\b|\bdips\b|\bdipped\b|\bdrop\b|\bdrops\b|\bdropped\b|\bslide\b|\bslides\b|\bsliding\b|\blower\b|\bslip\b|\bslips\b|\bdecline\b|\bdeclines\b|\bplunge\b|\bplunges\b|\bcrash\b|\bcrashes\b|\bcrashed\b|\btumble\b|\btumbles\b|\bweakens\b|\bweaken\b)', text, re.I)
+    down = re.search(r'(급락|하락|내림|내렸|떨어|약세|투매|↓|\bfall\b|\bfalls\b|\bfalling\b|\bdip\b|\bdips\b|\bdipped\b|\bdrop\b|\bdrops\b|\bdropped\b|\bslide\b|\bslides\b|\bsliding\b|\blower\b|\bslip\b|\bslips\b|\bdecline\b|\bdeclines\b|\bplunge\b|\bplunges\b|\bcrash\b|\bcrashes\b|\bcrashed\b|\btumble\b|\btumbles\b|\bweakens\b|\bweaken\b|\bdrown\b|\bdrowns\b|\bdrowning\b|\bsell-?off\b|melt\s*down|meltdown|pull\s*back|pullback)', text, re.I)
     has_oil = re.search(r'(유가|원유|브렌트|wti|crude|oil)', text, re.I)
     has_fx = re.search(r'(환율|원/달러|원달러|usd/krw|달러|dollar|원화)', text, re.I)
     has_rate = re.search(r'(금리|10년물|treasury|yield|rate)', text, re.I)
@@ -1188,8 +1376,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         text,
         re.I,
     )
-    fx_relief_marker = re.search(r'(달러|dollar).{0,12}(↓|하락|약세|lower|fall|falls|drop|drops|weak)|↓.{0,12}(달러|dollar)', text, re.I)
-    explicit_index_burden = bool(index_down or explicit_index_pressure) and not (index_up and fx_relief_marker)
+    explicit_index_burden = bool(index_down or explicit_index_pressure)
     explicit_index_relief = bool(index_up)
     explicit_index_oil_relief = (
         explicit_index_relief
@@ -1201,8 +1388,13 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         re.search(r'(급락|폭락|하락|약세|빠졌던|밀렸던|떨어졌던|plunge|drop|slump).{0,30}(딛고|뒤|후|이후|만에|하루\s*만에|after).{0,42}(반등|회복|상승|급등|강세|rebound|recover|rally|gain|climb|climbs)', text, re.I)
         or re.search(r'(반등|회복|상승\s*마감|강세\s*마감|급등|rebound|recover|rally|gain|climb|climbs).{0,24}(\d[\d,.]*선|마감|회복|close)', text, re.I)
     )
+    volatile_rebound_question = (
+        has_index
+        and re.search(r'(급락|폭락|하락|약세).{0,30}(후|뒤|이후).{0,42}(반등|회복|상승|급등)', text, re.I)
+        and re.search(r'(널뛰기|롤러|변동성|이어질까|출렁|요동|불안)', text, re.I)
+    )
     dampened_burden = dampened_burden_signal(text)
-    explicit_rate_burden = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(부담|공포|우려|상승|급등|높|고공|higher|rise|rises|rising|jump|surge)|(부담|공포|우려).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I) and not dampened_burden
+    explicit_rate_burden = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(부담|공포|우려|상승|급등|높|고공|higher|rise|rises|rising|jump|jumps|surge|surges)|(부담|공포|우려|상승|급등|높|고공|higher|rise|rises|rising|jump|jumps|surge|surges).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I) and not dampened_burden
     explicit_rate_relief = re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(완화|하락|인하|내림|낮아|ease|eases|fall|falls|drop|drops|lower|decline)|(완화|하락|인하|내림|낮아|ease|fall|drop|lower).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I)
     explicit_rate_hike_expectation_relief = re.search(
         r'(금리\s*인상\s*(?:기대|우려|압박|가능성|론)|rate\s*hike\s*(?:expectations?|concerns?|pressure))'
@@ -1210,24 +1402,42 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         text,
         re.I,
     )
+    index_relief_despite_burden = (
+        has_index
+        and explicit_index_relief
+        and re.search(r'(우려|부담|공포|긴장|불안|concern|fear|risk|pressure).{0,36}(에도|불구|despite).{0,72}(상승|강세|랠리|반등|회복|마감|rise|rises|higher|rally|rallies|gain|gains|climb|climbs)|(despite).{0,36}(concern|fear|risk|pressure).{0,72}(rise|rises|higher|rally|rallies|gain|gains|climb|climbs)', text, re.I)
+    )
     explicit_inflation_relief = inflation_relief_signal(text)
     explicit_inflation_burden = inflation_stress_signal(text)
+    fx_relief_marker = re.search(r'(달러|dollar).{0,12}(↓|하락|약세|lower|fall|falls|drop|drops|weak)|↓.{0,12}(달러|dollar)', text, re.I)
     title_burden = re.search(r'(부담|압박|압력|공포|악재|위험회피|불확실|급락|폭락|약세|하락|투매|↓|\bsell-?off\b|\bplunge\b|\bslump\b|\bcrash(?:es|ed)?\b|\brisk-?off\b|\bpressure\b|\bfear\b)', text, re.I) and not dampened_burden and not (explicit_index_relief and fx_relief_marker)
-    explicit_tech_burden = re.search(
-        r'(반도체|기술주|AI주|ai\s+stocks?|semiconductor|chip(?:s|makers?)?|tech(?:nology)?\s+stocks?).{0,36}(약세|하락|급락|부담|압박|압력|weak|lower|fall|falls|drop|drops|slump|sell-?off|pressure)|'
-        r'(약세|하락|급락|부담|압박|압력|weak|lower|fall|falls|drop|drops|slump|sell-?off|pressure).{0,36}(반도체|기술주|AI주|ai\s+stocks?|semiconductor|chip(?:s|makers?)?|tech(?:nology)?\s+stocks?)',
+    explicit_company_burden = has_bellwether_context and (down or title_burden)
+    explicit_company_relief = has_bellwether_context and up and not title_burden
+    has_sector_context = re.search(r'(반도체|기술주|빅테크|엔비디아|nvidia|semiconductor|chip|chips|tech|technology|ai\s*stocks?)', text, re.I)
+    explicit_sector_burden = has_sector_context and (down or title_burden) and not dampened_burden
+    explicit_sector_relief = has_sector_context and up and not down and not title_burden
+    explicit_equity_damage = has_index and re.search(
+        r'\b(drown(?:s|ed|ing)?|sink(?:s|ing)?|sank|smashed|bloodbath|slammed|rout)\b',
         text,
         re.I,
     )
-    explicit_company_burden = has_bellwether_context and (down or title_burden)
-    explicit_company_relief = has_bellwether_context and up and not title_burden
+    equity_damage_paused = re.search(
+        r'\b(rout|sell-?off|bloodbath|pressure)\b.{0,24}\b(pause|pauses|paused|ease|eases|eased|cool|cools|cooled|slow|slows|slowed|stall|stalls|stalled)\b',
+        text,
+        re.I,
+    )
     explicit_fx_burden = fx_or_foreign_balance_stress(text)
     explicit_fx_relief = explicit_fx_relief_signal(text)
     explicit_oil_relief = oil_relief_signal(text)
     explicit_oil_burden = oil_burden_signal(text)
+    mixed_index_relief_oil_burden = (
+        explicit_index_relief
+        and explicit_oil_burden
+        and not (explicit_index_burden or explicit_inflation_burden or explicit_fx_burden or explicit_rate_burden)
+    )
     explicit_geo_relief = (
-        re.search(r'(이란|중동|호르무즈|iran|hormuz|middle\s*east).{0,48}(완화|종전|휴전|협상|합의|긴장\s*완화|de-?escalat|ceasefire|truce|deal|talks?)', text, re.I)
-        or re.search(r'(완화|종전|휴전|협상|합의|긴장\s*완화|de-?escalat|ceasefire|truce|deal|talks?).{0,48}(이란|중동|호르무즈|iran|hormuz|middle\s*east)', text, re.I)
+        re.search(r'(이란|중동|호르무즈|iran|hormuz|middle\s*east).{0,48}(완화|종전|휴전|협상|합의|긴장\s*완화|eas(?:e|es|ed|ing)|halt(?:s|ed|ing)?\s+attacks?|pause(?:s|d|ing)?\s+(?:further\s+)?escalation|de-?escalat|ceasefire|truce|deal|talks?)', text, re.I)
+        or re.search(r'(완화|종전|휴전|협상|합의|긴장\s*완화|eas(?:e|es|ed|ing)|halt(?:s|ed|ing)?\s+attacks?|pause(?:s|d|ing)?\s+(?:further\s+)?escalation|de-?escalat|ceasefire|truce|deal|talks?).{0,48}(이란|중동|호르무즈|iran|hormuz|middle\s*east)', text, re.I)
     )
     risk_appetite_context = re.search(r'(위험\s*(선호|자산)|risk\s*(appetite|assets?))', text, re.I)
     explicit_geo_supply_burden = (
@@ -1243,24 +1453,57 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         and not dampened_burden
     )
     explicit_foreign_flow_burden = re.search(r'(외국인|외인|外人|foreigners?).{0,36}(주식|증시|equity|stock)?.{0,24}(내다팔|팔|매도|순매도|sell|sold|selling)|(주식|증시|equity|stock).{0,24}(내다팔|팔|매도|순매도|sell|sold|selling).{0,36}(외국인|외인|外人|foreigners?)|(외국인|외인|外人|foreigners?).{0,30}(리밸런싱|rebalanc(?:e|ing))', text, re.I)
+    mixed_geo_relief_with_burden = (
+        explicit_geo_relief
+        and explicit_index_relief
+        and title_burden
+        and not (explicit_oil_burden or explicit_inflation_burden or explicit_fx_burden)
+    )
+    geo_burden_with_positive_market_reaction = (
+        explicit_geo_supply_burden
+        and explicit_index_relief
+        and re.search(
+            r'(strike|attack|airstrike|공습|공격|충격).{0,56}(spark|sparks|sparked|sparking|fuel|fuels|fueled|fueling|lift|lifts|lifted|lifting|촉발|이끌|밀어올).{0,56}(rally|rallies|gain|gains|rise|rises|higher|상승|강세|반등)|'
+            r'(strike|attack|airstrike|공습|공격|충격).{0,56}(after|following|amid|뒤|이후|에도).{0,56}(rally|rallies|gain|gains|rise|rises|higher|상승|강세|반등)|'
+            r'(rally|rallies|gain|gains|rise|rises|higher|상승|강세|반등).{0,56}(after|following|despite|amid|뒤|이후|에도).{0,56}(strike|attack|airstrike|공습|공격|충격)',
+            text,
+            re.I,
+        )
+    )
 
+    if re.search(r'melt\s*down|meltdown|pull\s*back|pullback', text, re.I):
+        return 'negative'
+    if explicit_equity_damage and not equity_damage_paused and not (explicit_index_relief and explicit_oil_relief):
+        return 'negative'
+    if mixed_major_index_signal(headline) and not (explicit_oil_burden or explicit_inflation_burden or explicit_fx_burden or explicit_rate_burden):
+        return 'neutral'
+    if mixed_index_relief_oil_burden:
+        if explicit_geo_supply_burden:
+            return 'negative'
+        return 'neutral'
+    if hormuz_transit_reopening_signal(text):
+        return 'positive'
+    if explicit_oil_burden:
+        return 'negative'
+    if volatile_rebound_question:
+        return 'neutral'
     if explicit_index_fade:
         return 'negative'
     if explicit_fx_burden:
         return 'negative'
     if explicit_fx_relief:
         return 'positive'
-    if explicit_oil_burden:
-        return 'negative'
-    if explicit_oil_relief:
-        return 'positive'
-    if explicit_tech_burden:
-        return 'negative'
     if explicit_geo_relief and (explicit_index_relief or up or explicit_oil_relief) and not (explicit_index_burden or title_burden or explicit_inflation_burden or explicit_fx_burden or explicit_oil_burden):
         return 'positive'
+    if mixed_geo_relief_with_burden:
+        return 'neutral'
     if explicit_foreign_flow_burden:
         return 'negative'
     if explicit_geo_relief and explicit_oil_relief and not (explicit_index_burden or explicit_inflation_burden or explicit_fx_burden or explicit_oil_burden):
+        return 'positive'
+    if explicit_index_relief and explicit_oil_relief and re.search(r'(이란|중동|호르무즈|iran|hormuz|middle\s*east|tension)', text, re.I):
+        return 'neutral'
+    if geo_burden_with_positive_market_reaction and not (explicit_oil_burden or explicit_inflation_burden or explicit_fx_burden):
         return 'positive'
     if explicit_index_relief and re.search(
         r'(긴장|위험|리스크|불안|tension|risk).{0,24}(에도|불구|despite).{0,54}(상승|강세|출발|higher|open\s+higher|edge\s+higher|rise|rises)|'
@@ -1289,28 +1532,34 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         return 'negative'
     if explicit_rate_hike_expectation_relief and not explicit_index_burden:
         return 'positive'
+    if index_relief_despite_burden and not (explicit_index_burden or explicit_inflation_burden or explicit_fx_burden or explicit_oil_burden):
+        return 'positive'
     if explicit_rate_burden:
         return 'negative'
     if explicit_rate_relief and not title_burden and not explicit_index_burden:
         return 'positive'
     if explicit_index_relief and not title_burden:
         return 'positive'
+    if explicit_sector_burden:
+        return 'negative'
+    if explicit_sector_relief:
+        return 'positive'
     if explicit_company_burden:
         return 'negative'
     if explicit_company_relief:
         return 'positive'
     if has_fx:
-        if explicit_fx_relief:
-            return 'positive'
         if explicit_fx_burden:
             return 'negative'
+        if explicit_fx_relief:
+            return 'positive'
     if has_oil:
         if explicit_oil_relief:
             return 'positive'
         if explicit_oil_burden:
             return 'negative'
     if has_rate:
-        if re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(상승|급등|높|고공|higher|rise|rises|rising|jump|surge)', text, re.I):
+        if re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(상승|급등|높|고공|higher|rise|rises|rising|jump|jumps|surge|surges)|(상승|급등|높|고공|higher|rise|rises|rising|jump|jumps|surge|surges).{0,18}(금리|10년물|국채|수익률|treasury|yield|rate)', text, re.I):
             return 'negative'
         if re.search(r'(금리|10년물|국채|수익률|treasury|yield|rate).{0,18}(하락|인하|내림|낮아|ease|eases|fall|falls|drop|drops|lower|decline)', text, re.I) and not explicit_index_burden:
             return 'positive'
@@ -1320,7 +1569,7 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
         if down:
             return 'positive'
     if has_index:
-        if down and not (up and fx_relief_marker):
+        if down:
             return 'negative'
         if up:
             return 'positive'
@@ -1328,13 +1577,10 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
 
 
 def fx_or_foreign_balance_stress(text: str) -> bool:
-    if re.search(
-        r'구두\s*개입.{0,24}(전혀\s*안|안\s*먹|먹히지|실패|무력)|'
-        r'(고환율|환율|원화|달러).{0,30}(방어\s*총력|개입\s*총력|원화\s*약세|부담\s*지속|불안\s*지속)',
-        text,
-        re.I,
-    ):
+    if re.search(r'구두\s*개입.{0,30}(전혀\s*안|안\s*먹|먹히지|실패|무력)|고환율.{0,48}(방어\s*총력|원화\s*약세|부담\s*지속|불안\s*지속)', text, re.I):
         return True
+    if explicit_fx_relief_signal(text):
+        return False
     if re.search(r'(부담|불안|압박).{0,12}(완화|진정|낮아|줄|덜|해소)|(완화|진정|낮아|줄|덜|해소).{0,12}(부담|불안|압박)', text, re.I):
         return False
     return bool(re.search(
@@ -1374,20 +1620,27 @@ def explicit_fx_relief_signal(text: str) -> bool:
 def oil_relief_signal(text: str) -> bool:
     oil = r'(유가|원유|브렌트|wti|crude|oil|석유)'
     relief = (
-        r'(하락|급락|내림|낮아|안정|전쟁\s*(?:이전|전)|이전\s*수준|pre[-\s]?war\s*(?:levels?)?|'
+        r'(하락|급락|내림|낮아|안정|↓|전쟁\s*(?:이전|전)|이전\s*수준|pre[-\s]?war\s*(?:levels?)?|'
         r'최고(?:가|가격)?(?:\s*전망)?\s*하향|가격\s*(?:전망\s*)?하향|고점\s*(?:전망\s*)?하향|피크\s*(?:전망\s*)?하향|'
         r'프리미엄\s*(?:축소|해소)|부담\s*완화|공급\s*(?:불안|차질).{0,12}(?:완화|해소)|'
-        r'예상보다\s*빠른\s*회복|회복|재개|정상화|falls?|drops?|lower|crash(?:es|ed)?|plunge(?:s|d)?|eases?|de-?escalat|resume|resumes|reopen)'
+        r'예상보다\s*빠른\s*회복|회복|재개|정상화|falls?|falling|drops?|dropping|declines?|lower|crash(?:es|ed)?|plunge(?:s|d)?|eases?|de-?escalat|resume|resumes|reopen)'
     )
     return bool(re.search(oil + r'.{0,48}' + relief + r'|' + relief + r'.{0,48}' + oil, text, re.I))
 
 
 def oil_burden_signal(text: str) -> bool:
+    oil = r'(유가|원유|브렌트|wti|crude|oil|석유)'
+    price_fall = r'(하락|급락|내림|낮아|↓|falls?|falling|drops?|dropping|declines?|lower|crash(?:es|ed)?|plunge(?:s|d)?)'
+    if re.search(oil + r'.{0,18}' + price_fall + r'|' + price_fall + r'.{0,18}' + oil, text, re.I):
+        return False
+    price_rise_forward = r'(상승|급등|오름|rise|rises|rising|higher|surge|surges|edge(?:s|d|ing)?\s+up)'
+    price_rise_reverse = r'(상승|급등|오름|rise|rises|rising|surge|surges|edge(?:s|d|ing)?\s+up)'
+    if re.search(oil + r'.{0,18}' + price_rise_forward + r'|' + price_rise_reverse + r'.{0,18}' + oil, text, re.I):
+        return True
     if oil_relief_signal(text):
         return False
-    oil = r'(유가|원유|브렌트|wti|crude|oil|석유)'
     burden = (
-        r'(상승|급등|오름|공급\s*(?:차질|불안)|호르무즈.{0,16}(폐쇄|봉쇄|위협)|'
+        r'(공급\s*(?:차질|불안)|호르무즈.{0,16}(폐쇄|봉쇄|위협)|'
         r'전쟁.{0,18}(확대|격화|고조)|확전|제재|긴장.{0,18}(고조|확대)|pull(?:ing)?\s+oil\s+prices?\s+up|lift(?:s|ed|ing)?\s+oil\s+prices?|prices?\s+up|risk|pressure|tension|sanction)'
     )
     return bool(re.search(oil + r'.{0,48}' + burden + r'|' + burden + r'.{0,48}' + oil, text, re.I))
@@ -1413,9 +1666,9 @@ def inflation_relief_signal(text: str) -> bool:
     )
     rate_hike_relief = (
         r'(pce|cpi|물가|인플레이션|inflation).{0,80}'
-        r'(금리\s*인상|rate\s+hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
+        r'(금리\s*인상|rate\s*hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
         r'.{0,16}(뚝|꺾|낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)|'
-        r'(금리\s*인상|rate\s+hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
+        r'(금리\s*인상|rate\s*hikes?).{0,24}(기대|우려|압박|가능성|론|expectations?|concerns?|pressure)?'
         r'.{0,16}(뚝|꺾|낮아|하락|후퇴|완화|줄|식|decline|declines|fall|falls|drop|drops|ease|eases|cool)'
         r'.{0,80}(pce|cpi|물가|인플레이션|inflation)'
     )
@@ -1431,6 +1684,8 @@ def inflation_stress_signal(text: str) -> bool:
         re.I,
     ):
         return True
+    if re.search(r'(fuel(?:s|ed|ing)?\s+inflation|inflation.{0,32}fuel(?:s|ed|ing)?\s+(?:rate|yield|cost|price|burden|pressure))', text, re.I):
+        return True
     if re.search(r'(물가|인플레이션|비용|inflation).{0,24}(부담|압력|고점|상승|높|쑥|stress|pressure)', text, re.I):
         return True
     return bool(re.search(
@@ -1445,6 +1700,41 @@ def inflation_stress_signal(text: str) -> bool:
         text,
         re.I,
     ))
+
+
+def tone_aligned_why(headline: str, display_headline: str, fallback_why: str, tone: str) -> str:
+    text = f'{display_headline or ""} {headline or ""}'
+    index_up = re.search(
+        r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?|증시|stocks?).{0,48}'
+        r'(반등|회복|상승|강세|급등|higher|rise|rises|rally|rebound|rebounds|gain|gains)|'
+        r'(반등|회복|상승|강세|급등|higher|rise|rises|rally|rebound|rebounds|gain|gains).{0,48}'
+        r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?|증시|stocks?)',
+        text,
+        re.I,
+    )
+    if tone == 'neutral' and broad_index_up_company_mixed_signal(text):
+        return '미국 주요 지수는 올랐지만 대표기업 흐름이 엇갈려 시장 온도에는 중립 신호로 봅니다.'
+    if (
+        re.search(r'(반도체|semiconductor|chip)', text, re.I)
+        and re.search(r'(이란|중동|iran|middle\s*east)', text, re.I)
+        and re.search(r'(선물|futures?)', text, re.I)
+    ):
+        return '반도체주 약세와 이란 긴장이 미국 지수 선물 하락에 함께 작용하는지 봅니다.'
+    if re.search(r'(로건|logan)', text, re.I) and re.search(r'(금리\s*인상|higher\s+interest\s+rates?|rate\s+hike)', text, re.I):
+        return '금리 인상 요구가 커지면 시장의 금리 부담도 커질 수 있습니다.'
+    if tone == 'negative' and oil_burden_signal(text):
+        return '유가가 오르면 물가와 운송비 부담이 커집니다. 그래서 주식시장에는 부담입니다.'
+    if tone == 'negative' and re.search(r'(이란|중동|호르무즈|iran|middle\s*east|hormuz|war|oil\s+shock|유가\s*충격)', text, re.I):
+        return '이란·중동 이슈와 유가 충격은 물가와 위험회피 부담을 키울 수 있습니다.'
+    if tone == 'negative' and inflation_stress_signal(text):
+        return '물가가 높으면 금리 인하가 늦어질 수 있습니다. 그래서 주식시장에는 부담입니다.'
+    if tone == 'positive' and oil_relief_signal(text) and index_up:
+        return '대표 지수가 반등하고 유가가 내려가면 시장 부담을 덜 수 있습니다.'
+    if tone == 'positive' and oil_relief_signal(text):
+        return '유가 하락이나 공급 불안 완화는 물가와 기업 비용 부담을 낮춥니다.'
+    if tone == 'positive' and inflation_relief_signal(text):
+        return '물가 부담이 낮아지면 금리 압박이 줄어 시장 부담을 덜 수 있습니다.'
+    return fallback_why
 
 
 def target_from_headline(headline: str, default_target: str) -> str:
@@ -1509,6 +1799,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'RETAIL_FUEL_PRICE_NOT_MARKET_TEMPERATURE'
     if is_single_company_listing_story(full_text):
         return None, 'SINGLE_COMPANY_LISTING_NOT_MARKET_TEMPERATURE'
+    if is_source_headline_nonmarket_noise(headline):
+        return None, 'SOURCE_HEADLINE_NOT_MARKET_TEMPERATURE'
     if is_corporate_crime_nonmarket_story(full_text):
         return None, 'CORPORATE_CRIME_NOT_MARKET_TEMPERATURE'
     if is_political_context_nonmarket_story(full_text):
@@ -1586,12 +1878,12 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         quality_score += 0.05
 
     why = primary['why']
-    if broad_index_up_company_mixed_signal(headline):
-        why = '미국 주요 지수는 올랐지만 대표기업 흐름이 엇갈려 시장 온도에는 중립 신호로 봅니다.'
-    elif inflation_relief_signal(headline):
-        why = '물가 걱정이 줄면 금리 압박이 낮아져 시장 부담을 덜 수 있습니다.'
+    if inflation_relief_signal(headline):
+        why = '물가 부담이 낮아지면 금리 압박이 줄어 시장 부담을 덜 수 있습니다.'
     elif inflation_stress_signal(headline):
         why = '물가가 높으면 금리 인하가 늦어질 수 있습니다. 그래서 주식시장에는 부담입니다.'
+    elif hormuz_transit_reopening_signal(headline):
+        why = '호르무즈 통행 회복은 유가와 공급 불안이 줄 수 있는 부담 완화 단서입니다.'
     elif not multi_topic_calendar and impact.get('hasBellwetherCompanyContext'):
         why = '지수 비중이 큰 대표기업 뉴스라 개별 종목 판단이 아니라 시장 온도 근거로 봅니다.'
     elif impact['singleBrandEvent'] and impact['hasListedCompanyContext']:
@@ -1722,6 +2014,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             display_impact_tone = market_burden_tone(display_headline or headline, final_impact_tone)
             if not mixed_company_signal and display_impact_tone in {'positive', 'negative'} and display_impact_tone != final_impact_tone:
                 final_impact_tone = display_impact_tone
+            final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if display_key in seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
@@ -1743,7 +2036,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 'categoryLabel': relevance['categoryLabel'],
                 'tags': relevance['tags'],
                 'relatedFactors': relevance['relatedFactors'],
-                'whyImportant': relevance['whyImportant'],
+                'whyImportant': final_why,
                 'scoreAnchor': relevance['scoreAnchor'],
                 'qualityScore': relevance['qualityScore'],
                 'marketImpactScore': relevance.get('marketImpactScore'),
@@ -1911,6 +2204,15 @@ def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes:
     }
 
 
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=path.parent, delete=False) as tmp:
+        json.dump(payload, tmp, ensure_ascii=False, indent=2)
+        tmp.write('\n')
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
@@ -1922,8 +2224,7 @@ def main() -> int:
     args = parser.parse_args()
 
     report = build_report(timeout=args.timeout, per_feed_limit=args.per_feed_limit, max_items=args.max_items, ttl_minutes=args.ttl_minutes)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    atomic_write_json(args.output, report)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
