@@ -543,6 +543,9 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
 ]
 
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'us\s+markets\s+today.*dow.*s&p\s*500.*nasdaq\s+futures\s+indicate\s+mixed\s+open.*tsmc.*netflix.*earnings', re.I), '다우·S&P500·나스닥 선물 혼조, TSMC·넷플릭스 실적 주목'),
+    (re.compile(r's&p\s*500\s+and\s+nasdaq\s+stuck.*market\s+rotation.*magnificent\s+seven.*chip\s+stocks', re.I), '매그니피센트7·반도체주 순환매 속 S&P500·나스닥 정체'),
+    (re.compile(r's&p\s*500\s+forecast.*spx\s+struggles.*ai\s+jitters.*resilient\s+retail\s+sales', re.I), '소매판매 호조에도 AI 불안으로 S&P500 약세'),
     (re.compile(r'exchange[-\s]?traded\s+funds\s+lower.*equity\s+futures\s+mixed.*pre[-\s]?bell.*semiconductor\s+stock\s+weakness', re.I), '미국 주식 ETF 하락, 반도체 약세 속 개장 전 지수 선물 혼조'),
     (re.compile(r'why\s+is\s+us\s+stock\s+market\s+up\s+today.*dow\s+jones.*nasdaq.*s&p\s*500\s+edge\s+higher.*apple.*paypal.*intel.*micron\s+sinks?.*us[-\s]?iran', re.I), '미·이란 긴장 속 다우·나스닥·S&P500 상승, 애플·페이팔 강세와 인텔·마이크론 약세'),
     (re.compile(r'fed\s+chairman\s+kevin\s+warsh.*testimony.*senate\s+banking\s+committee.*economy.*interest\s+rates', re.I), '워시 연준 의장, 상원 청문회서 경제·금리 입장 제시'),
