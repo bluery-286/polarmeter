@@ -69,8 +69,8 @@ def validate_payload(out: Path) -> dict:
         raise AssertionError('pages snapshot temperatureHistory must retain 7 KST dates')
     if not isinstance(history.get('items'), list) or len(history.get('items')) > 7:
         raise AssertionError('pages snapshot temperatureHistory.items must be a <=7 item list')
-    if (history.get('dailyDelta') or {}).get('status') not in {'ready', 'pending'}:
-        raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready/pending')
+    if (history.get('dailyDelta') or {}).get('status') != 'ready':
+        raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready')
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:

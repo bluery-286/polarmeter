@@ -1,0 +1,46 @@
+{
+  "version": "temperature-history-seed-v1",
+  "source": "verified-public-snapshot-2026-07-15T11:59:36.887305Z",
+  "items": [
+    {
+      "dateKst": "2026-06-30",
+      "asOf": "2026-06-30T03:22:25.582676Z",
+      "sessionType": "normal",
+      "usScore": 60,
+      "krScore": 47,
+      "usLabel": "온기 · 긍정 우위",
+      "krLabel": "중립 · 관망",
+      "source": "score_core_v1"
+    },
+    {
+      "dateKst": "2026-07-13",
+      "asOf": "2026-07-13T14:55:17.350162Z",
+      "sessionType": "after_market",
+      "usScore": 41,
+      "krScore": 43,
+      "usLabel": "중립 · 관망",
+      "krLabel": "중립 · 관망",
+      "source": "score_core_v1"
+    },
+    {
+      "dateKst": "2026-07-14",
+      "asOf": "2026-07-14T13:43:09.853978Z",
+      "sessionType": "after_market",
+      "usScore": 55,
+      "krScore": 47,
+      "usLabel": "중립 · 관망",
+      "krLabel": "중립 · 관망",
+      "source": "score_core_v1"
+    },
+    {
+      "dateKst": "2026-07-15",
+      "asOf": "2026-07-15T11:59:36.887305Z",
+      "sessionType": "after_market",
+      "usScore": 56,
+      "krScore": 55,
+      "usLabel": "중립 · 관망",
+      "krLabel": "중립 · 관망",
+      "source": "score_core_v1"
+    }
+  ]
+}

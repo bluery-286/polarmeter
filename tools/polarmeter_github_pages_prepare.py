@@ -86,7 +86,7 @@ def public_payload_is_publishable(output_dir: Path) -> bool:
         and history.get('version') == 'temperature-history-v1'
         and history.get('retentionDays') == 7
         and isinstance(history.get('items'), list)
-        and daily_delta_status in {'ready', 'pending'}
+        and daily_delta_status == 'ready'
     )
 
 
@@ -192,10 +192,10 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('public snapshot temperatureHistory must retain 7 KST dates')
     if not isinstance(history.get('items'), list) or len(history.get('items') or []) > 7:
         raise AssertionError('public snapshot temperatureHistory items must be a list of at most 7 KST dates')
-    if (history.get('dailyDelta') or {}).get('status') not in {'ready', 'pending'}:
-        raise AssertionError('public snapshot temperatureHistory dailyDelta status must be ready or pending')
-    if manifest.get('temperatureHistoryStatus') not in {'ready', 'pending'}:
-        raise AssertionError('manifest must expose temperatureHistoryStatus')
+    if (history.get('dailyDelta') or {}).get('status') != 'ready':
+        raise AssertionError('public snapshot temperatureHistory dailyDelta status must be ready')
+    if manifest.get('temperatureHistoryStatus') != 'ready':
+        raise AssertionError('manifest must expose ready temperatureHistoryStatus')
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
@@ -283,6 +283,8 @@ def main() -> int:
         print(f'warning: could not fetch current public cache fallback: {error}', file=sys.stderr)
         remote_public_files = {}
     fallback_public_files = remote_public_files or baseline_public_files
+    if remote_public_files:
+        restore_public_files(args.output, remote_public_files)
     seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
     try:
         summary = run_worker(args.output, LAST_KNOWN_GOOD)

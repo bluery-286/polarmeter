@@ -31,6 +31,7 @@ DEFAULT_NEWS_REPORT = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_SNAPSHOT = PROJECT / 'testflight/free-cache-snapshot-latest.json'
 DEFAULT_FIXTURE = PROJECT / 'testflight/free-cache-experiment.json'
 DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
+DEFAULT_TEMPERATURE_HISTORY_SEED = PROJECT / 'testflight/temperature-history-seed.json'
 DEFAULT_PUBLIC_SNAPSHOT_NAME = 'market-snapshot-latest.json'
 DEFAULT_PUBLIC_MANIFEST_NAME = 'market-snapshot-manifest.json'
 DEFAULT_PUBLIC_HEALTH_NAME = 'health.json'
@@ -289,7 +290,10 @@ def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]
     }
     generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
     session_type = detect_session(snapshot, now=generated_at.astimezone(KST) if generated_at else None)
-    return build_scores(snapshot_from_points(items, session_type=session_type), session_type=session_type)
+    scores = build_scores(snapshot_from_points(items, session_type=session_type), session_type='normal')
+    if isinstance(scores.get('market_context'), dict):
+        scores['market_context']['market_session_type'] = session_type
+    return scores
 
 
 def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None:
@@ -350,7 +354,21 @@ def load_previous_public_snapshot(path: Path | None, public_dir: Path | None, sn
     return {}
 
 
-def apply_temperature_history(snapshot: dict[str, Any], previous_public_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+def load_temperature_history_seed(path: Path | None) -> dict[str, Any]:
+    if not path or not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def apply_temperature_history(
+    snapshot: dict[str, Any],
+    previous_public_snapshot: dict[str, Any] | None = None,
+    seed_history: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     current = temperature_history_entry(snapshot)
     if not current:
         snapshot['temperatureHistory'] = {
@@ -366,13 +384,17 @@ def apply_temperature_history(snapshot: dict[str, Any], previous_public_snapshot
 
     previous_public_snapshot = previous_public_snapshot or {}
     previous_history = previous_public_snapshot.get('temperatureHistory') or {}
+    seed_items = (seed_history or {}).get('items')
+    if not isinstance(seed_items, list):
+        seed_items = []
     existing_items = previous_history.get('items') if isinstance(previous_history, dict) else []
     if not isinstance(existing_items, list):
         existing_items = []
-    items: list[dict[str, Any]] = [
-        item for item in existing_items
-        if isinstance(item, dict) and isinstance(item.get('dateKst'), str)
-    ]
+    items_by_date: dict[str, dict[str, Any]] = {}
+    for item in [*seed_items, *existing_items]:
+        if isinstance(item, dict) and isinstance(item.get('dateKst'), str):
+            items_by_date[item['dateKst']] = item
+    items = list(items_by_date.values())
     previous_entry = temperature_history_entry(previous_public_snapshot)
     if previous_entry:
         items = [item for item in items if item.get('dateKst') != previous_entry['dateKst']]
@@ -385,7 +407,10 @@ def apply_temperature_history(snapshot: dict[str, Any], previous_public_snapshot
         previous_date_kst = (datetime.fromisoformat(current['dateKst']).date() - timedelta(days=1)).isoformat()
     except ValueError:
         previous_date_kst = None
-    comparison = next((item for item in items if item.get('dateKst') == previous_date_kst), None)
+    exact_comparison = next((item for item in items if item.get('dateKst') == previous_date_kst), None)
+    prior_items = [item for item in items if str(item.get('dateKst')) < current['dateKst']]
+    comparison = exact_comparison or (prior_items[-1] if prior_items else None)
+    comparison_basis = 'previous_kst_date' if exact_comparison else 'previous_successful_kst_date'
 
     def delta_for(market: str) -> dict[str, Any] | None:
         if not comparison:
@@ -399,7 +424,7 @@ def apply_temperature_history(snapshot: dict[str, Any], previous_public_snapshot
             'currentScore': int(round(current_score)),
             'previousScore': int(round(previous_score)),
             'delta': int(round(current_score - previous_score)),
-            'basis': 'previous_kst_date',
+            'basis': comparison_basis,
             'comparisonDateKst': comparison.get('dateKst'),
             'comparisonAsOf': comparison.get('asOf'),
         }
@@ -434,8 +459,8 @@ def assert_temperature_history_contract(snapshot: dict[str, Any]) -> None:
     if len(history.get('items') or []) > TEMPERATURE_HISTORY_RETENTION_DAYS:
         raise AssertionError('temperatureHistory must retain at most 7 KST dates')
     status = (history.get('dailyDelta') or {}).get('status')
-    if status not in {'ready', 'pending'}:
-        raise AssertionError(f'temperatureHistory dailyDelta status invalid: {status}')
+    if status != 'ready':
+        raise AssertionError(f'temperatureHistory dailyDelta must be ready before publish: {status}')
 
 
 def assert_contract(report: dict[str, Any], snapshot: dict[str, Any], fixture: dict[str, Any]) -> None:
@@ -862,6 +887,7 @@ def main() -> int:
     parser.add_argument('--snapshot', type=Path, default=DEFAULT_SNAPSHOT)
     parser.add_argument('--fixture', type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument('--last-known-good', type=Path, default=DEFAULT_LAST_KNOWN_GOOD)
+    parser.add_argument('--temperature-history-seed', type=Path, default=DEFAULT_TEMPERATURE_HISTORY_SEED)
     parser.add_argument('--skip-fixture', action='store_true', help='Only update provider report and normalized snapshot')
     parser.add_argument('--public-dir', type=Path, help='Write deployable public JSON artifacts into this directory')
     parser.add_argument('--public-snapshot-name', default=DEFAULT_PUBLIC_SNAPSHOT_NAME)
@@ -875,8 +901,9 @@ def main() -> int:
     run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report), '--ttl-minutes', str(news_ttl_minutes)])
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
     previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
+    temperature_history_seed = load_temperature_history_seed(args.temperature_history_seed)
     snapshot_for_history = load_json(args.snapshot)
-    apply_temperature_history(snapshot_for_history, previous_public_snapshot)
+    apply_temperature_history(snapshot_for_history, previous_public_snapshot, temperature_history_seed)
     atomic_write_json(args.snapshot, snapshot_for_history)
     run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:

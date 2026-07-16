@@ -18,7 +18,7 @@ SESSION_TYPES = {'normal', 'holiday_kr', 'holiday_us', 'weekend', 'pre_market', 
 WEIGHT_PROFILES = {
     'normal': {
         'us': {'index_momentum': 0.25, 'volatility': 0.20, 'macro': 0.20, 'sector': 0.20, 'sentiment_placeholder': 0.15},
-        'kr': {'index_momentum': 0.25, 'supply_placeholder': 0.25, 'currency': 0.20, 'industry': 0.15, 'domestic_news_placeholder': 0.15},
+        'kr': {'index_momentum': 0.25, 'supply_placeholder': 0.20, 'currency': 0.25, 'industry': 0.15, 'domestic_news_placeholder': 0.15},
     },
     'holiday_kr': {
         'us': {'index_momentum': 0.24, 'volatility': 0.21, 'macro': 0.21, 'sector': 0.20, 'sentiment_placeholder': 0.14},
@@ -686,7 +686,7 @@ def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
     currency = clamp(currency)
 
     domestic_semi_pct = avg([pct(rows, '삼성전자'), pct(rows, 'SK하이닉스'), pct(rows, 'SOXX'), pct(rows, 'SMH')])
-    industry = component_from_pct(domestic_semi_pct, 4)
+    industry = component_from_pct(domestic_semi_pct, 5)
     domestic_news = 50  # B1 placeholder until source is decided
 
     kr_components = {
