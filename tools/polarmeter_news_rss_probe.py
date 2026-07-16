@@ -2036,9 +2036,18 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
                 continue
             seen_display_headlines.add(display_key)
-            original_headline = headline if (translated_from_english or (display_headline and display_headline != headline)) else None
+            oil_relief_compatibility_title = bool(
+                has_korean(headline)
+                and display_headline
+                and display_headline.startswith('유가 부담 완화 · ')
+            )
+            published_headline = display_headline if oil_relief_compatibility_title else headline
+            original_headline = headline if (
+                translated_from_english
+                or (display_headline and display_headline != headline and not oil_relief_compatibility_title)
+            ) else None
             out.append({
-                'headline': headline,
+                'headline': published_headline,
                 'displayHeadline': display_headline or headline,
                 'originalHeadline': original_headline,
                 'language': 'en' if translated_from_english else 'ko',

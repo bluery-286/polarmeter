@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from polarmeter_cache_snapshot import validate_candidate
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
-from polarmeter_news_rss_probe import cause_aware_display_headline, english_market_context_translation, market_burden_tone
+from polarmeter_news_rss_probe import cause_aware_display_headline, english_market_context_translation, market_burden_tone, normalize_items
 
 
 def main() -> int:
@@ -53,6 +55,17 @@ def main() -> int:
     wti_display = cause_aware_display_headline(wti_relief_headline, wti_relief_headline)
     assert wti_display == f"유가 부담 완화 · {wti_relief_headline}"
     assert market_burden_tone(wti_display, "negative") == "positive"
+    normalized_wti, _ = normalize_items([{
+        "label": "Smoke QA",
+        "items": [{
+            "headline": wti_relief_headline,
+            "sourceName": "Smoke QA",
+            "publishedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "url": "https://example.com/wti-down",
+        }],
+    }], 1)
+    assert normalized_wti[0]["headline"] == wti_display
+    assert normalized_wti[0]["originalHeadline"] is None
     print("PolarMeter provider change smoke: PASS")
     return 0
 
