@@ -804,6 +804,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
     if re.search(r'(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체).{0,48}(rebound|rebounds|rally|rallies|recover|recovers|반등|회복)|(rebound|rebounds|rally|rallies|recover|recovers|반등|회복).{0,48}(ai\s+stocks?|chip|chips|chip\s+stocks?|semiconductor|반도체)', text, re.I) and re.search(r'(oil|crude|유가|원유).{0,36}(weak|lower|fall|falls|drop|drops|하락|약세|내림)|(weak|lower|fall|falls|drop|drops|하락|약세|내림).{0,36}(oil|crude|유가|원유)', text, re.I):
         return '반도체 반등과 유가 하락은 시장 부담 완화 신호'
+    if has_inflation and has_chip and inflation_relief_signal(text) and equity_positive:
+        return 'CPI 둔화에 AI·반도체주 동반 상승'
     if has_inflation and has_chip and re.search(r'micron|apple|chip\s+stocks?|semiconductor|technology\s+stocks?', lower):
         return 'PCE 물가 부담과 반도체·대형 기술주 약세 압력'
     if has_wall_street and has_chip and negative and re.search(

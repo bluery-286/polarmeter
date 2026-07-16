@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from polarmeter_cache_snapshot import validate_candidate
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
+from polarmeter_news_rss_probe import english_market_context_translation, market_burden_tone
 
 
 def main() -> int:
@@ -38,10 +39,18 @@ def main() -> int:
     )
     assert status == "suspect"
     assert reason == "changePct_suspect>6.0"
+
+    cpi_relief_headline = (
+        "Today’s Market Recap: CPI Cooling Ignites AI Tech Stock Rally, "
+        "Nvidia, Micron, AMD Rise Together"
+    )
+    translated = english_market_context_translation(cpi_relief_headline)
+    assert translated == "CPI 둔화에 AI·반도체주 동반 상승"
+    assert market_burden_tone(cpi_relief_headline, "neutral") == "positive"
+    assert market_burden_tone(translated, "neutral") == "positive"
     print("PolarMeter provider change smoke: PASS")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
