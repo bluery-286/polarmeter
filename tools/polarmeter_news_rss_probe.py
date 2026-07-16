@@ -988,6 +988,24 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
     if has_fx and explicit_fx_relief_signal(raw):
         return '환율 하락은 한국장 수급 부담을 덜 수 있음'
 
+    sector_stress = re.search(
+        r'(반도체|기술주|chip|chips|semiconductor|ai\s*stocks?).{0,42}(급락|하락|약세|투매|sell-?off|sold\s+off|slide|drop|fall|slump)|'
+        r'(급락|하락|약세|투매|sell-?off|sold\s+off|slide|drop|fall|slump).{0,42}(반도체|기술주|chip|chips|semiconductor|ai\s*stocks?)',
+        raw,
+        re.I,
+    )
+    rate_stress = re.search(
+        r'(금리\s*(?:인상|상승|급등)|rate\s*hikes?|rates?\s+(?:rise|rising|higher)|treasury\s+yields?\s+(?:rise|rising|higher))',
+        raw,
+        re.I,
+    )
+    if sector_stress and rate_stress:
+        if re.search(r'(외국인|foreign).{0,36}(유출|이탈|팔|매도|순매도|outflow|sell|sold)', raw, re.I):
+            return '금리 인상·기술주 약세는 외국인 자금 이탈 부담'
+        if re.search(r'(코스피|kospi)', raw, re.I):
+            return '금리 인상·반도체 약세는 코스피 하락 부담'
+        return '금리 상승·반도체 약세는 지수 부담'
+
     if re.search(r'(이란|중동|iran|middle\s*east).{0,32}(무력\s*공방|공습|충돌|긴장|불안|살얼음판)|(무력\s*공방|공습|충돌|긴장|불안|살얼음판).{0,32}(이란|중동|iran|middle\s*east)', raw, re.I):
         if re.search(r'(코스피|코스닥|나스닥|S&P\s*500|S&P500|증시|지수|시장)', raw, re.I):
             return '중동 긴장은 지수 변동성 부담으로 이어질 수 있음'
