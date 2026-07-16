@@ -1123,9 +1123,26 @@ def expired_macro_event_preview(headline: str, published_at: str | None, now: da
     return bool(has_cpi and is_preview)
 
 
+def broad_index_up_company_mixed_signal(text: str) -> bool:
+    index_subject = r'(nasdaq|s&p|s\s*p\s*500|sp500|dow(?:\s+jones)?|나스닥|다우|미국\s*(?:주요\s*)?지수|주요\s*지수)'
+    index_up = re.search(
+        index_subject + r'.{0,96}(edge(?:s|d|ing)?\s+higher|higher|rise(?:s|n)?|rising|gain(?:s|ed)?|climb(?:s|ed|ing)?|상승|강세|반등)|'
+        r'(edge(?:s|d|ing)?\s+higher|higher|rise(?:s|n)?|rising|gain(?:s|ed)?|climb(?:s|ed|ing)?|상승|강세|반등).{0,96}' + index_subject,
+        text,
+        re.I,
+    )
+    company_subject = r'(apple|adobe|amazon|paypal|intel|cisco|micron|nvidia|microsoft|meta|tesla|amd|alphabet|google|애플|어도비|아마존|페이팔|인텔|시스코|마이크론|엔비디아|마이크로소프트|메타|테슬라|알파벳|구글)'
+    company_up = re.search(company_subject + r'.{0,96}(surge(?:s|d)?|jump(?:s|ed)?|rise(?:s|n)?|rising|gain(?:s|ed)?|강세|상승|급등)', text, re.I)
+    company_down = re.search(company_subject + r'.{0,96}(sink(?:s|ing)?|sank|fall(?:s|ing)?|fell|drop(?:s|ped|ping)?|slip(?:s|ped|ping)?|weak(?:ness)?|약세|하락|급락)', text, re.I)
+    mixed_connector = re.search(r'\bwhile\b|\bbut\b|반면|한편|혼조|엇갈|강세(?:와|과).{0,80}약세|상승(?:와|과).{0,80}하락', text, re.I)
+    return bool(index_up and company_up and company_down and mixed_connector)
+
+
 def headline_tone(headline: str) -> str:
     text = headline.lower()
     if is_outlook_commentary(headline):
+        return 'neutral'
+    if broad_index_up_company_mixed_signal(headline):
         return 'neutral'
     if re.search(r'(코스피|코스닥|나스닥|뉴욕증시|증시|지수|선물|wall street|stocks?)', headline, re.I):
         if re.search(r'(급등|상승|반등|회복|rally|gain|higher|climb|climbs).{0,24}(후|뒤|이후|after).{0,24}(약세|하락|차익실현|밀려|내림|lower|drop|slip)', headline, re.I):
@@ -1146,6 +1163,8 @@ def headline_tone(headline: str) -> str:
 
 def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     if is_outlook_commentary(headline):
+        return 'neutral'
+    if broad_index_up_company_mixed_signal(headline):
         return 'neutral'
     text = headline.lower()
     if re.search(r'(긴축|금리\s*인상).{0,16}(우려|부담|압박).{0,12}(완화|낮아|줄|덜)', text, re.I):
@@ -1567,7 +1586,9 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         quality_score += 0.05
 
     why = primary['why']
-    if inflation_relief_signal(headline):
+    if broad_index_up_company_mixed_signal(headline):
+        why = '미국 주요 지수는 올랐지만 대표기업 흐름이 엇갈려 시장 온도에는 중립 신호로 봅니다.'
+    elif inflation_relief_signal(headline):
         why = '물가 걱정이 줄면 금리 압박이 낮아져 시장 부담을 덜 수 있습니다.'
     elif inflation_stress_signal(headline):
         why = '물가가 높으면 금리 인하가 늦어질 수 있습니다. 그래서 주식시장에는 부담입니다.'
@@ -1694,11 +1715,12 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons['UNTRANSLATED_ENGLISH_HEADLINE'] = filtered_reasons.get('UNTRANSLATED_ENGLISH_HEADLINE', 0) + 1
                 continue
             translated_from_english = bool(translated_headline and not has_korean(headline))
-            final_impact_tone = market_burden_tone(headline, relevance['impactTone'])
-            if final_impact_tone == 'neutral':
+            mixed_company_signal = broad_index_up_company_mixed_signal(headline) or broad_index_up_company_mixed_signal(display_headline or headline)
+            final_impact_tone = 'neutral' if mixed_company_signal else market_burden_tone(headline, relevance['impactTone'])
+            if final_impact_tone == 'neutral' and not mixed_company_signal:
                 final_impact_tone = market_burden_tone(display_headline or headline, relevance['impactTone'])
             display_impact_tone = market_burden_tone(display_headline or headline, final_impact_tone)
-            if display_impact_tone in {'positive', 'negative'} and display_impact_tone != final_impact_tone:
+            if not mixed_company_signal and display_impact_tone in {'positive', 'negative'} and display_impact_tone != final_impact_tone:
                 final_impact_tone = display_impact_tone
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if display_key in seen_display_headlines:
