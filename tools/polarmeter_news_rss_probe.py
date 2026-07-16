@@ -59,6 +59,7 @@ EXCLUDED_SOURCE_HINTS = [
 ]
 
 EXCLUDED_HEADLINE_HINTS = [
+    'treasury to begin minting $1 gold trump coin',
     '목표가',
     '목표 주가',
     '목표주가',
@@ -542,6 +543,16 @@ ENGLISH_TO_KOREAN_GLOSSARY = [
 ]
 
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'exchange[-\s]?traded\s+funds\s+lower.*equity\s+futures\s+mixed.*pre[-\s]?bell.*semiconductor\s+stock\s+weakness', re.I), '미국 주식 ETF 하락, 반도체 약세 속 개장 전 지수 선물 혼조'),
+    (re.compile(r'why\s+is\s+us\s+stock\s+market\s+up\s+today.*dow\s+jones.*nasdaq.*s&p\s*500\s+edge\s+higher.*apple.*paypal.*intel.*micron\s+sinks?.*us[-\s]?iran', re.I), '미·이란 긴장 속 다우·나스닥·S&P500 상승, 애플·페이팔 강세와 인텔·마이크론 약세'),
+    (re.compile(r'fed\s+chairman\s+kevin\s+warsh.*testimony.*senate\s+banking\s+committee.*economy.*interest\s+rates', re.I), '워시 연준 의장, 상원 청문회서 경제·금리 입장 제시'),
+    (re.compile(r'dow\s+futures\s+climb.*s&p\s*500\s+futures\s+slip.*nasdaq\s+futures\s+drop.*tsmc.*netflix', re.I), '다우 선물 상승, S&P500·나스닥 선물은 TSMC·넷플릭스 실적 앞두고 하락'),
+    (re.compile(r'oil\s+is\s+facing\s+a\s+supply\s+crunch.*war\s+in\s+iran.*only\s+problem', re.I), '이란 전쟁 외 공급 문제도 겹치며 원유 공급 부족 우려'),
+    (re.compile(r'oil\s+prices?\s+tick\s+higher.*u\.?s\.?\s+reinstates\s+iran\s+blockade', re.I), '미국의 이란 봉쇄 재개에 유가 소폭 상승'),
+    (re.compile(r'nasdaq\s+futures\s+lag.*global\s+chip\s+weakness', re.I), '세계 반도체 약세에 나스닥 선물 부진'),
+    (re.compile(r'nasdaq\s+rises?\s+0\.62%.*philadelphia\s+semiconductor\s+index\s+falls?\s+over\s+2%', re.I), '나스닥 0.62% 상승, 필라델피아 반도체지수는 2% 넘게 하락'),
+    (re.compile(r'dow\s+jones.*nasdaq.*s&p\s*500\s+rises?.*paypal\s+soars?.*gold\s*&\s*silver\s+fall', re.I), '페이팔 급등에 다우·나스닥·S&P500 상승, 금·은은 하락'),
+    (re.compile(r'new\s+york\s+fed\s+president\s+williams.*inflation\s+has\s+peaked.*rates?.*well\s+positioned', re.I), '윌리엄스 뉴욕 연은 총재, 물가 정점 지났고 금리는 적절한 수준'),
     (re.compile(r'oil\s+prices?\s+surge\s+5%.*stocks?\s+tumble.*trump\s+says\s+iran\s+ceasefire\s+is.*over', re.I), '유가 급등과 이란 휴전 불안은 미국 지수 부담'),
     (re.compile(r'indigo\s+shares?\s+fall.*spicejet\s+down.*trump.*iran\s+ceasefire\s+remarks?', re.I), '이란 휴전 발언 뒤 항공주 하락은 중동 리스크 재평가 신호'),
     (re.compile(r'kevin\s+warsh\s+plans?\s+to\s+stop\s+scripting\s+the\s+fed.{0,80}wild\s+ride\s+for\s+traders?', re.I), '연준 인사 발언은 금리 변동성 부담'),
@@ -755,6 +766,25 @@ def clean_text(value: str | None) -> str:
 
 def has_korean(value: str) -> bool:
     return bool(re.search(r'[가-힣]', value))
+
+
+def is_specific_korean_market_headline(value: str | None) -> bool:
+    text = clean_text(value or '')
+    if not text or not has_korean(text):
+        return False
+    market_subject = re.search(
+        r'(코스피|코스닥|나스닥|다우|S&P\s*500|증시|지수|선물|환율|원[·\s/-]?달러|달러[·\s/-]?원|'
+        r'금리|한국은행|한은|연준|물가|CPI|PPI|PCE|유가|원유|반도체|기술주|외국인|채권)',
+        text,
+        re.I,
+    )
+    factual_event = re.search(
+        r'(\d+(?:\.\d+)?\s*(?:%|%p|bp|원|달러|포인트|선|대)|최대|최저|최고|최초|기록|돌파|마감|'
+        r'인상|인하|동결|상승|하락|급등|급락|반등|유출|유입|순매수|순매도|사이드카|철회|재개|공습|봉쇄)',
+        text,
+        re.I,
+    )
+    return bool(market_subject and factual_event)
 
 
 def english_market_context_translation(headline: str) -> str | None:
@@ -975,6 +1005,8 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
     raw = ' '.join(part for part in [headline, visible] if part).strip()
     if not raw:
         return visible or None
+    if is_specific_korean_market_headline(headline):
+        return clean_text(headline)
     if re.search(r'cpi.{0,80}(?:sk\s*하이닉스|하이닉스).{0,80}주식.{0,24}채권.{0,24}달러', raw, re.I):
         return 'CPI 호재는 주식·채권 부담 완화 신호'
 
