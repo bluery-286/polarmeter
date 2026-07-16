@@ -956,6 +956,13 @@ def english_market_context_translation(headline: str) -> str | None:
         return '금리 상승은 미국 주식 부담 신호'
     if has_inflation and inflation_stress_signal(text) and (positive or has_wall_street):
         return '높은 물가는 미국 지수와 금리 기대의 부담 신호'
+    if (
+        has_inflation
+        and has_chip
+        and inflation_relief_signal(text)
+        and re.search(r'(ai|tech|chip|semiconductor|nvidia|micron|amd).{0,80}(rally|surge|rise|gain)|(rally|surge|rise|gain).{0,80}(ai|tech|chip|semiconductor|nvidia|micron|amd)', lower, re.I)
+    ):
+        return 'CPI 둔화에 AI·반도체주 동반 상승'
     if has_inflation and inflation_relief_signal(text):
         return '물가 부담이 줄었다는 발언은 금리 압박 완화 단서'
     if has_inflation and inflation_stress_signal(text):
