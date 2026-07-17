@@ -605,6 +605,8 @@ def hormuz_transit_reopening_signal(text: str) -> bool:
 
 
 FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
+    (re.compile(r'spx:\s*s&p\s*500\s+drops?\s+0\.2%.*ai\s+worries.*not\s+for\s+meta', re.I), 'AI 우려 재부각에 S&P500 0.2% 하락, 메타는 예외'),
+    (re.compile(r's&p\s*500.*nasdaq\s+futures?\s+climb.*dow\s+futures?\s+fall.*jobs\s+report', re.I), '고용지표 앞두고 S&P500·나스닥 선물 상승, 다우 선물 하락'),
     (re.compile(r'strait\s+of\s+hormuz\s+tanker\s+traffic\s+erodes\s+further.*oil\s+prices?\s+rise', re.I), '호르무즈 해협 유조선 통행 더 감소, 유가 상승'),
     (re.compile(r'short[-\s]?term\s+capital\s+rotation.*cooling\s+inflation.*mid[-\s]?game\s+battle.*ai\s+rally', re.I), '물가 둔화 속 단기 자금 순환, AI 랠리 향방 주목'),
     (re.compile(r'us\s+futures?\s+edge\s+lower.*chip\s+stock\s+weakness.*iran\s+tensions', re.I), '반도체주 약세·이란 긴장에 미국 지수 선물 하락'),
@@ -1293,10 +1295,16 @@ def mixed_major_index_signal(text: str) -> bool:
     index_subject = r'(코스피|코스닥|나스닥|nasdaq|s&p|s\s*p\s*500|sp500|dow|다우|지수|선물|futures?|뉴욕증시|증시|주가|wall street|stocks?)'
     up_words = r'급등|상승|반등|회복|강세|\bhigher\b|\bclimb(?:s|ing)?\b|\brise(?:s|n)?\b|\brising\b|\brall(?:y|ies|ied)\b|\brebound(?:s|ed|ing)?\b|\badvance(?:s|d)?\b|\bjump(?:s|ed)?\b|\bsurge(?:s|d)?\b|\bgain(?:s|ed)?\b'
     down_words = r'급락|하락|약세|폭락|\bslide(?:s|d|ing)?\b|\bslip(?:s|ped|ping)?\b|\bdip(?:s|ped|ping)?\b|\bdrop(?:s|ped|ping)?\b|\bfall(?:s|ing)?\b|\bfell\b|\blower\b|\bplunge(?:s|d)?\b|\bslump(?:s|ed)?\b|\btumble(?:s|d)?\b|\bweaken(?:s|ed)?\b|\bcrash(?:es|ed)?\b'
-    up = re.search(index_subject + r'.{0,56}(' + up_words + r')|(' + up_words + r').{0,56}' + index_subject, text, re.I)
-    down = re.search(index_subject + r'.{0,56}(' + down_words + r')|(' + down_words + r').{0,56}' + index_subject, text, re.I)
     mixed_connector = re.search(r'\bwhile\b|\bbut\b|\bmixed\b|혼조|엇갈|반면', text, re.I)
-    return bool(up and down and mixed_connector)
+    if not mixed_connector:
+        return False
+    # Bind each direction to an equity/index clause. Otherwise a headline such
+    # as "AI stocks slump while oil climbs" is incorrectly treated as mixed,
+    # even though both moves increase market burden.
+    clauses = re.split(r'\bwhile\b|\bbut\b|\bmixed\b|혼조|엇갈|반면|[,;…]+', text, flags=re.I)
+    up = any(re.search(index_subject + r'.{0,40}(' + up_words + r')|(' + up_words + r').{0,40}' + index_subject, clause, re.I) for clause in clauses)
+    down = any(re.search(index_subject + r'.{0,40}(' + down_words + r')|(' + down_words + r').{0,40}' + index_subject, clause, re.I) for clause in clauses)
+    return bool(up and down)
 
 
 def broad_index_up_company_mixed_signal(text: str) -> bool:
