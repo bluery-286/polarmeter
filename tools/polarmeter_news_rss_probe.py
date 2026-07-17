@@ -1170,6 +1170,14 @@ def cause_aware_display_headline(headline: str, display_headline: str | None) ->
     raw = ' '.join(part for part in [headline, visible] if part).strip()
     if not raw:
         return visible or None
+    earnings_calendar = re.search(
+        r'(다음\s*주|이번\s*주).{0,32}(s&p\s*500|s&p500).{0,32}?(\d+)\s*개.{0,24}실적\s*발표',
+        raw,
+        re.I,
+    )
+    if earnings_calendar:
+        period = re.sub(r'\s+', '', earnings_calendar.group(1))
+        return f'{period} S&P500 기업 {earnings_calendar.group(3)}개 실적 발표 예정'
     if is_specific_korean_market_headline(headline):
         cleaned = clean_text(headline)
         competing_market_burden = re.search(

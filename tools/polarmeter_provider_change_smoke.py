@@ -71,6 +71,8 @@ def main() -> int:
     assert market_burden_tone(ai_oil_burden, "neutral") == "negative"
     assert koreanize_english_headline("SPX: S&P 500 Drops 0.2% as AI Worries Strike Again. But Not for Meta.") == "AI 우려 재부각에 S&P500 0.2% 하락, 메타는 예외"
     assert koreanize_english_headline("S&P 500, Nasdaq Futures Climb While Dow Futures Fall Ahead Of Key Jobs Report") == "고용지표 앞두고 S&P500·나스닥 선물 상승, 다우 선물 하락"
+    earnings_calendar = "다음주 S&P500 기업중 80개 실적 발표…알파벳·테슬라·인텔 예정"
+    assert cause_aware_display_headline(earnings_calendar, earnings_calendar) == "다음주 S&P500 기업 80개 실적 발표 예정"
 
     published_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     relevance, reason = classify_relevance("연준·아이들, 한터차트로 증명한 '글로벌 존재감'", "연예뉴스", published_at)
