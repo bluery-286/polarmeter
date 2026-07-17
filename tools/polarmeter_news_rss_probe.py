@@ -70,6 +70,9 @@ EXCLUDED_HEADLINE_HINTS = [
     '리딩방',
     '무료추천',
     '회원전용',
+    '[고래사냥]',
+    '내일장',
+    '고래 종목',
     '공모주 청약',
     'buy ',
     ' buy',
@@ -159,6 +162,20 @@ MAGNITUDE_PATTERNS = [
 
 SOURCE_QUALITY_PENALTY_PATTERNS = [
     re.compile(r'(팝업스토어|팝업\s*스토어|가봤더니|팬덤|브랜드\s*캠페인|맛집|신제품|편의점|성수|외국인\s*잡아|협찬|광고|프로모션)', re.I),
+]
+
+LOW_INFORMATION_QUOTE_HEADLINE_PATTERNS = [
+    re.compile(r'^\s*[A-Za-z가-힣0-9&·.\- ]{2,40}\s*\(\s*\d{6}\s*\)\s*$', re.I),
+    re.compile(r'^\s*[A-Za-z가-힣][A-Za-z가-힣0-9&·.\- ]{1,39}\s*[\[(]\s*[A-Z]{1,5}\s*[\])]\s*$', re.I),
+]
+
+ENTERTAINMENT_HOMONYM_PATTERNS = [
+    re.compile(r'(한터차트|써클차트|멜론차트|음원\s*차트|아이돌|걸그룹|보이그룹|신곡|앨범|컴백|콘서트|팬덤|글로벌\s*존재감)', re.I),
+]
+
+ENTERTAINMENT_MARKET_OVERRIDE_PATTERNS = [
+    re.compile(r'(주가|증시|코스피|코스닥|실적|매출|영업이익|시가총액|상장|투자|주식|채권|환율|금리)', re.I),
+    re.compile(r'(연준\s*(?:의장|총재|위원|은행|회의|정책)|fed|fomc)', re.I),
 ]
 
 INVESTMENT_ADVICE_PATTERNS = [
@@ -401,7 +418,7 @@ def is_narrow_company_result_noise(text: str) -> bool:
 
 def is_personal_finance_story(text: str) -> bool:
     return re.search(
-        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|은퇴|연금|개인\s*포트폴리오)',
+        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|\bsvol\b|vix\s+futures\s+curve.{0,64}(?:yield|income)|cut.{0,40}yield\s+in\s+half|은퇴|연금|개인\s*포트폴리오)',
         text,
         re.I,
     ) is not None
@@ -1797,6 +1814,16 @@ def rule_matches_headline(rule: dict[str, Any], headline: str, headline_lower: s
     return False
 
 
+def is_low_information_quote_headline(headline: str) -> bool:
+    return any(pattern.search(headline) for pattern in LOW_INFORMATION_QUOTE_HEADLINE_PATTERNS)
+
+
+def is_entertainment_homonym_story(headline: str) -> bool:
+    return any(pattern.search(headline) for pattern in ENTERTAINMENT_HOMONYM_PATTERNS) and not any(
+        pattern.search(headline) for pattern in ENTERTAINMENT_MARKET_OVERRIDE_PATTERNS
+    )
+
+
 def classify_relevance(headline: str, source_name: str, published_at: str | None) -> tuple[dict[str, Any] | None, str]:
     source_lower = source_name.lower()
     headline_lower = headline.lower()
@@ -1805,6 +1832,10 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'EXPIRED_MACRO_EVENT_PREVIEW'
     if any(hint.lower() in source_lower for hint in EXCLUDED_SOURCE_HINTS):
         return None, 'SOURCE_LOW_RELEVANCE'
+    if is_low_information_quote_headline(headline):
+        return None, 'LOW_INFORMATION_QUOTE_HEADLINE'
+    if is_entertainment_homonym_story(headline):
+        return None, 'ENTERTAINMENT_HOMONYM_NOT_MARKET_TEMPERATURE'
     if is_personal_finance_story(full_text):
         return None, 'PERSONAL_FINANCE_NOT_MARKET_TEMPERATURE'
     if is_market_quote_page(full_text):

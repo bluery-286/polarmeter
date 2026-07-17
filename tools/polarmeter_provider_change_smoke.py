@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from polarmeter_cache_snapshot import validate_candidate
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
-from polarmeter_news_rss_probe import cause_aware_display_headline, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
+from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
 
 def main() -> int:
@@ -71,6 +71,31 @@ def main() -> int:
     assert market_burden_tone(ai_oil_burden, "neutral") == "negative"
     assert koreanize_english_headline("SPX: S&P 500 Drops 0.2% as AI Worries Strike Again. But Not for Meta.") == "AI 우려 재부각에 S&P500 0.2% 하락, 메타는 예외"
     assert koreanize_english_headline("S&P 500, Nasdaq Futures Climb While Dow Futures Fall Ahead Of Key Jobs Report") == "고용지표 앞두고 S&P500·나스닥 선물 상승, 다우 선물 하락"
+
+    published_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    relevance, reason = classify_relevance("연준·아이들, 한터차트로 증명한 '글로벌 존재감'", "연예뉴스", published_at)
+    assert relevance is None
+    assert reason == "ENTERTAINMENT_HOMONYM_NOT_MARKET_TEMPERATURE"
+    relevance, reason = classify_relevance("삼성전자(005930)", "매일경제 마켓", published_at)
+    assert relevance is None
+    assert reason == "LOW_INFORMATION_QUOTE_HEADLINE"
+    relevance, reason = classify_relevance(
+        "The VIX Futures Curve Signal That Could Cut SVOL's Yield in Half",
+        "Yahoo Finance RSS",
+        published_at,
+    )
+    assert relevance is None
+    assert reason == "PERSONAL_FINANCE_NOT_MARKET_TEMPERATURE"
+    relevance, reason = classify_relevance(
+        "[고래사냥]'한미반도체·케이뱅크! 내일장 고래 종목은?! - 머니투데이",
+        "머니투데이",
+        published_at,
+    )
+    assert relevance is None
+    assert reason == "INVESTMENT_ACTION_OR_SINGLE_STOCK_NOISE"
+    relevance, reason = classify_relevance("연준 로건, 7월 회의 앞두고 금리 인상 촉구", "연합뉴스", published_at)
+    assert relevance is not None
+    assert reason == "PASS"
     print("PolarMeter provider change smoke: PASS")
     return 0
 
