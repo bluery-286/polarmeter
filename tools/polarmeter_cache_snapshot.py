@@ -461,21 +461,152 @@ def signal_reliability(key: str, provider: str, status: str, reason: str | None 
     return {'sourceClass': 'delayed_market_data', 'displayBadge': '지연 시세', 'confidencePolicy': 'normal'}
 
 
+def _parse_history_timestamp_ms(value: Any) -> int | None:
+    """Require a real UTC-parseable timestamp (not merely non-empty)."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        if value != value or value in (float('inf'), float('-inf')) or value <= 0:
+            return None
+        ts = int(value)
+        ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+    else:
+        raw = str(value).strip()
+        if not raw:
+            return None
+        if raw.isdigit() or (raw.startswith('-') and raw[1:].isdigit()):
+            try:
+                ts = int(raw)
+            except (TypeError, ValueError):
+                return None
+            if ts <= 0:
+                return None
+            ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+        else:
+            try:
+                normalized = raw.replace('Z', '+00:00') if raw.endswith('Z') else raw
+                dt = datetime.fromisoformat(normalized)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ms = int(dt.timestamp() * 1000)
+            except (TypeError, ValueError, OSError, OverflowError):
+                return None
+    if ms <= 0:
+        return None
+    try:
+        datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return None
+    return ms
+
+
+def _to_iso_utc(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def normalize_history_series(item: dict[str, Any], source_id: str) -> dict[str, Any] | None:
+    """Pass through worker market-series-v1 only. Never invent points from a single price.
+
+    B3.24P: same provider/source only; explicit unavailable always empties points;
+    timestamps must parse as UTC; never reuse LKG series as current history.
+    """
+    history = item.get('history')
+    if not isinstance(history, dict):
+        return None
+    history_source = history.get('sourceId') or source_id
+    # Only attach history that matches the selected current value's source.
+    if history_source != source_id:
+        return {
+            'version': 'market-series-v1',
+            'status': 'unavailable',
+            'interval': '1d',
+            'sourceId': source_id,
+            'dataAsOf': None,
+            'points': [],
+            'reason': 'history_source_mismatch',
+        }
+    # Explicit unavailable — never keep or promote points, never reuse LKG series.
+    if history.get('status') == 'unavailable':
+        return {
+            'version': 'market-series-v1',
+            'status': 'unavailable',
+            'interval': '1d',
+            'sourceId': history_source,
+            'dataAsOf': None,
+            'points': [],
+            'reason': history.get('reason') or 'unavailable',
+        }
+    raw_points = history.get('points')
+    points: list[dict[str, Any]] = []
+    if isinstance(raw_points, list):
+        seen: dict[str, float] = {}
+        order: list[tuple[int, str]] = []
+        for point in raw_points:
+            if not isinstance(point, dict):
+                continue
+            stamp = point.get('timestamp')
+            value = point.get('value')
+            ms = _parse_history_timestamp_ms(stamp)
+            if ms is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if numeric != numeric or numeric in (float('inf'), float('-inf')) or numeric <= 0:
+                continue
+            iso = _to_iso_utc(ms)
+            if iso not in seen:
+                order.append((ms, iso))
+            seen[iso] = numeric  # duplicate timestamps keep last
+        order.sort(key=lambda item: item[0])
+        # de-dupe order keys while preserving ascending time
+        used: set[str] = set()
+        points = []
+        for _ms, iso in order:
+            if iso in used:
+                continue
+            used.add(iso)
+            points.append({'timestamp': iso, 'value': seen[iso]})
+    status = history.get('status')
+    if status not in {'ok', 'partial', 'unavailable'}:
+        status = 'ok' if len(points) >= 2 else ('partial' if len(points) == 1 else 'unavailable')
+    if len(points) < 2 and status == 'ok':
+        status = 'partial' if points else 'unavailable'
+    data_as_of = history.get('dataAsOf') or None
+    if data_as_of is not None:
+        as_ms = _parse_history_timestamp_ms(data_as_of)
+        data_as_of = _to_iso_utc(as_ms) if as_ms is not None else None
+    return {
+        'version': 'market-series-v1',
+        'status': status,
+        'interval': '1d',
+        'sourceId': history_source,
+        'dataAsOf': data_as_of,
+        'points': points,
+        'reason': history.get('reason'),
+    }
+
+
 def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any], *, status: str = 'ok', reason: str | None = None) -> dict[str, Any]:
     key = signal['key']
     showable = status in {'ok', 'suspect'}
     data_as_of = normalized_as_of(item.get('asOf'))
     age_hours = candidate_age_hours(item)
-    return {
+    source_id = f'{provider}:{item.get("symbol")}'
+    out = {
         'key': key,
         'label': signal['label'],
         'value': item.get('price'),
         'change': item.get('change'),
         'changePct': item.get('changePct'),
+        'previousClose': item.get('previousClose'),
         'status': 'ok' if status == 'ok' else status,
         'freshnessStatus': 'delayed' if showable else status,
         'provider': provider,
-        'sourceId': f'{provider}:{item.get("symbol")}',
+        'sourceId': source_id,
         'fetchedAt': utc_now(),
         'dataAsOf': data_as_of,
         'dataAgeHours': round(age_hours, 2) if age_hours is not None else None,
@@ -489,6 +620,10 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
         'reliability': signal_reliability(key, provider, status, reason, data_as_of),
         'lastSuccessfulAt': utc_now() if showable else None,
     }
+    history = normalize_history_series(item, source_id)
+    if history is not None:
+        out['history'] = history
+    return out
 
 
 def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reason: str) -> dict[str, Any] | None:
@@ -524,6 +659,16 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
         'maxStaleAgeHours': MAX_STALE_SIGNAL_AGE_HOURS.get(key),
         'fetchedAt': utc_now(),
         'ttlMinutes': previous.get('ttlMinutes') or 360,
+        # B3.24: value-only LKG — never promote previous history as current series.
+        'history': {
+            'version': 'market-series-v1',
+            'status': 'unavailable',
+            'interval': '1d',
+            'sourceId': previous.get('sourceId') or f'last-known-good:{key}',
+            'dataAsOf': None,
+            'points': [],
+            'reason': 'last_known_good_value_only_no_series_promotion',
+        },
     })
     return out
 

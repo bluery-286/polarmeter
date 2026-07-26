@@ -676,17 +676,156 @@ def sanitize_public_signal(signal: dict[str, Any]) -> dict[str, Any]:
     secret names, raw provider diagnostics, or probe errors.
     """
     allowed = {
-        'key', 'label', 'value', 'change', 'changePct', 'status', 'freshnessStatus',
+        'key', 'label', 'value', 'change', 'changePct', 'previousClose', 'status', 'freshnessStatus',
         'provider', 'sourceId', 'fetchedAt', 'dataAsOf', 'ttlMinutes', 'valuePolicy',
         'licenseNote', 'coreSignal', 'qualityStatus', 'dataAgeHours', 'freshnessRank',
         'reliability', 'lastSuccessfulAt',
         'staleSource',
+        # B3.24P display-only market-series-v1 (timestamp/value points only; no raw provider payloads)
+        'history',
     }
     out = {key: value for key, value in signal.items() if key in allowed}
+    if 'history' in out:
+        sanitized_history = sanitize_public_history(out.get('history'))
+        if sanitized_history is None:
+            out.pop('history', None)
+        else:
+            out['history'] = sanitized_history
     public_reason = public_signal_reason(signal)
     if public_reason:
         out.update(public_reason)
     return out
+
+
+def _parse_public_history_timestamp_ms(value: Any) -> int | None:
+    """Require a real UTC-parseable timestamp (not merely a non-empty string)."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        if value != value or value in (float('inf'), float('-inf')) or value <= 0:
+            return None
+        ts = int(value)
+        ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+    else:
+        raw = str(value).strip()
+        if not raw:
+            return None
+        if raw.isdigit() or (raw.startswith('-') and raw[1:].isdigit()):
+            try:
+                ts = int(raw)
+            except (TypeError, ValueError):
+                return None
+            if ts <= 0:
+                return None
+            ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+        else:
+            try:
+                normalized = raw.replace('Z', '+00:00') if raw.endswith('Z') else raw
+                dt = datetime.fromisoformat(normalized)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ms = int(dt.timestamp() * 1000)
+            except (TypeError, ValueError, OSError, OverflowError):
+                return None
+    if ms <= 0:
+        return None
+    try:
+        datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return None
+    return ms
+
+
+def _public_history_iso_utc(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def sanitize_public_history(history: Any) -> dict[str, Any] | None:
+    """Expose display-only series; parseable UTC timestamps only; sort/dedupe at public edge.
+
+    B3.24P2 public safety filter:
+    - timestamps must parse as real UTC instants (not mere non-empty strings)
+    - valid stamps normalized to YYYY-MM-DDTHH:MM:SSZ
+    - ascending sort + duplicate timestamps keep last value
+    - dataAsOf only when parseable ISO UTC; else null
+    - empty/non-string sourceId → unavailable empty points
+    - explicit unavailable always empties points
+    - interval fixed to 1d
+    """
+    if not isinstance(history, dict):
+        return None
+    status = history.get('status')
+    if status not in {'ok', 'partial', 'unavailable'}:
+        status = 'unavailable'
+    source_id = history.get('sourceId')
+    # Empty or non-string sourceId cannot be published as a usable series.
+    if not isinstance(source_id, str) or not source_id.strip():
+        return {
+            'version': 'market-series-v1',
+            'status': 'unavailable',
+            'interval': '1d',
+            'sourceId': source_id if isinstance(source_id, str) else None,
+            'dataAsOf': None,
+            'points': [],
+            'reason': history.get('reason') or 'missing_source_id',
+        }
+    source_id = source_id.strip()
+
+    points_out: list[dict[str, Any]] = []
+    # Explicit unavailable always empties points even if arrays look valid.
+    if status != 'unavailable':
+        seen: dict[str, float] = {}
+        order: list[tuple[int, str]] = []
+        for point in history.get('points') or []:
+            if not isinstance(point, dict):
+                continue
+            stamp = point.get('timestamp')
+            value = point.get('value')
+            ms = _parse_public_history_timestamp_ms(stamp)
+            if ms is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if numeric != numeric or numeric in (float('inf'), float('-inf')) or numeric <= 0:
+                continue
+            iso = _public_history_iso_utc(ms)
+            if iso not in seen:
+                order.append((ms, iso))
+            seen[iso] = numeric  # duplicate timestamps keep last
+        order.sort(key=lambda item: item[0])
+        used: set[str] = set()
+        for _ms, iso in order:
+            if iso in used:
+                continue
+            used.add(iso)
+            points_out.append({'timestamp': iso, 'value': seen[iso]})
+
+    if status == 'unavailable':
+        points_out = []
+    elif len(points_out) >= 2:
+        status = 'ok' if status == 'ok' else status
+    elif len(points_out) == 1:
+        status = 'partial'
+    else:
+        status = 'unavailable'
+
+    data_as_of = history.get('dataAsOf')
+    as_ms = _parse_public_history_timestamp_ms(data_as_of)
+    data_as_of_out = _public_history_iso_utc(as_ms) if as_ms is not None else None
+
+    return {
+        'version': 'market-series-v1',
+        'status': status,
+        'interval': '1d',
+        'sourceId': source_id,
+        'dataAsOf': data_as_of_out,
+        'points': points_out,
+        'reason': history.get('reason') if status != 'ok' else None,
+    }
 
 
 def public_signal_reason(signal: dict[str, Any]) -> dict[str, str] | None:

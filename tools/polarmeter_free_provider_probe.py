@@ -252,11 +252,148 @@ def data_go_kr_etf_probe(api_key: str | None) -> dict[str, Any]:
     return {'provider': provider, 'status': summarize(items), 'items': items, 'message': 'data.go.kr 15094806 금융위원회_증권상품시세정보'}
 
 
+def parse_series_timestamp_ms(value: Any) -> int | None:
+    """Parse a chart timestamp to UTC epoch milliseconds. Reject unparseable/invalid values."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        if value != value or value in (float('inf'), float('-inf')) or value <= 0:
+            return None
+        ts = int(value)
+    else:
+        raw = str(value).strip()
+        if not raw:
+            return None
+        if raw.isdigit() or (raw.startswith('-') and raw[1:].isdigit()):
+            try:
+                ts = int(raw)
+            except (TypeError, ValueError):
+                return None
+            if ts <= 0:
+                return None
+        else:
+            # ISO / date-like strings → UTC ms
+            try:
+                normalized = raw.replace('Z', '+00:00') if raw.endswith('Z') else raw
+                dt = datetime.fromisoformat(normalized)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ms = int(dt.timestamp() * 1000)
+                if ms <= 0:
+                    return None
+                # Round-trip check: must be a real calendar instant
+                datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+                return ms
+            except (TypeError, ValueError, OSError, OverflowError):
+                return None
+    # Yahoo returns unix seconds; large values are millis
+    ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+    if ms <= 0:
+        return None
+    try:
+        datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return None
+    return ms
+
+
+def to_iso_utc(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def sanitize_chart_series_points(timestamps: list[Any], closes: list[Any]) -> list[dict[str, Any]]:
+    """Keep only real daily points: positive finite close + parseable UTC timestamp.
+
+    Sorted ascending; duplicate timestamps keep the last close. ISO UTC stamps only.
+    """
+    points: list[tuple[int, float]] = []
+    length = min(len(timestamps or []), len(closes or []))
+    for idx in range(length):
+        ts_raw = timestamps[idx]
+        close_raw = closes[idx]
+        close = as_float(close_raw)
+        if close is None or close <= 0 or close != close:  # NaN check
+            continue
+        if close == float('inf') or close == float('-inf'):
+            continue
+        ms = parse_series_timestamp_ms(ts_raw)
+        if ms is None:
+            continue
+        points.append((ms, close))
+    points.sort(key=lambda item: item[0])
+    dedup: dict[str, float] = {}
+    for ms, close in points:
+        stamp = to_iso_utc(ms)
+        dedup[stamp] = close
+    return [{'timestamp': stamp, 'value': value} for stamp, value in sorted(dedup.items())]
+
+
+def build_market_series_v1(
+    *,
+    timestamps: list[Any] | None,
+    closes: list[Any] | None,
+    source_id: str,
+    data_as_of: str | None,
+    provider_status: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """B3.24 display-only series contract from public-chart-delayed bars."""
+    # Explicit unavailable/error — never promote points even if arrays look valid.
+    if provider_status in {'error', 'blocked_unapplied', 'unavailable'}:
+        return {
+            'version': 'market-series-v1',
+            'status': 'unavailable',
+            'interval': '1d',
+            'sourceId': source_id,
+            'dataAsOf': None,
+            'points': [],
+            'reason': reason or 'provider_error',
+        }
+    points = sanitize_chart_series_points(timestamps or [], closes or [])
+    if len(points) >= 2:
+        status = 'ok'
+    elif len(points) == 1:
+        status = 'partial'
+    else:
+        status = 'unavailable'
+    as_of = data_as_of or (points[-1]['timestamp'] if points else None)
+    if as_of is not None:
+        as_ms = parse_series_timestamp_ms(as_of)
+        as_of = to_iso_utc(as_ms) if as_ms is not None else None
+    return {
+        'version': 'market-series-v1',
+        'status': status,
+        'interval': '1d',
+        'sourceId': source_id,
+        'dataAsOf': as_of,
+        'points': points,
+        'reason': reason if status != 'ok' else None,
+    }
+
+
+def normalized_as_of_time(value: Any) -> str | None:
+    if value in (None, ''):
+        return None
+    try:
+        ts = int(value)
+    except (TypeError, ValueError):
+        return None
+    if ts <= 0:
+        return None
+    ms = ts if ts >= 1_000_000_000_000 else ts * 1000
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 def yahoo_chart_probe() -> dict[str, Any]:
     """Worker-side public delayed Yahoo chart probe for non-keyed macro/index gaps.
 
     The mobile app never receives direct provider URLs; it only receives the
     normalized cache snapshot produced by this worker.
+
+    B3.24: fetch 1y daily bars once — reuse for current value + history series
+    (no second range call; never stitch single snapshot values into a fake chart).
     """
     provider = 'public-chart-delayed'
     items: list[dict[str, Any]] = []
@@ -264,13 +401,17 @@ def yahoo_chart_probe() -> dict[str, Any]:
         symbol = signal.get('providerSymbol', {}).get('yahoo_chart')
         if not symbol:
             continue
-        url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=5d&interval=1d'
+        source_id = f'{provider}:{symbol}'
+        # Single 1y daily fetch serves both current fields and history series.
+        url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=1y&interval=1d'
+        history: dict[str, Any]
         try:
             data = fetch_json(url)
             result = (data.get('chart', {}).get('result') or [{}])[0]
             meta = result.get('meta') or {}
             quote = (result.get('indicators', {}).get('quote') or [{}])[0]
             closes = quote.get('close') or []
+            timestamps = result.get('timestamp') or []
             price, change, change_pct, previous, change_source = yahoo_chart_change_fields(
                 meta,
                 closes,
@@ -278,12 +419,30 @@ def yahoo_chart_probe() -> dict[str, Any]:
             )
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
+            data_as_of = normalized_as_of_time(meta.get('regularMarketTime'))
+            history = build_market_series_v1(
+                timestamps=timestamps,
+                closes=closes,
+                source_id=source_id,
+                data_as_of=data_as_of,
+                provider_status=status,
+                reason=reason,
+            )
         except Exception as exc:  # pragma: no cover - network diagnostic
-            price = change = change_pct = None
-            previous = change_source = None
+            price = change = change_pct = previous = None
+            change_source = 'error'
             meta = {}
             status = 'error'
             reason = str(exc)
+            # Provider failure: empty series only — never promote last-known-good history.
+            history = build_market_series_v1(
+                timestamps=[],
+                closes=[],
+                source_id=source_id,
+                data_as_of=None,
+                provider_status='error',
+                reason=reason,
+            )
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -296,8 +455,9 @@ def yahoo_chart_probe() -> dict[str, Any]:
             'changeSource': change_source,
             'asOf': meta.get('regularMarketTime'),
             'reason': reason,
+            'history': history,
         })
-    return {'provider': provider, 'status': summarize(items), 'items': items, 'message': 'Public delayed chart worker-side fetch; app receives normalized snapshot only'}
+    return {'provider': provider, 'status': summarize(items), 'items': items, 'message': 'Public delayed chart worker-side fetch (1y daily series); app receives normalized snapshot only'}
 
 
 def bok_ecos_fx_probe(api_key: str | None) -> dict[str, Any]:
