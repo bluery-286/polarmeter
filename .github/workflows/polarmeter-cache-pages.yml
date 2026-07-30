@@ -137,6 +137,7 @@ jobs:
         run: |
           python3 tools/polarmeter_provider_change_smoke.py
           PYTHONPATH=tools python3 tools/polarmeter_macro_release_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_news_tone_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_pages_strict_failure_contract.py
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
           python3 tools/polarmeter_github_pages_smoke.py --prepared-site ./_site

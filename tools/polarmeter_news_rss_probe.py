@@ -1751,6 +1751,45 @@ def inflation_stress_signal(text: str) -> bool:
     ))
 
 
+def mixed_inflation_relief_rate_burden_signal(text: str) -> bool:
+    """Treat equity gains plus inflation relief and rate burden as mixed, not negative."""
+    if not inflation_relief_signal(text):
+        return False
+    rate_burden = re.search(
+        r'(금리|국채|수익률|treasury|yield|rate).{0,24}(부담|압박|우려|높|긴축|pressure|higher)|'
+        r'(부담|압박|우려|높|긴축|pressure|higher).{0,24}(금리|국채|수익률|treasury|yield|rate)',
+        text,
+        re.I,
+    )
+    if not rate_burden:
+        return False
+    equity_subject = (
+        r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?|증시|stocks?|'
+        r'마이크로소프트|microsoft|엔비디아|nvidia|애플|apple|테슬라|tesla|아마존|amazon|메타|meta)'
+    )
+    up_words = r'(급등|상승|강세|반등|회복|surge|jump|rise|gain|rally|rebound|climb|higher)'
+    down_words = r'(급락|하락|약세|폭락|fall|drop|slip|slide|plunge|slump|lower)'
+    equity_up = re.search(
+        equity_subject + r'.{0,64}' + up_words + r'|' + up_words + r'.{0,64}' + equity_subject,
+        text,
+        re.I,
+    )
+    equity_down = re.search(
+        equity_subject + r'.{0,64}' + down_words + r'|' + down_words + r'.{0,64}' + equity_subject,
+        text,
+        re.I,
+    )
+    return bool(equity_up and not equity_down)
+
+
+def news_tone_explanation_conflict(tone: str, why: str) -> bool:
+    """Reject a single contradictory card without stopping the entire cache."""
+    return bool(
+        tone == 'negative'
+        and re.search(r'(걱정|부담|압박).{0,18}(줄|낮아|완화|덜)', str(why or ''), re.I)
+    )
+
+
 def tone_aligned_why(headline: str, display_headline: str, fallback_why: str, tone: str) -> str:
     text = f'{display_headline or ""} {headline or ""}'
     index_up = re.search(
@@ -1763,6 +1802,8 @@ def tone_aligned_why(headline: str, display_headline: str, fallback_why: str, to
     )
     if tone == 'neutral' and broad_index_up_company_mixed_signal(text):
         return '미국 주요 지수는 올랐지만 대표기업 흐름이 엇갈려 시장 온도에는 중립 신호로 봅니다.'
+    if tone == 'neutral' and mixed_inflation_relief_rate_burden_signal(text):
+        return '주가 상승과 물가 둔화가 보이지만 금리 부담도 남아 시장 온도에는 중립 신호로 봅니다.'
     if (
         re.search(r'(반도체|semiconductor|chip)', text, re.I)
         and re.search(r'(이란|중동|iran|middle\s*east)', text, re.I)
@@ -2077,7 +2118,12 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             display_impact_tone = market_burden_tone(display_headline or headline, final_impact_tone)
             if not mixed_company_signal and display_impact_tone in {'positive', 'negative'} and display_impact_tone != final_impact_tone:
                 final_impact_tone = display_impact_tone
+            if mixed_inflation_relief_rate_burden_signal(f'{headline} {display_headline or ""}'):
+                final_impact_tone = 'neutral'
             final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
+            if news_tone_explanation_conflict(final_impact_tone, final_why):
+                filtered_reasons['TONE_EXPLANATION_CONFLICT'] = filtered_reasons.get('TONE_EXPLANATION_CONFLICT', 0) + 1
+                continue
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if display_key in seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
