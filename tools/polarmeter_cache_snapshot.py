@@ -8,11 +8,14 @@ coverage explicit without calling paid providers.
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import re
 import tempfile
+import urllib.request
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from polarmeter_market_calendar import is_kr_market_active, is_us_market_active
 
@@ -46,8 +49,24 @@ KST = timezone(timedelta(hours=9))
 KR_INTRADAY_STALE_KEYS = {'kospi', 'kosdaq', 'kr_samsung'}
 ACTIVE_MARKET_MAX_AGE_HOURS = 3.0
 KR_ACTIVE_MARKET_STALE_KEYS = {'kospi', 'kosdaq', 'usd_krw'}
-US_ACTIVE_MARKET_STALE_KEYS = {'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix'}
+US_ACTIVE_MARKET_STALE_KEYS = {
+    'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix',
+    'us10y', 'dxy', 'wti', 'gold',
+}
 MACRO_RELEASE_GRACE = timedelta(hours=2)
+MACRO_OFFICIAL_FETCH_DELAY = timedelta(minutes=5)
+FEDERAL_RESERVE_HOST = 'https://www.federalreserve.gov'
+BLS_API_URL = 'https://api.bls.gov/publicAPI/v2/timeseries/data/'
+BLS_RELEASE_URLS = {
+    'us_cpi': 'https://www.bls.gov/news.release/cpi.nr0.htm',
+    'us_nonfarm_payrolls': 'https://www.bls.gov/news.release/empsit.nr0.htm',
+}
+BLS_SERIES = {
+    'cpi_sa': 'CUSR0000SA0',
+    'cpi_nsa': 'CUUR0000SA0',
+    'nonfarm_payrolls': 'CES0000000001',
+    'unemployment_rate': 'LNS14000000',
+}
 SCHEDULED_MACRO_EVENTS = {
     'us_nonfarm_payrolls': [
         ('2026-07-02T12:30:00Z', '6월 고용'),
@@ -71,6 +90,14 @@ SCHEDULED_MACRO_EVENTS = {
         ('2026-09-16T18:00:00Z', '9월 FOMC'),
         ('2026-10-28T18:00:00Z', '10월 FOMC'),
         ('2026-12-09T19:00:00Z', '12월 FOMC'),
+        ('2027-01-27T19:00:00Z', '1월 FOMC'),
+        ('2027-03-17T18:00:00Z', '3월 FOMC'),
+        ('2027-04-28T18:00:00Z', '4월 FOMC'),
+        ('2027-06-09T18:00:00Z', '6월 FOMC'),
+        ('2027-07-28T18:00:00Z', '7월 FOMC'),
+        ('2027-09-15T18:00:00Z', '9월 FOMC'),
+        ('2027-10-27T18:00:00Z', '10월 FOMC'),
+        ('2027-12-08T19:00:00Z', '12월 FOMC'),
     ],
 }
 LAST_MACRO_RELEASES = {
@@ -92,12 +119,12 @@ LAST_MACRO_RELEASES = {
         'burdenScore': 46,
     },
     'fomc_rate': {
-        'label': '6월 FOMC',
-        'releasedAt': '2026-06-17T18:00:00Z',
+        'label': '7월 FOMC',
+        'releasedAt': '2026-07-29T18:00:00Z',
         'resultLabel': '기준금리 3.50~3.75% 동결',
-        'detail': '미국 중앙은행은 금리를 유지했고, 이후 물가와 고용 발표가 다음 확인 포인트입니다.',
-        'sourceLabel': 'Federal Reserve FOMC · 2026-06-17',
-        'sourceUrl': 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260617a.htm',
+        'detail': '미국 중앙은행은 금리를 유지했습니다. 표결은 9대3이었고, 반대 3명은 0.25%포인트 인상을 원해 긴축 압력이 남았습니다.',
+        'sourceLabel': 'Federal Reserve FOMC · 2026-07-29',
+        'sourceUrl': 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260729a.htm',
     },
 }
 
@@ -125,7 +152,7 @@ SANITY_RANGES = {
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
     'us10y': {'minPrice': 1.0, 'maxPrice': 8.0, 'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 15.0, 'requiresChangePct': False},
     'dxy': {'minPrice': 70.0, 'maxPrice': 140.0, 'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
-    'vix_aux': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'requiresChangePct': False},
+    'vix': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'requiresChangePct': False},
     'wti': {'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': False},
     'gold': {'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
     'soxx': {'minPrice': 100, 'maxPrice': 1200, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
@@ -164,7 +191,292 @@ def parse_utc_datetime(value: Any) -> datetime | None:
         return None
 
 
-def build_macro_events(now: datetime | None = None) -> dict[str, Any]:
+def _rate_token_to_float(value: str) -> float:
+    token = str(value or '').strip().replace('‑', '-').replace('–', '-').replace('—', '-')
+    mixed = re.fullmatch(r'(\d+)-(\d+)/(\d+)', token)
+    if mixed:
+        whole, numerator, denominator = (int(part) for part in mixed.groups())
+        return whole + numerator / denominator
+    fraction = re.fullmatch(r'(\d+)/(\d+)', token)
+    if fraction:
+        numerator, denominator = (int(part) for part in fraction.groups())
+        return numerator / denominator
+    return float(token)
+
+
+def _clean_official_html(value: str) -> str:
+    text = re.sub(r'<script\b[^>]*>.*?</script>', ' ', value, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'<style\b[^>]*>.*?</style>', ' ', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    return re.sub(r'\s+', ' ', html.unescape(text)).strip()
+
+
+def parse_fomc_statement(
+    statement_html: str,
+    *,
+    label: str,
+    released_at: datetime,
+    source_url: str,
+) -> dict[str, Any]:
+    text = _clean_official_html(statement_html).replace('‑', '-').replace('–', '-').replace('—', '-')
+    decision_match = re.search(
+        r'decided to\s+(maintain|raise|lower)\s+the target range for the federal funds rate\s+at\s+'
+        r'(\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+to\s+'
+        r'(\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+percent',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not decision_match:
+        raise ValueError('official FOMC statement target range was not found')
+    action, low_raw, high_raw = decision_match.groups()
+    low = _rate_token_to_float(low_raw)
+    high = _rate_token_to_float(high_raw)
+    action_ko = {'maintain': '동결', 'raise': '인상', 'lower': '인하'}[action.lower()]
+    result_label = f'기준금리 {low:.2f}~{high:.2f}% {action_ko}'
+
+    detail = f'미국 중앙은행은 기준금리를 {low:.2f}~{high:.2f}%로 {action_ko}했습니다.'
+    vote_match = re.search(r'approved .*? by a\s+(\d+)\s*-\s*(\d+)\s+vote', text, flags=re.IGNORECASE)
+    dissent_match = re.search(
+        r'who preferred to\s+(raise|lower|maintain)\s+the target range.*?by\s+'
+        r'(\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+percentage point',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if vote_match:
+        detail += f' 표결은 {vote_match.group(1)}대{vote_match.group(2)}였습니다.'
+    if dissent_match:
+        dissent_action, move_raw = dissent_match.groups()
+        dissent_ko = {'raise': '인상', 'lower': '인하', 'maintain': '동결'}[dissent_action.lower()]
+        move = _rate_token_to_float(move_raw)
+        detail += f' 반대 의견은 {move:.2f}%포인트 {dissent_ko}을 원했습니다.'
+
+    return {
+        'label': label,
+        'releasedAt': released_at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'resultLabel': result_label,
+        'detail': detail,
+        'sourceLabel': f'Federal Reserve FOMC · {released_at.date().isoformat()}',
+        'sourceUrl': source_url,
+    }
+
+
+def fetch_official_fomc_release(
+    released_at: datetime,
+    label: str,
+    *,
+    fetch_text: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    release_date = released_at.astimezone(timezone.utc).date()
+    source_url = (
+        f'{FEDERAL_RESERVE_HOST}/newsevents/pressreleases/'
+        f'monetary{release_date.strftime("%Y%m%d")}a.htm'
+    )
+    if fetch_text is None:
+        def fetch_text(url: str) -> str:
+            request = urllib.request.Request(
+                url,
+                headers={
+                    'User-Agent': 'PolarMeter official macro release checker',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                },
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return response.read().decode('utf-8', errors='replace')
+    return parse_fomc_statement(
+        fetch_text(source_url),
+        label=label,
+        released_at=released_at,
+        source_url=source_url,
+    )
+
+
+def _reference_period(label: str, released_at: datetime) -> tuple[int, int]:
+    month_match = re.search(r'(\d{1,2})월', str(label or ''))
+    if not month_match:
+        raise ValueError(f'macro release label has no reference month: {label}')
+    month = int(month_match.group(1))
+    if not 1 <= month <= 12:
+        raise ValueError(f'macro release label has invalid reference month: {label}')
+    released = released_at.astimezone(timezone.utc)
+    year = released.year if month <= released.month else released.year - 1
+    return year, month
+
+
+def _previous_period(year: int, month: int, months: int = 1) -> tuple[int, int]:
+    absolute = year * 12 + month - 1 - months
+    return absolute // 12, absolute % 12 + 1
+
+
+def fetch_official_bls_series(
+    series_ids: list[str],
+    start_year: int,
+    end_year: int,
+) -> dict[str, Any]:
+    request_body = json.dumps({
+        'seriesid': series_ids,
+        'startyear': str(start_year),
+        'endyear': str(end_year),
+    }).encode('utf-8')
+    request = urllib.request.Request(
+        BLS_API_URL,
+        data=request_body,
+        headers={
+            'Content-Type': 'application/json',
+            'User-Agent': 'PolarMeter official macro release checker',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode('utf-8'))
+
+
+def _bls_series_points(payload: dict[str, Any]) -> dict[str, dict[tuple[int, int], float]]:
+    if payload.get('status') != 'REQUEST_SUCCEEDED':
+        raise ValueError(f'BLS API request failed: {payload.get("message")}')
+    output: dict[str, dict[tuple[int, int], float]] = {}
+    for series in (payload.get('Results') or {}).get('series') or []:
+        series_id = str(series.get('seriesID') or '')
+        points: dict[tuple[int, int], float] = {}
+        for item in series.get('data') or []:
+            period = str(item.get('period') or '')
+            if not re.fullmatch(r'M(0[1-9]|1[0-2])', period):
+                continue
+            try:
+                point = (int(item.get('year')), int(period[1:]))
+                points[point] = float(item.get('value'))
+            except (TypeError, ValueError):
+                continue
+        if series_id:
+            output[series_id] = points
+    return output
+
+
+def _required_bls_value(
+    points: dict[str, dict[tuple[int, int], float]],
+    series_id: str,
+    period: tuple[int, int],
+) -> float:
+    value = (points.get(series_id) or {}).get(period)
+    if value is None:
+        raise ValueError(f'BLS series {series_id} is missing period {period[0]}-{period[1]:02d}')
+    return value
+
+
+def _signed_percent(value: float) -> str:
+    rounded = round(value, 1)
+    if rounded == 0:
+        rounded = 0.0
+    return f'{rounded:+.1f}%'
+
+
+def _signed_job_change(delta_thousands: float) -> str:
+    ten_thousands = round(delta_thousands / 10.0, 1)
+    if ten_thousands == 0:
+        ten_thousands = 0.0
+    return f'{ten_thousands:+.1f}만명'
+
+
+def parse_bls_cpi_release(
+    payload: dict[str, Any],
+    *,
+    label: str,
+    released_at: datetime,
+    source_url: str,
+) -> dict[str, Any]:
+    year, month = _reference_period(label, released_at)
+    current = (year, month)
+    previous = _previous_period(year, month)
+    year_ago = (year - 1, month)
+    points = _bls_series_points(payload)
+    current_sa = _required_bls_value(points, BLS_SERIES['cpi_sa'], current)
+    previous_sa = _required_bls_value(points, BLS_SERIES['cpi_sa'], previous)
+    current_nsa = _required_bls_value(points, BLS_SERIES['cpi_nsa'], current)
+    year_ago_nsa = _required_bls_value(points, BLS_SERIES['cpi_nsa'], year_ago)
+    month_change = (current_sa / previous_sa - 1.0) * 100.0
+    year_change = (current_nsa / year_ago_nsa - 1.0) * 100.0
+    burden_score = int(max(0, min(100, round(50 + month_change * 20 + (year_change - 2.0) * 3))))
+    return {
+        'label': label,
+        'releasedAt': released_at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'resultLabel': f'물가 전월 대비 {_signed_percent(month_change)} · 전년 대비 {_signed_percent(year_change)}',
+        'detail': (
+            f'{label} 공식 지수는 전월 대비 {_signed_percent(month_change)}, '
+            f'전년 대비 {_signed_percent(year_change)}였습니다. '
+            '금리 부담이 낮아지는지와 달러·환율 반응을 함께 봅니다.'
+        ),
+        'sourceLabel': f'BLS CPI · {released_at.date().isoformat()}',
+        'sourceUrl': source_url,
+        'burdenScore': burden_score,
+    }
+
+
+def parse_bls_employment_release(
+    payload: dict[str, Any],
+    *,
+    label: str,
+    released_at: datetime,
+    source_url: str,
+) -> dict[str, Any]:
+    year, month = _reference_period(label, released_at)
+    current = (year, month)
+    previous = _previous_period(year, month)
+    points = _bls_series_points(payload)
+    current_jobs = _required_bls_value(points, BLS_SERIES['nonfarm_payrolls'], current)
+    previous_jobs = _required_bls_value(points, BLS_SERIES['nonfarm_payrolls'], previous)
+    unemployment = _required_bls_value(points, BLS_SERIES['unemployment_rate'], current)
+    change_thousands = current_jobs - previous_jobs
+    return {
+        'label': label,
+        'releasedAt': released_at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'resultLabel': f'일자리 {_signed_job_change(change_thousands)} · 실업률 {unemployment:.1f}%',
+        'detail': (
+            f'{label} 비농업 일자리는 전월보다 {_signed_job_change(change_thousands)} 변했고, '
+            f'실업률은 {unemployment:.1f}%였습니다. '
+            '고용 방향이 금리 기대와 경기 부담 중 어느 쪽을 키우는지 함께 봅니다.'
+        ),
+        'sourceLabel': f'BLS Employment Situation · {released_at.date().isoformat()}',
+        'sourceUrl': source_url,
+    }
+
+
+def fetch_official_bls_release(
+    key: str,
+    released_at: datetime,
+    label: str,
+    *,
+    fetch_series: Callable[[list[str], int, int], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    year, _month = _reference_period(label, released_at)
+    fetcher = fetch_series or fetch_official_bls_series
+    if key == 'us_cpi':
+        series_ids = [BLS_SERIES['cpi_sa'], BLS_SERIES['cpi_nsa']]
+        payload = fetcher(series_ids, year - 1, year)
+        return parse_bls_cpi_release(
+            payload,
+            label=label,
+            released_at=released_at,
+            source_url=BLS_RELEASE_URLS[key],
+        )
+    if key == 'us_nonfarm_payrolls':
+        series_ids = [BLS_SERIES['nonfarm_payrolls'], BLS_SERIES['unemployment_rate']]
+        payload = fetcher(series_ids, year - 1, year)
+        return parse_bls_employment_release(
+            payload,
+            label=label,
+            released_at=released_at,
+            source_url=BLS_RELEASE_URLS[key],
+        )
+    raise ValueError(f'unsupported BLS macro release key: {key}')
+
+
+def build_macro_events(
+    now: datetime | None = None,
+    *,
+    fomc_fetcher: Callable[[str], str] | None = None,
+    bls_fetcher: Callable[[list[str], int, int], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     events: dict[str, Any] = {}
     for key, schedule in SCHEDULED_MACRO_EVENTS.items():
@@ -175,15 +487,45 @@ def build_macro_events(now: datetime | None = None) -> dict[str, Any]:
         ]
         last_release = dict(LAST_MACRO_RELEASES.get(key) or {})
         released_at = parse_utc_datetime(last_release.get('releasedAt'))
-        due = [item for item in parsed_schedule if item[0] <= current - MACRO_RELEASE_GRACE]
-        if due and (released_at is None or released_at < due[-1][0]):
-            raise AssertionError(
-                f'macro release stale after official event: {key} '
-                f'due={due[-1][0].isoformat()} releasedAt={last_release.get("releasedAt")}'
-            )
+        fetch_due = [item for item in parsed_schedule if item[0] <= current - MACRO_OFFICIAL_FETCH_DELAY]
+        unresolved: tuple[datetime, str] | None = None
+        if fetch_due and (released_at is None or released_at < fetch_due[-1][0]):
+            unresolved = fetch_due[-1]
+            if key == 'fomc_rate':
+                try:
+                    last_release = fetch_official_fomc_release(
+                        unresolved[0],
+                        unresolved[1],
+                        fetch_text=fomc_fetcher,
+                    )
+                    released_at = parse_utc_datetime(last_release.get('releasedAt'))
+                    unresolved = None
+                except Exception:
+                    if unresolved[0] <= current - MACRO_RELEASE_GRACE:
+                        raise
+            elif key in BLS_RELEASE_URLS:
+                try:
+                    last_release = fetch_official_bls_release(
+                        key,
+                        unresolved[0],
+                        unresolved[1],
+                        fetch_series=bls_fetcher,
+                    )
+                    released_at = parse_utc_datetime(last_release.get('releasedAt'))
+                    unresolved = None
+                except Exception:
+                    if unresolved[0] <= current - MACRO_RELEASE_GRACE:
+                        raise
+            elif unresolved[0] <= current - MACRO_RELEASE_GRACE:
+                raise AssertionError(
+                    f'macro release stale after official event: '
+                    f'{key} due={unresolved[0].isoformat()} releasedAt={last_release.get("releasedAt")}'
+                )
         upcoming = next((item for item in parsed_schedule if item[0] > current), None)
+        if unresolved is not None:
+            upcoming = unresolved
         events[key] = {
-            'status': 'ok' if last_release else 'unavailable',
+            'status': 'awaiting_official' if unresolved is not None else ('ok' if last_release else 'unavailable'),
             'sourcePolicy': 'official_release_registry_with_expiry_gate',
             'lastRelease': last_release or None,
             'nextRelease': {
@@ -428,6 +770,12 @@ def signal_reliability(key: str, provider: str, status: str, reason: str | None 
                 'sourceClass': 'stale_last_known_good',
                 'displayBadge': '지연된 값 · 참고만',
                 'confidencePolicy': 'low_on_provider_rate_limit',
+            }
+        if status == 'suspect':
+            return {
+                'sourceClass': 'volatility_index_large_move',
+                'displayBadge': '변동 큼 · 확인 전',
+                'confidencePolicy': 'low_large_move_until_corroborated',
             }
         return {'sourceClass': 'volatility_index', 'displayBadge': '지연 시세', 'confidencePolicy': 'normal'}
     if key == 'gold' and status == 'suspect':

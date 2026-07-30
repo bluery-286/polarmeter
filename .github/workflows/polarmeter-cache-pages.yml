@@ -19,6 +19,10 @@ on:
     - cron: '35 14,15 * * 1-5'
     - cron: '20 20,21 * * 1-5'
     - cron: '5 21,22 * * 1-5'
+    # Official US macro release watch. The lightweight guard below only builds
+    # when CPI, Employment Situation, or FOMC is within the release window.
+    - cron: '6,21,36,51 12,13,14 * * 1-5'
+    - cron: '6,21,36,51 18,19 * * 1-5'
     # Weekends: hourly headline/cache check. The worker keeps market data
     # labeled by dataAsOf instead of pretending closed markets are live.
     - cron: '17 * * * 0,6'
@@ -38,6 +42,7 @@ jobs:
         id: cache_guard
         env:
           CACHE_MANIFEST_URL: https://polarmeter.polarbearworks.com/market-snapshot-manifest.json
+          CACHE_SNAPSHOT_URL: https://polarmeter.polarbearworks.com/market-snapshot-latest.json
           MIN_MINUTES_BEFORE_NEXT_REFRESH: '15'
           GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
@@ -61,10 +66,39 @@ jobs:
               '20 20,21 * * 1-5',
               '5 21,22 * * 1-5',
           }
+          macro_watch_schedules = {
+              '6,21,36,51 12,13,14 * * 1-5',
+              '6,21,36,51 18,19 * * 1-5',
+          }
           should_build = True
           reason = 'manual dispatch always builds'
 
-          if event_name == 'schedule' and event_schedule in critical_market_schedules:
+          if event_name == 'schedule' and event_schedule in macro_watch_schedules:
+              should_build = False
+              reason = 'no official macro release inside the watch window'
+              try:
+                  request = urllib.request.Request(
+                      os.environ['CACHE_SNAPSHOT_URL'],
+                      headers={'Cache-Control': 'no-cache', 'Pragma': 'no-cache'},
+                  )
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      snapshot = json.loads(response.read().decode('utf-8'))
+                  now = datetime.now(timezone.utc)
+                  for key, event in (snapshot.get('macroEvents') or {}).items():
+                      next_release = (event or {}).get('nextRelease') or {}
+                      scheduled_at = next_release.get('scheduledAt')
+                      if not scheduled_at:
+                          continue
+                      scheduled = datetime.fromisoformat(str(scheduled_at).replace('Z', '+00:00')).astimezone(timezone.utc)
+                      minutes_since = (now - scheduled).total_seconds() / 60
+                      if -15 <= minutes_since <= 120:
+                          should_build = True
+                          reason = f'official macro release watch forces build: {key} {minutes_since:.1f}m'
+                          break
+              except Exception as error:
+                  should_build = True
+                  reason = f'macro release watch could not read snapshot; build to recover: {error}'
+          elif event_name == 'schedule' and event_schedule in critical_market_schedules:
               reason = f'critical market confirmation schedule forces build: {event_schedule}'
           elif event_name != 'workflow_dispatch':
               url = os.environ['CACHE_MANIFEST_URL']
@@ -102,6 +136,8 @@ jobs:
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
         run: |
           python3 tools/polarmeter_provider_change_smoke.py
+          PYTHONPATH=tools python3 tools/polarmeter_macro_release_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_pages_strict_failure_contract.py
           python3 tools/polarmeter_github_pages_prepare.py --output ./_site
           python3 tools/polarmeter_github_pages_smoke.py --prepared-site ./_site
       - uses: actions/upload-pages-artifact@v3
