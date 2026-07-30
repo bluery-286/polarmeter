@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from polarmeter_cache_snapshot import validate_candidate
+from polarmeter_cache_snapshot import (
+    US_ACTIVE_MARKET_STALE_KEYS,
+    signal_reliability,
+    validate_candidate,
+)
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
 from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
@@ -41,6 +45,17 @@ def main() -> int:
     )
     assert status == "suspect"
     assert reason == "changePct_suspect>6.0"
+
+    status, reason = validate_candidate(
+        "vix",
+        {"status": "ok", "price": 20.66, "changePct": 13.45},
+    )
+    assert status == "suspect"
+    assert reason == "changePct_suspect>12.0"
+    assert {'us10y', 'dxy', 'wti', 'gold'}.issubset(US_ACTIVE_MARKET_STALE_KEYS)
+    vix_reliability = signal_reliability('vix', 'public-chart-delayed', status, reason)
+    assert vix_reliability['displayBadge'] == '변동 큼 · 확인 전'
+    assert vix_reliability['confidencePolicy'] == 'low_large_move_until_corroborated'
 
     cpi_relief_headline = (
         "Today’s Market Recap: CPI Cooling Ignites AI Tech Stock Rally, "

@@ -272,6 +272,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--site', type=Path, default=DEFAULT_SITE)
     parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        '--allow-stale-fallback',
+        action='store_true',
+        help='Local-preview escape hatch only: reuse the prior public payload when fresh generation fails.',
+    )
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
 
@@ -289,7 +294,7 @@ def main() -> int:
     try:
         summary = run_worker(args.output, LAST_KNOWN_GOOD)
     except Exception as error:
-        if not fallback_public_files:
+        if not args.allow_stale_fallback or not fallback_public_files:
             raise
         print(f'warning: worker failed; trying current public cache fallback: {error}', file=sys.stderr)
         restore_public_files(args.output, fallback_public_files)
@@ -304,7 +309,9 @@ def main() -> int:
             },
             reused_existing=True,
         )
-    if not public_payload_is_publishable(args.output) and fallback_public_files:
+    if not public_payload_is_publishable(args.output):
+        if not args.allow_stale_fallback or not fallback_public_files:
+            raise RuntimeError('fresh Pages payload is not publishable; refusing to report success with old public data')
         restore_public_files(args.output, fallback_public_files)
         summary = summary_from_public_payload(args.output, summary, reused_existing=True)
     else:
