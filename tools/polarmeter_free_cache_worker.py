@@ -169,12 +169,20 @@ def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.Comple
 
 def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
     """Fail the worker before fixture/public publishing when selected data is stale."""
-    run([
-        sys.executable,
-        str(APP_TOOLS / 'polarmeter_data_freshness_audit.py'),
-        str(snapshot_path),
-        str(report_path),
-    ])
+    try:
+        run([
+            sys.executable,
+            str(APP_TOOLS / 'polarmeter_data_freshness_audit.py'),
+            str(snapshot_path),
+            str(report_path),
+        ])
+    except subprocess.CalledProcessError as error:
+        details = '\n'.join(
+            part.strip()
+            for part in (error.stdout or '', error.stderr or '')
+            if part and part.strip()
+        )
+        raise RuntimeError(f'data freshness audit failed:\n{details or "no child output"}') from error
 
 
 def load_json(path: Path) -> dict[str, Any]:

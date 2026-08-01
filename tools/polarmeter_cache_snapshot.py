@@ -1021,6 +1021,18 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
     return out
 
 
+def candidate_selection_key(candidate: dict[str, Any]) -> tuple[int, float, int]:
+    """Prefer materially fresher displayable data before quality labels.
+
+    A fresh suspect value is still shown with low confidence. This prevents an
+    older value labelled ok from silently winning while the freshness audit
+    correctly rejects that stale selection.
+    """
+    age_hours = candidate.get('ageHours')
+    age_score = -float(age_hours) if isinstance(age_hours, (int, float)) else -999999.0
+    return int(candidate.get('freshnessRank') or 0), age_score, int(candidate.get('qualityRank') or 0)
+
+
 def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, Any]]], last_good: dict[str, Any]) -> dict[str, Any]:
     key = signal['key']
     failures: list[dict[str, Any]] = []
@@ -1050,16 +1062,18 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
             failures.append(failure)
             if quality in {'ok', 'suspect', 'partial'}:
                 out = normalize_signal(signal, provider, item, status=quality, reason=reason)
+                age_hours = candidate_age_hours(item)
                 candidates.append({
                     'signal': out,
                     'quality': quality,
                     'qualityRank': quality_rank[quality],
                     'freshnessRank': candidate_freshness_rank(item),
+                    'ageHours': age_hours,
                 })
 
     showable_candidates = [item for item in candidates if item['quality'] in {'ok', 'suspect'}]
     if showable_candidates:
-        best = max(showable_candidates, key=lambda item: (item['freshnessRank'], item['qualityRank']))
+        best = max(showable_candidates, key=candidate_selection_key)
         best['signal']['fallbackChain'] = failures
         return best['signal']
     last_good_signal = stale_from_last_good(signal, last_good, failures[-1]['reason'] if failures else 'provider_unavailable')
@@ -1068,7 +1082,7 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
         return last_good_signal
     partial_candidates = [item for item in candidates if item['quality'] == 'partial']
     if partial_candidates:
-        best = max(partial_candidates, key=lambda item: (item['freshnessRank'], item['qualityRank']))
+        best = max(partial_candidates, key=candidate_selection_key)
         best['signal']['fallbackChain'] = failures
         return best['signal']
     return {
