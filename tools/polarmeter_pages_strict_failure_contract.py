@@ -44,7 +44,15 @@ def main() -> None:
             'asOf': int((now - timedelta(hours=60)).timestamp()),
         }],
     }
-    selected = cache.choose_signal(signal, providers, {})
+    # This contract isolates candidate ordering from the separate live-market
+    # staleness guards. Without the isolation, the same fixed 26h/60h fixture
+    # becomes stale only during Korea market hours and makes CI time-dependent.
+    with (
+        patch.object(cache, 'kr_intraday_stale_reason', return_value=None),
+        patch.object(cache, 'active_market_stale_reason', return_value=None),
+        patch.object(cache, 'hard_stale_reason', return_value=None),
+    ):
+        selected = cache.choose_signal(signal, providers, {})
     assert selected['provider'] == 'public-chart-delayed'
     assert selected['status'] == 'suspect'
     assert selected['valuePolicy'] == 'show'
