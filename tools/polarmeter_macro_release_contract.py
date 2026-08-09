@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 import polarmeter_cache_snapshot as snapshot
@@ -53,6 +54,24 @@ SYNTHETIC_BLS_PAYLOAD = {
         ],
     },
 }
+
+
+def raising_fetcher(error: BaseException):
+    def fetcher(_series, _start, _end):
+        raise error
+
+    return fetcher
+
+
+def assert_raises_value_error(fetcher, message: str) -> None:
+    try:
+        snapshot.build_macro_events(
+            now=datetime(2026, 8, 12, 14, 31, tzinfo=timezone.utc),
+            bls_fetcher=fetcher,
+        )
+    except ValueError:
+        return
+    raise AssertionError(message)
 
 
 def main() -> None:
@@ -130,19 +149,44 @@ def main() -> None:
             },
         )
         assert awaiting['us_cpi']['status'] == 'awaiting_official'
+        assert_raises_value_error(
+            lambda _series, _start, _end: {
+                'status': 'REQUEST_SUCCEEDED',
+                'message': [],
+                'Results': {'series': []},
+            },
+            'missing official CPI result remained silently successful after two hours',
+        )
+        assert_raises_value_error(
+            raising_fetcher(ValueError('invalid official BLS response')),
+            'invalid official BLS response remained silently successful after two hours',
+        )
+
+        for transient_error in [
+            HTTPError(snapshot.BLS_API_URL, 429, 'Too Many Requests', None, None),
+            HTTPError(snapshot.BLS_API_URL, 503, 'Service Unavailable', None, None),
+            URLError('planned maintenance'),
+            TimeoutError('official BLS request timed out'),
+        ]:
+            delayed = snapshot.build_macro_events(
+                now=datetime(2026, 8, 12, 14, 31, tzinfo=timezone.utc),
+                bls_fetcher=raising_fetcher(transient_error),
+            )
+            assert delayed['us_cpi']['status'] == 'awaiting_official'
+            assert delayed['us_cpi']['lastRelease']['label'] == '6월 CPI'
+            assert delayed['us_cpi']['nextRelease']['label'] == '7월 CPI'
+
         try:
             snapshot.build_macro_events(
                 now=datetime(2026, 8, 12, 14, 31, tzinfo=timezone.utc),
-                bls_fetcher=lambda _series, _start, _end: {
-                    'status': 'REQUEST_SUCCEEDED',
-                    'message': [],
-                    'Results': {'series': []},
-                },
+                bls_fetcher=raising_fetcher(
+                    HTTPError(snapshot.BLS_API_URL, 404, 'Not Found', None, None),
+                ),
             )
-        except ValueError:
-            pass
+        except HTTPError as error:
+            assert error.code == 404
         else:
-            raise AssertionError('missing official CPI result remained silently successful after two hours')
+            raise AssertionError('HTTP 404 remained silently successful after two hours')
 
     assert snapshot.SCHEDULED_MACRO_EVENTS['fomc_rate'][-1] == (
         '2027-12-08T19:00:00Z',

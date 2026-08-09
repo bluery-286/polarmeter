@@ -12,6 +12,7 @@ import html
 import json
 import re
 import tempfile
+import urllib.error
 import urllib.request
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -471,6 +472,12 @@ def fetch_official_bls_release(
     raise ValueError(f'unsupported BLS macro release key: {key}')
 
 
+def _is_transient_bls_fetch_error(error: BaseException) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or 500 <= error.code <= 599
+    return isinstance(error, (urllib.error.URLError, TimeoutError))
+
+
 def build_macro_events(
     now: datetime | None = None,
     *,
@@ -513,8 +520,11 @@ def build_macro_events(
                     )
                     released_at = parse_utc_datetime(last_release.get('releasedAt'))
                     unresolved = None
-                except Exception:
-                    if unresolved[0] <= current - MACRO_RELEASE_GRACE:
+                except Exception as error:
+                    if (
+                        unresolved[0] <= current - MACRO_RELEASE_GRACE
+                        and not _is_transient_bls_fetch_error(error)
+                    ):
                         raise
             elif unresolved[0] <= current - MACRO_RELEASE_GRACE:
                 raise AssertionError(
