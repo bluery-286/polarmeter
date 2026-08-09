@@ -42,6 +42,7 @@ MAX_STALE_SIGNAL_AGE_HOURS = {
     'wti': 72,
     'kospi': 96,
     'kosdaq': 96,
+    'kr_samsung': 96,
     'us10y': 96,
     'dxy': 96,
     'gold': 96,

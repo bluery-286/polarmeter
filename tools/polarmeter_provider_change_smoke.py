@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from polarmeter_cache_snapshot import (
+    MAX_STALE_SIGNAL_AGE_HOURS,
     US_ACTIVE_MARKET_STALE_KEYS,
+    hard_stale_reason,
     signal_reliability,
+    stale_signal_is_too_old,
     validate_candidate,
 )
 from polarmeter_free_provider_probe import yahoo_chart_change_fields
@@ -56,6 +59,15 @@ def main() -> int:
     vix_reliability = signal_reliability('vix', 'public-chart-delayed', status, reason)
     assert vix_reliability['displayBadge'] == '변동 큼 · 확인 전'
     assert vix_reliability['confidencePolicy'] == 'low_large_move_until_corroborated'
+
+    now = datetime.now(timezone.utc)
+    old_samsung_at = (now - timedelta(hours=120)).isoformat().replace('+00:00', 'Z')
+    recent_samsung_at = (now - timedelta(hours=48)).isoformat().replace('+00:00', 'Z')
+    assert MAX_STALE_SIGNAL_AGE_HOURS['kr_samsung'] == 96
+    assert hard_stale_reason('kr_samsung', 'data-go-kr-free', {'asOf': old_samsung_at}) is not None
+    assert hard_stale_reason('kr_samsung', 'data-go-kr-free', {'asOf': recent_samsung_at}) is None
+    assert stale_signal_is_too_old('kr_samsung', {'dataAsOf': old_samsung_at})
+    assert not stale_signal_is_too_old('kr_samsung', {'dataAsOf': recent_samsung_at})
 
     cpi_relief_headline = (
         "Today’s Market Recap: CPI Cooling Ignites AI Tech Stock Rally, "
