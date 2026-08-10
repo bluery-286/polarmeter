@@ -12,6 +12,7 @@ from unittest.mock import patch
 import polarmeter_cache_snapshot as cache
 import polarmeter_free_cache_worker as worker
 import polarmeter_github_pages_prepare as prepare
+import polarmeter_github_pages_smoke as pages_smoke
 
 
 WORKSPACE = Path(__file__).resolve().parent.parent
@@ -19,6 +20,23 @@ WORKFLOW = WORKSPACE / '.github/workflows/polarmeter-cache-pages.yml'
 
 
 def main() -> None:
+    cpi_preview = 'Nasdaq 100: Tech Stocks Lead Monday’s Pre-Market Bid Ahead of CPI'
+    assert not pages_smoke.is_expired_cpi_preview(
+        cpi_preview,
+        '2026-08-10T10:18:00Z',
+        '2026-08-12T12:30:00Z',
+    )
+    assert pages_smoke.is_expired_cpi_preview(
+        cpi_preview,
+        '2026-08-12T12:31:00Z',
+        '2026-08-12T12:30:00Z',
+    )
+    assert not pages_smoke.is_expired_cpi_preview(
+        'Nasdaq 100 rises as chip stocks rebound',
+        '2026-08-12T12:31:00Z',
+        '2026-08-12T12:30:00Z',
+    )
+
     now = datetime.now(timezone.utc)
     signal = {
         'key': 'kospi',
