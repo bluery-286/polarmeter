@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parents[1]
@@ -29,6 +30,23 @@ REQUIRED_FILES = [
     'market-snapshot-manifest.json',
     'health.json',
 ]
+
+
+def parse_utc(value: object) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value or '').replace('Z', '+00:00')).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def is_expired_cpi_preview(headline_bundle: str, generated_at: object, scheduled_at: object) -> bool:
+    if not re.search(r'\bcpi\b', headline_bundle, re.I):
+        return False
+    if not re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview', headline_bundle, re.I):
+        return False
+    generated = parse_utc(generated_at)
+    scheduled = parse_utc(scheduled_at)
+    return generated is not None and scheduled is not None and generated >= scheduled
 
 
 def run_prepare(out: Path) -> dict:
@@ -124,7 +142,7 @@ def validate_payload(out: Path) -> dict:
         if tone == 'negative' and re.search(r'(걱정|부담|압박).{0,18}(줄|낮아|완화|덜)', why):
             raise AssertionError(f'negative news must not carry a relief explanation: {item.get("displayHeadline") or item.get("headline")}')
         headline_bundle = ' '.join(str(item.get(key) or '') for key in ('headline', 'displayHeadline', 'originalHeadline'))
-        if re.search(r'\bcpi\b', headline_bundle, re.I) and re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview', headline_bundle, re.I):
+        if is_expired_cpi_preview(headline_bundle, snapshot.get('generatedAt'), cpi_next.get('scheduledAt')):
             raise AssertionError(f'pages snapshot must not keep an expired CPI preview: {item.get("headline")}')
     if manifest.get('okNewsCount', 0) < 10:
         raise AssertionError('manifest must expose cached news count')
