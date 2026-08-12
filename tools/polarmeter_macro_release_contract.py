@@ -7,6 +7,7 @@ from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 import polarmeter_cache_snapshot as snapshot
+from polarmeter_github_pages_smoke import validate_cpi_rollover
 
 
 SYNTHETIC_FOMC_HTML = """
@@ -175,6 +176,10 @@ def main() -> None:
             assert delayed['us_cpi']['status'] == 'awaiting_official'
             assert delayed['us_cpi']['lastRelease']['label'] == '6월 CPI'
             assert delayed['us_cpi']['nextRelease']['label'] == '7월 CPI'
+            validate_cpi_rollover({
+                'generatedAt': '2026-08-12T14:31:00Z',
+                'macroEvents': delayed,
+            })
 
         try:
             snapshot.build_macro_events(

@@ -32,6 +32,13 @@ REQUIRED_FILES = [
 ]
 
 
+sys.path.insert(0, str(TOOLS))
+from polarmeter_cache_snapshot import (  # noqa: E402
+    MACRO_OFFICIAL_FETCH_DELAY,
+    SCHEDULED_MACRO_EVENTS,
+)
+
+
 def parse_utc(value: object) -> datetime | None:
     try:
         return datetime.fromisoformat(str(value or '').replace('Z', '+00:00')).astimezone(timezone.utc)
@@ -47,6 +54,59 @@ def is_expired_cpi_preview(headline_bundle: str, generated_at: object, scheduled
     generated = parse_utc(generated_at)
     scheduled = parse_utc(scheduled_at)
     return generated is not None and scheduled is not None and generated >= scheduled
+
+
+def parse_utc_required(value: object) -> datetime:
+    parsed = parse_utc(value)
+    if parsed is None:
+        raise AssertionError(f'invalid UTC timestamp: {value!r}')
+    return parsed
+
+
+def validate_cpi_rollover(snapshot: dict) -> None:
+    """Validate CPI against the official schedule instead of one fixed month."""
+    generated_at = parse_utc_required(snapshot.get('generatedAt'))
+    schedule = [
+        (parse_utc_required(scheduled_at), label)
+        for scheduled_at, label in SCHEDULED_MACRO_EVENTS['us_cpi']
+    ]
+    fetch_due = [item for item in schedule if item[0] <= generated_at - MACRO_OFFICIAL_FETCH_DELAY]
+    if not fetch_due:
+        raise AssertionError('pages snapshot CPI schedule has no release due before generatedAt')
+
+    latest_due_at, latest_due_label = fetch_due[-1]
+    cpi = ((snapshot.get('macroEvents') or {}).get('us_cpi') or {})
+    if cpi.get('sourcePolicy') != 'official_release_registry_with_expiry_gate':
+        raise AssertionError('pages snapshot CPI must use the official release expiry gate')
+    if cpi.get('status') not in {'ok', 'awaiting_official'}:
+        raise AssertionError(f"pages snapshot CPI status is not publishable: {cpi.get('status')}")
+
+    last_release = cpi.get('lastRelease') or {}
+    next_release = cpi.get('nextRelease') or {}
+    if cpi.get('status') == 'ok':
+        if last_release.get('label') != latest_due_label:
+            raise AssertionError(
+                f'pages snapshot CPI did not roll to {latest_due_label}: '
+                f"{last_release.get('label')}"
+            )
+        if parse_utc_required(last_release.get('releasedAt')) != latest_due_at:
+            raise AssertionError('pages snapshot CPI releasedAt does not match the official schedule')
+        for field in ('resultLabel', 'detail', 'sourceLabel', 'sourceUrl'):
+            if not last_release.get(field):
+                raise AssertionError(f'pages snapshot official CPI result missing {field}')
+        if not str(last_release.get('sourceUrl')).startswith('https://www.bls.gov/news.release/cpi'):
+            raise AssertionError('pages snapshot CPI result must cite the official BLS release')
+        upcoming = next((item for item in schedule if item[0] > generated_at), None)
+        if upcoming:
+            expected_at, expected_label = upcoming
+            if next_release.get('label') != expected_label or parse_utc_required(next_release.get('scheduledAt')) != expected_at:
+                raise AssertionError('pages snapshot CPI next release did not roll forward')
+    else:
+        if next_release.get('label') != latest_due_label or parse_utc_required(next_release.get('scheduledAt')) != latest_due_at:
+            raise AssertionError('pages snapshot awaiting CPI must point to the unresolved official release')
+        released_at = parse_utc_required(last_release.get('releasedAt'))
+        if released_at >= latest_due_at:
+            raise AssertionError('pages snapshot awaiting CPI cannot already contain the due release')
 
 
 def run_prepare(out: Path) -> dict:
@@ -111,14 +171,8 @@ def validate_payload(out: Path) -> dict:
                 raise AssertionError(f'pages snapshot non-ok signal missing public reason: {key}')
     macro_events = snapshot.get('macroEvents') or {}
     cpi = macro_events.get('us_cpi') or {}
-    cpi_last = cpi.get('lastRelease') or {}
     cpi_next = cpi.get('nextRelease') or {}
-    if cpi_last.get('resultLabel') != '물가 전월 대비 -0.4% · 전년 대비 +3.5%':
-        raise AssertionError('pages snapshot must expose the official June 2026 CPI result')
-    if cpi_next.get('scheduledAt') != '2026-08-12T12:30:00Z':
-        raise AssertionError('pages snapshot must roll CPI forward to the August 12 release')
-    if cpi.get('sourcePolicy') != 'official_release_registry_with_expiry_gate':
-        raise AssertionError('pages snapshot CPI must use the official release expiry gate')
+    validate_cpi_rollover(snapshot)
     news = snapshot.get('news') or {}
     if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
         raise AssertionError('cached news policy fields must be false')
