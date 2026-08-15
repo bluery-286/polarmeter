@@ -67,6 +67,16 @@ def assert_action_pinning() -> None:
                 assert PINNED_ACTION.match(line), f'unpinned or unapproved action: {workflow}:{line_number}'
 
 
+def assert_single_pages_publisher() -> None:
+    workflow_dir = ROOT / '.github' / 'workflows'
+    cache_workflow = (workflow_dir / 'polarmeter-cache-pages.yml').read_text(encoding='utf-8')
+    static_workflow = (workflow_dir / 'polarmeter-static-pages.yml').read_text(encoding='utf-8')
+    assert 'git push --force origin HEAD:gh-pages' in cache_workflow
+    assert 'deploy-pages' not in static_workflow
+    assert not re.search(r'^\s*pages:\s*write\s*$', static_workflow, re.M)
+    assert 'without publishing' in static_workflow
+
+
 def assert_public_payload_clean(public_dir: Path) -> None:
     assert public_dir.is_dir(), f'public payload directory is missing: {public_dir}'
     for path in sorted(public_dir.rglob('*')):
@@ -91,6 +101,7 @@ def main() -> int:
     assert_error_redaction()
     assert_news_url_policy()
     assert_action_pinning()
+    assert_single_pages_publisher()
     assert_public_payload_clean(args.public_dir)
     assert_secret_files_ignored()
     print('PolarMeter security contract: PASS')
