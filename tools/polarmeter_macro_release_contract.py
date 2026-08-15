@@ -76,6 +76,11 @@ def assert_raises_value_error(fetcher, message: str) -> None:
 
 
 def main() -> None:
+    cleaned = snapshot._clean_official_html(
+        '<p>Keep this</p><script >discard()</script ><style >.hide{}</style ><p>and that &amp; this</p>'
+    )
+    assert cleaned == 'Keep this and that & this'
+
     parsed = snapshot.parse_fomc_statement(
         SYNTHETIC_FOMC_HTML,
         label='9월 FOMC',
