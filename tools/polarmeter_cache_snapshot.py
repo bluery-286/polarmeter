@@ -15,6 +15,7 @@ import tempfile
 import urllib.error
 import urllib.request
 from datetime import datetime, time, timedelta, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
 
@@ -206,11 +207,34 @@ def _rate_token_to_float(value: str) -> float:
     return float(token)
 
 
+class _OfficialTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._blocked_depth = 0
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del attrs
+        if tag.lower() in {'script', 'style'}:
+            self._blocked_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {'script', 'style'} and self._blocked_depth:
+            self._blocked_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._blocked_depth:
+            self._parts.append(data)
+
+    def text(self) -> str:
+        return ' '.join(self._parts)
+
+
 def _clean_official_html(value: str) -> str:
-    text = re.sub(r'<script\b[^>]*>.*?</script>', ' ', value, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'<style\b[^>]*>.*?</style>', ' ', text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'<[^>]+>', ' ', text)
-    return re.sub(r'\s+', ' ', html.unescape(text)).strip()
+    parser = _OfficialTextExtractor()
+    parser.feed(str(value or ''))
+    parser.close()
+    return re.sub(r'\s+', ' ', html.unescape(parser.text())).strip()
 
 
 def parse_fomc_statement(
