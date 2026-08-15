@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import email.utils
+import ipaddress
 import json
 import re
 import sys
@@ -2022,8 +2023,43 @@ def parse_date(value: str | None) -> str | None:
         return None
 
 
+def safe_public_news_url(value: Any) -> str | None:
+    """Accept only public HTTPS links without credentials or local addresses."""
+    url = str(value or '').strip()
+    if not url or any(ord(char) < 32 or ord(char) == 127 for char in url):
+        return None
+    try:
+        parsed = urllib.parse.urlparse(url)
+        _ = parsed.port
+    except ValueError:
+        return None
+    if parsed.scheme.lower() != 'https' or not parsed.hostname:
+        return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    hostname = parsed.hostname.rstrip('.').lower()
+    if hostname == 'localhost' or hostname.endswith(('.localhost', '.local')):
+        return None
+    try:
+        if not ipaddress.ip_address(hostname).is_global:
+            return None
+    except ValueError:
+        pass
+    return url
+
+
 def fetch_feed(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, Any]:
-    request = urllib.request.Request(feed['url'], headers={'User-Agent': USER_AGENT})
+    feed_url = safe_public_news_url(feed.get('url'))
+    if not feed_url:
+        return {
+            'sourceId': feed['sourceId'],
+            'label': feed.get('label'),
+            'region': feed.get('region'),
+            'status': 'invalid_url',
+            'urlHost': '',
+            'items': [],
+        }
+    request = urllib.request.Request(feed_url, headers={'User-Agent': USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read(1_000_000)
@@ -2032,7 +2068,7 @@ def fetch_feed(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, A
         seen: set[str] = set()
         for node in root.findall('.//item'):
             title = clean_text(node.findtext('title'))
-            link = clean_text(node.findtext('link'))
+            link = safe_public_news_url(clean_text(node.findtext('link')))
             published_at = parse_date(node.findtext('pubDate'))
             if feed['sourceId'].startswith('rss:google-news'):
                 title, source_name = split_google_news_source(title, 'Google News RSS')
@@ -2056,9 +2092,9 @@ def fetch_feed(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, A
             })
             if len(items) >= limit:
                 break
-        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'ok' if items else 'empty', 'urlHost': urllib.parse.urlparse(feed['url']).netloc, 'items': items}
+        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'ok' if items else 'empty', 'urlHost': urllib.parse.urlparse(feed_url).netloc, 'items': items}
     except Exception as error:
-        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'error', 'urlHost': urllib.parse.urlparse(feed['url']).netloc, 'error': type(error).__name__, 'items': []}
+        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'error', 'urlHost': urllib.parse.urlparse(feed_url).netloc, 'error': type(error).__name__, 'items': []}
 
 
 def categorize(headline: str) -> tuple[str, str, list[str]]:
@@ -2093,6 +2129,10 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     for result in feed_results:
         for item in result.get('items', []):
             headline = item['headline']
+            safe_url = safe_public_news_url(item.get('url'))
+            if not safe_url:
+                filtered_reasons['UNSAFE_OR_INVALID_URL'] = filtered_reasons.get('UNSAFE_OR_INVALID_URL', 0) + 1
+                continue
             key = news_dedupe_key(item)
             if key in seen:
                 filtered_reasons['DUPLICATE'] = filtered_reasons.get('DUPLICATE', 0) + 1
@@ -2147,7 +2187,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 'translationNote': '해외 원문 제목을 한국어로 옮긴 시장 온도 요약입니다.' if translated_from_english else None,
                 'sourceName': item.get('sourceName') or result.get('label') or 'RSS',
                 'publishedAt': item.get('publishedAt'),
-                'url': item.get('url'),
+                'url': safe_url,
                 'impactTarget': relevance['impactTarget'],
                 'impactTone': final_impact_tone,
                 'category': relevance['category'],

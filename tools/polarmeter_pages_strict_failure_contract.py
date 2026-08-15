@@ -119,9 +119,12 @@ def main() -> None:
     assert 'CACHE_SNAPSHOT_URL' in workflow
     build_line = next(
         line for line in workflow.splitlines()
-        if 'python3 tools/polarmeter_github_pages_prepare.py --output ./_site' in line
+        if 'python3 tools/polarmeter_github_pages_prepare.py --output ' in line
     )
     assert '--allow-stale-fallback' not in build_line
+    assert '"$RUNNER_TEMP/polarmeter-site"' in build_line
+    assert 'x-access-token:' not in workflow
+    assert 'git push --force origin HEAD:gh-pages' in workflow
     print('PASS — worker failure is fatal and official macro release watch is scheduled')
 
 

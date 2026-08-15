@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -56,6 +57,15 @@ def fetch_json(url: str, timeout: int = 12) -> dict[str, Any]:
     with urllib.request.urlopen(req, timeout=timeout) as res:  # nosec - user-requested public API probe
         raw = res.read().decode('utf-8')
     return json.loads(raw)
+
+
+def safe_network_error(error: BaseException) -> str:
+    """Return useful failure metadata without URLs, query strings, or secrets."""
+    if isinstance(error, urllib.error.HTTPError):
+        return f'HTTPError:{error.code}'
+    if isinstance(error, urllib.error.URLError):
+        return f'URLError:{type(error.reason).__name__}'
+    return type(error).__name__
 
 
 def first_present(data: dict[str, Any], keys: list[str]) -> Any:
@@ -150,7 +160,7 @@ def data_go_kr_probe(api_key: str | None) -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - network diagnostic
             row = {}
             status = 'error'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -192,7 +202,7 @@ def data_go_kr_index_probe(api_key: str | None) -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - network diagnostic
             row = {}
             status = 'blocked_unapplied'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -234,7 +244,7 @@ def data_go_kr_etf_probe(api_key: str | None) -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - network diagnostic
             row = {}
             status = 'blocked_unapplied'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -433,7 +443,7 @@ def yahoo_chart_probe() -> dict[str, Any]:
             change_source = 'error'
             meta = {}
             status = 'error'
-            reason = str(exc)
+            reason = safe_network_error(exc)
             # Provider failure: empty series only — never promote last-known-good history.
             history = build_market_series_v1(
                 timestamps=[],
@@ -501,12 +511,12 @@ def bok_ecos_fx_probe(api_key: str | None) -> dict[str, Any]:
                 change = None
                 change_pct = None
             status = 'ok' if price is not None else 'unavailable'
-            reason = None if status == 'ok' else data.get('RESULT', {}).get('MESSAGE') or 'no_price'
+            reason = None if status == 'ok' else 'no_price'
         except Exception as exc:  # pragma: no cover - network diagnostic
             row = {}
             price = change = change_pct = None
             status = 'error'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -536,12 +546,12 @@ def twelve_probe(api_key: str | None) -> dict[str, Any]:
             data = fetch_json(url)
             price = first_present(data, ['close', 'price'])
             status = 'ok' if price is not None else 'unavailable'
-            reason = None if status == 'ok' else data.get('message') or data.get('status') or 'no_price'
+            reason = None if status == 'ok' else 'provider_unavailable'
         except Exception as exc:  # pragma: no cover - network diagnostic
             data = {}
             price = None
             status = 'error'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],
@@ -575,7 +585,7 @@ def fmp_probe(api_key: str | None) -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - network diagnostic
             row = {}
             status = 'error'
-            reason = str(exc)
+            reason = safe_network_error(exc)
         items.append({
             'key': signal['key'],
             'label': signal['label'],

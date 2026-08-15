@@ -3,3 +3,21 @@ testflight/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Local credentials and signing material must never enter the public repo.
+.env
+.env.*
+!.env.example
+.secrets/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*credentials*.json
