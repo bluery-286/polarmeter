@@ -975,7 +975,7 @@ def normalize_history_series(item: dict[str, Any], source_id: str) -> dict[str, 
 
 def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any], *, status: str = 'ok', reason: str | None = None) -> dict[str, Any]:
     key = signal['key']
-    showable = status in {'ok', 'suspect'}
+    showable = status in {'ok', 'suspect', 'stale'}
     data_as_of = normalized_as_of(item.get('asOf'))
     age_hours = candidate_age_hours(item)
     source_id = f'{provider}:{item.get("symbol")}'
@@ -987,7 +987,7 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
         'changePct': item.get('changePct'),
         'previousClose': item.get('previousClose'),
         'status': 'ok' if status == 'ok' else status,
-        'freshnessStatus': 'delayed' if showable else status,
+        'freshnessStatus': 'stale' if status == 'stale' else ('delayed' if showable else status),
         'provider': provider,
         'sourceId': source_id,
         'fetchedAt': utc_now(),
@@ -1006,6 +1006,12 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
     history = normalize_history_series(item, source_id)
     if history is not None:
         out['history'] = history
+    if status == 'stale':
+        out.update({
+            'staleSource': 'provider_delayed',
+            'staleAgeHours': round(age_hours, 2) if age_hours is not None else None,
+            'maxStaleAgeHours': MAX_STALE_SIGNAL_AGE_HOURS.get(key),
+        })
     return out
 
 
@@ -1072,7 +1078,7 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
     key = signal['key']
     failures: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
-    quality_rank = {'ok': 3, 'suspect': 2, 'partial': 1}
+    quality_rank = {'ok': 3, 'suspect': 2, 'stale': 1, 'partial': 0}
     for provider, items in providers.items():
         for item in items:
             if item.get('key') != key:
@@ -1095,7 +1101,7 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
                 'freshnessRank': candidate_freshness_rank(item),
             }
             failures.append(failure)
-            if quality in {'ok', 'suspect', 'partial'}:
+            if quality in {'ok', 'suspect', 'stale', 'partial'}:
                 out = normalize_signal(signal, provider, item, status=quality, reason=reason)
                 age_hours = candidate_age_hours(item)
                 candidates.append({
@@ -1106,7 +1112,7 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
                     'ageHours': age_hours,
                 })
 
-    showable_candidates = [item for item in candidates if item['quality'] in {'ok', 'suspect'}]
+    showable_candidates = [item for item in candidates if item['quality'] in {'ok', 'suspect', 'stale'}]
     if showable_candidates:
         best = max(showable_candidates, key=candidate_selection_key)
         best['signal']['fallbackChain'] = failures
