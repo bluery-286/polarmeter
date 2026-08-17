@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from polarmeter_cache_snapshot import (
     MAX_STALE_SIGNAL_AGE_HOURS,
     US_ACTIVE_MARKET_STALE_KEYS,
+    choose_signal,
     hard_stale_reason,
     signal_reliability,
     stale_signal_is_too_old,
@@ -59,6 +61,37 @@ def main() -> int:
     vix_reliability = signal_reliability('vix', 'public-chart-delayed', status, reason)
     assert vix_reliability['displayBadge'] == '변동 큼 · 확인 전'
     assert vix_reliability['confidencePolicy'] == 'low_large_move_until_corroborated'
+
+    with (
+        patch('polarmeter_cache_snapshot.kr_intraday_stale_reason', return_value='kr_intraday_prior_day_data provider=public-chart-delayed'),
+        patch('polarmeter_cache_snapshot.active_market_stale_reason', return_value=None),
+        patch('polarmeter_cache_snapshot.hard_stale_reason', return_value=None),
+    ):
+        delayed_kosdaq = choose_signal(
+            {'key': 'kosdaq', 'label': 'KOSDAQ'},
+            {'public-chart-delayed': [{
+                'key': 'kosdaq',
+                'symbol': 'KOSDAQ',
+                'status': 'ok',
+                'price': 791.84,
+                'change': -37.59,
+                'changePct': -4.53,
+                'asOf': '2026-07-16T09:05:40Z',
+            }]},
+            {'kosdaq': {
+                'key': 'kosdaq',
+                'value': 790.0,
+                'changePct': -4.0,
+                'status': 'ok',
+                'dataAsOf': '2026-07-16T08:00:00Z',
+            }},
+        )
+    assert delayed_kosdaq['status'] == 'stale'
+    assert delayed_kosdaq['valuePolicy'] == 'show'
+    assert delayed_kosdaq['value'] == 791.84
+    assert delayed_kosdaq['provider'] == 'public-chart-delayed'
+    assert delayed_kosdaq['reliability']['confidencePolicy'] == 'low_stale_last_known_good'
+    assert delayed_kosdaq['staleSource'] == 'provider_delayed'
 
     now = datetime.now(timezone.utc)
     old_samsung_at = (now - timedelta(hours=120)).isoformat().replace('+00:00', 'Z')
