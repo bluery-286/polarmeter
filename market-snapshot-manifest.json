@@ -1,0 +1,332 @@
+{
+  "mode": "free_cache_experiment",
+  "generatedAt": "2026-08-22T17:39:58.204831Z",
+  "snapshotPath": "market-snapshot-latest.json",
+  "snapshotStatus": "ok",
+  "paidProviderEnabled": false,
+  "clientDirectProviderCalls": false,
+  "cacheControl": "public, max-age=300, stale-while-revalidate=1800",
+  "okSignals": [
+    "dxy",
+    "eem",
+    "gold",
+    "iwm",
+    "kosdaq",
+    "kospi",
+    "kr_samsung",
+    "nasdaq100",
+    "smh",
+    "soxx",
+    "sp500",
+    "us10y",
+    "usd_krw",
+    "vix",
+    "wti"
+  ],
+  "okNewsCount": 24,
+  "newsStatus": "ok",
+  "newsTtlMinutes": 60,
+  "newsNextRefreshAt": "2026-08-22T18:39:58.063006Z",
+  "newsRecommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
+  "marketDataTtlMinutes": 60,
+  "marketDataNextRefreshAt": "2026-08-22T18:39:58.204831Z",
+  "nextRefreshAt": "2026-08-22T18:39:58.204831Z",
+  "marketDataRecommendedSchedule": "market_aware_60min_daily_kr_us_open_close_confirmations",
+  "criticalMarketRefreshes": [
+    {
+      "key": "kr_open_plus_30",
+      "market": "KR",
+      "label": "국내장 개장 후 30분 확인",
+      "localTime": "09:35 KST",
+      "utcCron": "35 0 * * 1-5",
+      "reason": "개장 직후 왜곡을 피하고, 첫 체결 흐름이 잡힌 뒤 국내 지수·환율을 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+    },
+    {
+      "key": "kr_open_plus_60",
+      "market": "KR",
+      "label": "국내장 개장 후 1시간 확인",
+      "localTime": "10:05 KST",
+      "utcCron": "5 1 * * 1-5",
+      "reason": "초반 수급이 진정된 뒤 국내 온도와 원/달러 부담을 다시 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+    },
+    {
+      "key": "kr_close_plus_15",
+      "market": "KR",
+      "label": "국내장 마감 직후 확인",
+      "localTime": "15:50 KST",
+      "utcCron": "50 6 * * 1-5",
+      "reason": "마감 직후 국내 지수 방향과 환율 부담을 장중값이 아닌 마감 근처 기준으로 갱신합니다."
+    },
+    {
+      "key": "kr_close_plus_60",
+      "market": "KR",
+      "label": "국내장 마감 확정 확인",
+      "localTime": "16:35 KST",
+      "utcCron": "35 7 * * 1-5",
+      "reason": "지연 제공처의 종가 반영 시간을 감안해 국내 종가 기준 스냅샷을 다시 만듭니다."
+    },
+    {
+      "key": "us_open_plus_5_dst",
+      "market": "US",
+      "label": "미장 개장 직후 확인",
+      "localTime": "09:30 ET + 5m (US daylight)",
+      "utcCron": "35 13 * * 1-5",
+      "reason": "미국 서머타임 정규장 시작 직후 SPY·QQQ·IWM·VIX 기준시각 stale window를 줄이기 위한 강제 확인입니다."
+    },
+    {
+      "key": "us_open_plus_30",
+      "market": "US",
+      "label": "미장 개장 후 30분 확인",
+      "localTime": "09:30 ET + 35m",
+      "utcCron": "5 14,15 * * 1-5",
+      "reason": "미국 정규장 초반 지수·VIX·금리 방향을 확인합니다. DST와 표준시간을 모두 커버하고, GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+    },
+    {
+      "key": "us_open_plus_60",
+      "market": "US",
+      "label": "미장 개장 후 1시간 확인",
+      "localTime": "09:30 ET + 65m",
+      "utcCron": "35 14,15 * * 1-5",
+      "reason": "초반 변동이 지나간 뒤 미국 온도와 한국장 연결 신호를 다시 계산합니다."
+    },
+    {
+      "key": "us_close_plus_15",
+      "market": "US",
+      "label": "미장 마감 직후 확인",
+      "localTime": "16:00 ET + 20m",
+      "utcCron": "20 20,21 * * 1-5",
+      "reason": "미국 마감 방향과 VIX 반응을 가장 먼저 반영합니다. DST와 표준시간을 모두 커버합니다."
+    },
+    {
+      "key": "us_close_plus_60",
+      "market": "US",
+      "label": "미장 마감 확정 확인",
+      "localTime": "16:00 ET + 65m",
+      "utcCron": "5 21,22 * * 1-5",
+      "reason": "지연 시세와 마감 데이터 반영을 감안해 미국 종가 기준 스냅샷을 다시 만듭니다."
+    }
+  ],
+  "refreshPolicy": {
+    "version": "market-aware-cache-refresh-v1",
+    "marketDataRecommendedSchedule": "market_aware_60min_daily_kr_us_open_close_confirmations",
+    "newsRecommendedSchedule": "30min_weekdays_60min_weekends_public_headline_cache",
+    "baseCadence": {
+      "weekdays": "60분",
+      "weekends": "60분"
+    },
+    "criticalMarketRefreshes": [
+      {
+        "key": "kr_open_plus_30",
+        "market": "KR",
+        "label": "국내장 개장 후 30분 확인",
+        "localTime": "09:35 KST",
+        "utcCron": "35 0 * * 1-5",
+        "reason": "개장 직후 왜곡을 피하고, 첫 체결 흐름이 잡힌 뒤 국내 지수·환율을 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+      },
+      {
+        "key": "kr_open_plus_60",
+        "market": "KR",
+        "label": "국내장 개장 후 1시간 확인",
+        "localTime": "10:05 KST",
+        "utcCron": "5 1 * * 1-5",
+        "reason": "초반 수급이 진정된 뒤 국내 온도와 원/달러 부담을 다시 확인합니다. GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+      },
+      {
+        "key": "kr_close_plus_15",
+        "market": "KR",
+        "label": "국내장 마감 직후 확인",
+        "localTime": "15:50 KST",
+        "utcCron": "50 6 * * 1-5",
+        "reason": "마감 직후 국내 지수 방향과 환율 부담을 장중값이 아닌 마감 근처 기준으로 갱신합니다."
+      },
+      {
+        "key": "kr_close_plus_60",
+        "market": "KR",
+        "label": "국내장 마감 확정 확인",
+        "localTime": "16:35 KST",
+        "utcCron": "35 7 * * 1-5",
+        "reason": "지연 제공처의 종가 반영 시간을 감안해 국내 종가 기준 스냅샷을 다시 만듭니다."
+      },
+      {
+        "key": "us_open_plus_5_dst",
+        "market": "US",
+        "label": "미장 개장 직후 확인",
+        "localTime": "09:30 ET + 5m (US daylight)",
+        "utcCron": "35 13 * * 1-5",
+        "reason": "미국 서머타임 정규장 시작 직후 SPY·QQQ·IWM·VIX 기준시각 stale window를 줄이기 위한 강제 확인입니다."
+      },
+      {
+        "key": "us_open_plus_30",
+        "market": "US",
+        "label": "미장 개장 후 30분 확인",
+        "localTime": "09:30 ET + 35m",
+        "utcCron": "5 14,15 * * 1-5",
+        "reason": "미국 정규장 초반 지수·VIX·금리 방향을 확인합니다. DST와 표준시간을 모두 커버하고, GitHub schedule 누락을 줄이기 위해 혼잡한 정각/30분을 살짝 피합니다."
+      },
+      {
+        "key": "us_open_plus_60",
+        "market": "US",
+        "label": "미장 개장 후 1시간 확인",
+        "localTime": "09:30 ET + 65m",
+        "utcCron": "35 14,15 * * 1-5",
+        "reason": "초반 변동이 지나간 뒤 미국 온도와 한국장 연결 신호를 다시 계산합니다."
+      },
+      {
+        "key": "us_close_plus_15",
+        "market": "US",
+        "label": "미장 마감 직후 확인",
+        "localTime": "16:00 ET + 20m",
+        "utcCron": "20 20,21 * * 1-5",
+        "reason": "미국 마감 방향과 VIX 반응을 가장 먼저 반영합니다. DST와 표준시간을 모두 커버합니다."
+      },
+      {
+        "key": "us_close_plus_60",
+        "market": "US",
+        "label": "미장 마감 확정 확인",
+        "localTime": "16:00 ET + 65m",
+        "utcCron": "5 21,22 * * 1-5",
+        "reason": "지연 시세와 마감 데이터 반영을 감안해 미국 종가 기준 스냅샷을 다시 만듭니다."
+      }
+    ],
+    "notes": [
+      "정기 60분 주기에 더해 국내장/미장 개장 후와 마감 후 확인 스냅샷을 중요 갱신점으로 둡니다.",
+      "무료/지연 제공처가 아직 새 값을 주지 않으면 추정으로 채우지 않고 dataAsOf와 freshness 상태를 표시합니다."
+    ]
+  },
+  "dataQuality": {
+    "policy": "core_signal_fallback_chain_v1",
+    "coreSignals": [
+      "kospi",
+      "sp500",
+      "usd_krw",
+      "vix",
+      "wti"
+    ],
+    "coreGroups": {
+      "kr_index": [
+        "kospi",
+        "kosdaq"
+      ],
+      "fx": [
+        "usd_krw"
+      ],
+      "us_index": [
+        "sp500",
+        "nasdaq100"
+      ],
+      "volatility": [
+        "vix"
+      ],
+      "commodity": [
+        "wti",
+        "gold"
+      ],
+      "rate": [
+        "us10y"
+      ],
+      "dollar": [
+        "dxy"
+      ]
+    },
+    "coreOkSignals": [
+      "dxy",
+      "kospi",
+      "sp500",
+      "us10y",
+      "usd_krw",
+      "vix",
+      "wti"
+    ],
+    "coreCoverageRatio": 1.0,
+    "normalTemperatureAllowed": true,
+    "displayMode": "normal",
+    "groupStatus": {
+      "kr_index": "ok",
+      "fx": "ok",
+      "us_index": "ok",
+      "volatility": "ok",
+      "commodity": "ok",
+      "rate": "ok",
+      "dollar": "ok"
+    },
+    "displayBadge": {
+      "kr_index": null
+    }
+  },
+  "dataServingMode": "normal",
+  "temperatureHistoryStatus": "ready",
+  "temperatureHistoryCurrentDateKst": "2026-08-23",
+  "temperatureHistoryComparisonDateKst": "2026-08-22",
+  "lastSuccessfulSnapshotAt": "2026-08-22T17:39:58.204831Z",
+  "providerCallCount": 41,
+  "providerFailureCount": 2,
+  "providerStatusByName": {
+    "bok-ecos-free": "unavailable",
+    "public-chart-delayed": "ok",
+    "twelvedata-free": "partial",
+    "fmp-free": "unavailable",
+    "data-go-kr-free": "ok",
+    "data-go-kr-index-free": "ok"
+  },
+  "estimatedMonthlyCost": {
+    "currency": "USD",
+    "smallBeta": "0-20",
+    "initialLaunch1kTo10kMau": "0-50",
+    "notes": "Operational estimate only; paid market data, news APIs, AI summaries, OTA usage, and FX can change actual cost."
+  },
+  "budgetLimit": {
+    "currency": "USD",
+    "monthlyLimit": 50,
+    "warningLimit": 20,
+    "status": "configured_beta_hard_cap",
+    "warningAction": "review provider usage and OTA update frequency",
+    "hardLimitAction": "activate kill-switch before adding paid/restricted providers"
+  },
+  "budgetCapConfigured": true,
+  "commercialUseChecked": false,
+  "killSwitchActive": false,
+  "killSwitchStatus": {
+    "newsTranslationSummaryGeneration": "ready_no_paid_ai",
+    "rapidMoveBriefingGeneration": "ready",
+    "paidProviderCalls": "disabled_by_default",
+    "pushNotifications": "not_enabled"
+  },
+  "costGuardrails": {
+    "estimatedMonthlyCost": {
+      "currency": "USD",
+      "smallBeta": "0-20",
+      "initialLaunch1kTo10kMau": "0-50",
+      "notes": "Operational estimate only; paid market data, news APIs, AI summaries, OTA usage, and FX can change actual cost."
+    },
+    "budgetLimit": {
+      "currency": "USD",
+      "monthlyLimit": 50,
+      "warningLimit": 20,
+      "status": "configured_beta_hard_cap",
+      "warningAction": "review provider usage and OTA update frequency",
+      "hardLimitAction": "activate kill-switch before adding paid/restricted providers"
+    },
+    "budgetCapConfigured": true,
+    "commercialUseChecked": false,
+    "killSwitchActive": false,
+    "killSwitchStatus": {
+      "newsTranslationSummaryGeneration": "ready_no_paid_ai",
+      "rapidMoveBriefingGeneration": "ready",
+      "paidProviderCalls": "disabled_by_default",
+      "pushNotifications": "not_enabled"
+    },
+    "killSwitchEnv": {
+      "all": "POLARMETER_KILL_SWITCH_ALL",
+      "newsTranslationSummaryGeneration": "POLARMETER_DISABLE_NEWS_TRANSLATION_SUMMARY",
+      "rapidMoveBriefingGeneration": "POLARMETER_DISABLE_RAPID_MOVE_BRIEFING",
+      "paidProviderCalls": "POLARMETER_DISABLE_PAID_PROVIDERS",
+      "pushNotifications": "POLARMETER_DISABLE_PUSH_NOTIFICATIONS"
+    },
+    "activeKillSwitches": []
+  },
+  "blockedOrUnavailableSignals": [],
+  "notes": [
+    "Public artifact contains normalized delayed/free data only.",
+    "Provider API keys and raw provider URLs must never be published."
+  ]
+}
