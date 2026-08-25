@@ -7,6 +7,7 @@ import re
 import urllib.error
 from pathlib import Path
 
+from polarmeter_free_cache_worker import assert_public_payload_safe
 from polarmeter_free_provider_probe import safe_network_error
 from polarmeter_news_rss_probe import safe_public_news_url
 
@@ -94,6 +95,33 @@ def assert_secret_files_ignored() -> None:
     assert not required.difference(patterns), f'missing secret ignore patterns: {sorted(required.difference(patterns))}'
 
 
+def assert_public_payload_secret_guard() -> None:
+    # Normal public reporting words must not be mistaken for credentials.
+    assert_public_payload_safe({
+        'news': {
+            'items': [{
+                'headline': 'Global food supply discussed by the Secretary-General',
+                'displayHeadline': 'Treasury secretary comments on markets',
+                'url': 'https://news.example.test/treasury-secretary',
+            }],
+        },
+    })
+
+    blocked_payloads = (
+        {'apiKey': 'do-not-publish'},
+        {'clientSecret': 'do-not-publish'},
+        {'feedResults': []},
+        {'news': {'items': [{'url': 'https://api.example.test/quote?apikey=do-not-publish'}]}},
+        {'status': 'missing_key'},
+    )
+    for payload in blocked_payloads:
+        try:
+            assert_public_payload_safe(payload)
+        except AssertionError:
+            continue
+        raise AssertionError(f'public payload secret guard accepted unsafe data: {payload}')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--public-dir', type=Path, default=ROOT / 'github-pages-site')
@@ -104,6 +132,7 @@ def main() -> int:
     assert_single_pages_publisher()
     assert_public_payload_clean(args.public_dir)
     assert_secret_files_ignored()
+    assert_public_payload_secret_guard()
     print('PolarMeter security contract: PASS')
     return 0
 
