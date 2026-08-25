@@ -986,13 +986,39 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 def assert_public_payload_safe(*payloads: dict[str, Any]) -> None:
     raw = '\n'.join(json.dumps(payload, ensure_ascii=False).lower() for payload in payloads)
-    forbidden_tokens = [
-        'api_key', 'apikey=', 'servicekey=', 'service_key', 'secret',
+    # Inspect JSON keys for secret/internal fields. Do not scan ordinary news
+    # text for the bare word "secret": valid words such as "Secretary" would
+    # otherwise stop the entire cache refresh even though no credential leaked.
+    forbidden_key_fragments = {
+        'apikey', 'servicekey', 'secret', 'password', 'privatekey',
+        'accesstoken', 'refreshtoken',
+    }
+    forbidden_internal_keys = {
+        'feedresults', 'fallbackchain', 'qualityreason',
+        'marketimpactcomponents',
+    }
+    leaked_keys: list[str] = []
+
+    def inspect_keys(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                normalized = re.sub(r'[^a-z0-9]', '', str(key).lower())
+                if normalized in forbidden_internal_keys or any(fragment in normalized for fragment in forbidden_key_fragments):
+                    leaked_keys.append(str(key))
+                inspect_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect_keys(child)
+
+    for payload in payloads:
+        inspect_keys(payload)
+
+    forbidden_value_tokens = [
+        'apikey=', 'servicekey=', 'service_key=',
         'twelve_data_api_key', 'fmp_api_key', 'data_go_kr_service_key',
-        'bok_api_key', 'ecos_api_key', 'missing_key', 'feedresults',
-        'fallbackchain', 'qualityreason', 'marketimpactcomponents',
+        'bok_api_key', 'ecos_api_key', 'missing_key', 'missing_secret',
     ]
-    leaked = [token for token in forbidden_tokens if token in raw]
+    leaked = sorted(set(leaked_keys + [token for token in forbidden_value_tokens if token in raw]))
     if leaked:
         raise AssertionError(f'public snapshot leaked internal token(s): {leaked}')
     for payload in payloads:
