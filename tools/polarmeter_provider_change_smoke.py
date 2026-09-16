@@ -113,7 +113,8 @@ def main() -> int:
 
     wti_relief_headline = "국제유가, 중동 긴장에도 숨고르기…WTI 0.8%↓"
     wti_display = cause_aware_display_headline(wti_relief_headline, wti_relief_headline)
-    assert wti_display == f"유가 부담 완화 · {wti_relief_headline}"
+    # Keep source evidence separate from the independently checked verdict.
+    assert wti_display == wti_relief_headline
     assert market_burden_tone(wti_display, "negative") == "positive"
     normalized_wti, _ = normalize_items([{
         "label": "Smoke QA",

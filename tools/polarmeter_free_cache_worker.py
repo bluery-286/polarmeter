@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -160,11 +161,24 @@ COST_GUARDRAILS = {
 
 
 def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.CompletedProcess[str]:
-    if stdout_path:
-        stdout_path.parent.mkdir(parents=True, exist_ok=True)
-        with stdout_path.open('w', encoding='utf-8') as out:
-            return subprocess.run(cmd, cwd=WORKSPACE, text=True, stdout=out, stderr=subprocess.PIPE, check=True)
-    return subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
+    try:
+        if stdout_path:
+            stdout_path.parent.mkdir(parents=True, exist_ok=True)
+            with stdout_path.open('w', encoding='utf-8') as out:
+                return subprocess.run(cmd, cwd=WORKSPACE, text=True, stdout=out, stderr=subprocess.PIPE, check=True)
+        return subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True, check=True)
+    except subprocess.CalledProcessError as error:
+        # Never print arbitrary child output: provider URLs/credentials may be
+        # present. Emit only the exception class and explicitly safe reason IDs.
+        stderr = str(error.stderr or '')
+        classes = re.findall(r'^([A-Za-z]+(?:Error|Exception)):', stderr, re.MULTILINE)
+        reason = 'child_process_failed'
+        if 'official FOMC statement target range was not found' in stderr:
+            reason = 'official_fomc_target_range_unrecognized'
+        elif 'official FOMC statement target range is invalid' in stderr:
+            reason = 'official_fomc_target_range_invalid'
+        print(json.dumps({'workerFailure': reason, 'step': Path(cmd[1]).name if len(cmd) > 1 else 'unknown', 'exitCode': error.returncode, 'errorType': classes[-1] if classes else 'unknown'}), file=sys.stderr)
+        raise
 
 
 def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
@@ -263,10 +277,27 @@ def kst_date_key(value: Any) -> str | None:
     return parsed.astimezone(KST).date().isoformat()
 
 
-def snapshot_score_point(signal: dict[str, Any] | None) -> dict[str, Any]:
+def snapshot_score_point(signal: dict[str, Any] | None, key: str | None = None) -> dict[str, Any]:
     signal = signal or {}
     status = signal.get('status') or 'unavailable'
     scoreable = status in {'ok', 'stale', 'suspect'}
+    # Preserve the app's stale-age safety limits while sharing one calculation.
+    # Missing age does not invent a timestamp; ordinary stale/suspect data keeps
+    # its existing inclusion policy and visible freshness disclosure.
+    if status == 'stale':
+        default_max = 96 if (key or signal.get('key')) == 'kr_samsung' else None
+        def finite_number(value: Any) -> float | None:
+            try:
+                parsed = float(value)
+                return parsed if math.isfinite(parsed) else None
+            except (TypeError, ValueError):
+                return None
+        max_age = finite_number(signal.get('maxStaleAgeHours'))
+        if max_age is None:
+            max_age = default_max
+        age = finite_number(signal.get('dataAgeHours'))
+        if age is not None and max_age is not None and age > max_age:
+            scoreable = False
     return {
         'status': status,
         'close': signal.get('value') if scoreable else None,
@@ -291,7 +322,7 @@ def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]
         'USD/KRW': snapshot_score_point(signals.get('usd_krw')),
         'KOSPI': snapshot_score_point(signals.get('kospi')),
         'KOSDAQ': snapshot_score_point(signals.get('kosdaq')),
-        '삼성전자': snapshot_score_point(signals.get('kr_samsung')),
+        '삼성전자': snapshot_score_point(signals.get('kr_samsung'), key='kr_samsung'),
         'SK하이닉스': snapshot_score_point(signals.get('kr_hynix')),
         'SOXX': snapshot_score_point(signals.get('soxx')),
         'SMH': snapshot_score_point(signals.get('smh')),
@@ -300,8 +331,36 @@ def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]
     session_type = detect_session(snapshot, now=generated_at.astimezone(KST) if generated_at else None)
     scores = build_scores(snapshot_from_points(items, session_type=session_type), session_type='normal')
     if isinstance(scores.get('market_context'), dict):
+        # Observation session is separate from the stable calculation profile.
+        # Do not silently change historical temperatures at market-open boundaries.
         scores['market_context']['market_session_type'] = session_type
+        scores['market_context']['calculation_profile'] = 'normal'
     return scores
+
+
+def public_temperature_score_core(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    """Publish the same score calculation that the history ledger records."""
+    scores = temperature_scores_from_snapshot(snapshot)
+    if not scores:
+        return None
+    context = scores.get('market_context') or {}
+    markets = {}
+    for name in ('us', 'kr'):
+        temperature = scores.get(f'{name}_temperature') or {}
+        value = temperature.get('score')
+        if not isinstance(value, (int, float)) or not 0 <= value <= 100:
+            return None
+        markets[name] = {
+            key: temperature[key] for key in ('score', 'rawScore', 'label', 'components', 'weights') if key in temperature
+        }
+    return {
+        'schemaVersion': 'polarmeter-score-core-v1',
+        'formulaVersion': 'score_core_v2_normal_freshness',
+        'generatedAt': snapshot.get('generatedAt'),
+        'calculationProfile': 'normal',
+        'marketSession': context.get('market_session_type'),
+        **markets,
+    }
 
 
 def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None:
@@ -324,7 +383,7 @@ def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None
         'krScore': int(round(kr_score)),
         'usLabel': us.get('label'),
         'krLabel': kr.get('label'),
-        'source': 'score_core_v1',
+        'source': 'score_core_v2_normal_freshness',
     }
 
 
@@ -965,6 +1024,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'defaultTtlMinutes': market_ttl_minutes,
         'nextRefreshAt': iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes)),
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
+        'scoreCore': public_temperature_score_core(snapshot),
         'temperatureHistory': snapshot.get('temperatureHistory') or {
             'version': 'temperature-history-v1',
             'basis': 'kst_calendar_day_latest_successful_snapshot',
