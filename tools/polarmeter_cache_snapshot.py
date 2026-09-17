@@ -246,7 +246,8 @@ def parse_fomc_statement(
 ) -> dict[str, Any]:
     text = _clean_official_html(statement_html).replace('‑', '-').replace('–', '-').replace('—', '-')
     decision_match = re.search(
-        r'decided to\s+(maintain|raise|lower)\s+the target range for the federal funds rate\s+at\s+'
+        r'decided to\s+(maintain|raise|lower)\s+the target range for the federal funds rate\s+'
+        r'(?:at|to|by\s+(?:\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+percentage\s+points?\s+to)\s+'
         r'(\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+to\s+'
         r'(\d+(?:-\d+/\d+|\.\d+)?|\d+/\d+)\s+percent',
         text,
@@ -257,6 +258,8 @@ def parse_fomc_statement(
     action, low_raw, high_raw = decision_match.groups()
     low = _rate_token_to_float(low_raw)
     high = _rate_token_to_float(high_raw)
+    if not 0 <= low < high:
+        raise ValueError('official FOMC statement target range is invalid')
     action_ko = {'maintain': '동결', 'raise': '인상', 'lower': '인하'}[action.lower()]
     result_label = f'기준금리 {low:.2f}~{high:.2f}% {action_ko}'
 

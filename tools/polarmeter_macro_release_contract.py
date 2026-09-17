@@ -91,6 +91,24 @@ def main() -> None:
     assert '9대3' in parsed['detail']
     assert '0.25%포인트 인상' in parsed['detail']
 
+    # Real release grammar: adjustment size is NOT the resulting target range.
+    for action, clause, expected in (
+        ('raise', 'by 1/4 percentage point to 3-3/4 to 4 percent', '3.75~4.00% 인상'),
+        ('lower', 'by 1/2 percentage point to 3-1/4 to 3-1/2 percent', '3.25~3.50% 인하'),
+        ('raise', 'to 4 to 4.25 percent', '4.00~4.25% 인상'),
+        ('maintain', 'at 0 to 1/4 percent', '0.00~0.25% 동결'),
+    ):
+        statement = f'<p>The Committee decided to {action} the target range for the federal funds rate {clause}.</p>'
+        result = snapshot.parse_fomc_statement(statement, label='Test FOMC', released_at=datetime(2026, 9, 16, 18, tzinfo=timezone.utc), source_url='https://www.federalreserve.gov/')
+        assert result['resultLabel'] == f'기준금리 {expected}', result
+    for clause in ('by 1/4 percentage point', 'at 4 to 3 percent', 'at 4 to 4 percent'):
+        try:
+            snapshot.parse_fomc_statement(f'The Committee decided to raise the target range for the federal funds rate {clause}.', label='Invalid', released_at=datetime(2026, 9, 16, 18, tzinfo=timezone.utc), source_url='https://www.federalreserve.gov/')
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f'invalid/partial target accepted: {clause}')
+
     current = snapshot.build_macro_events(now=datetime(2026, 7, 30, 0, 0, tzinfo=timezone.utc))
     assert current['fomc_rate']['lastRelease']['label'] == '7월 FOMC'
     assert current['fomc_rate']['nextRelease']['label'] == '9월 FOMC'
