@@ -796,19 +796,82 @@ def energy_supply_state(headline: str) -> str:
         return 'unknown'
     states = []
     for clause in re.split(r'에도|지만|반면|\bbut\b|\bwhile\b|\bhowever\b|[;…]', re.sub(r'struck\s+a\s+deal', 'agreement', text)):
-        if re.search(r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|복구|정상화|봉쇄\s*해제|restor|reopen|resum.{0,12}(operation|supply|flow)|supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b', clause):
-            states.append('recovery')
-        elif re.search(r'부인|오보|공격.{0,8}없|차질.{0,8}없|den(?:y|ies|ied)|no\s+(?:attack|disruption)', clause):
+        denied = re.search(
+            r'사실무근|부인|오보|공격.{0,8}없|차질.{0,8}없|den(?:y|ies|ied)|no\s+(?:attack|disruption)',
+            clause,
+        )
+        recovery_in_progress = re.search(
+            r'복구(?:\s*작업)?\s*(?:중|진행\s*중|예정|시도)|'
+            r'정상화\s*(?:중|진행\s*중|예정|시도)|'
+            r'(?:recovery|restoration)\s*(?:work\s*)?(?:underway|in\s+progress|planned|attempt)|'
+            r'(?:attempting|planning)\s+to\s+(?:restore|resume|reopen)',
+            clause,
+        )
+        unconfirmed_recovery = re.search(
+            r'(?:복구|정상화|가동\s*재개|공급\s*재개|restored|reopened|resumed)'
+            r'.{0,12}(?:불투명|어려움|지연|난항|미완료|불확실|불가|실패|예정|'
+            r'uncertain|delayed|delay|not\s+complete|planned)',
+            clause,
+        )
+        partial_recovery = re.search(
+            r'일부.{0,12}(?:가동|공급|운영).{0,12}(?:재개|회복)|'
+            r'(?:partial|partly).{0,16}(?:operation|supply|flow).{0,16}(?:resume|restore|reopen)',
+            clause,
+        )
+        confirmed_recovery = re.search(
+            r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|'
+            r'복구\s*(?:완료|마쳐|끝|성공)|정상화\s*(?:완료|마쳐|끝)|봉쇄\s*해제|'
+            r'(?:restored|reopened|resumed).{0,12}(?:operation|operations|supply|flow)?|'
+            r'supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b',
+            clause,
+        )
+        explicit_disruption = re.search(
+            r'공급\s*차질|가동\s*중단|생산\s*중단|파손|봉쇄|수출\s*중단|'
+            r'supply\s*(?:disruption|outage)|shutdown|shut\s*down|offline|blockade|damage',
+            clause,
+        )
+        attack = re.search(r'피격|공격|attack|struck', clause)
+        if denied:
             states.append('denied')
-        elif re.search(r'공급\s*차질|가동\s*중단|생산\s*중단|피격|공격|봉쇄|수출\s*중단|supply\s*(disruption|outage)|attack|struck|shutdown|shut\s*down|offline|blockade', clause):
+        elif partial_recovery:
+            # 일부 재개는 남은 차질 여부가 확정되지 않아 완료 회복으로 보지 않는다.
+            states.extend(('active', 'recovery'))
+        elif confirmed_recovery and not (recovery_in_progress or unconfirmed_recovery):
+            states.append('recovery')
+        elif explicit_disruption or (attack and not (recovery_in_progress or unconfirmed_recovery)):
             states.append('active')
     if 'active' in states and ('recovery' in states or 'denied' in states):
         return 'mixed'
-    return 'active' if 'active' in states else 'recovery' if 'recovery' in states else 'unknown'
+    return 'active' if 'active' in states else 'recovery' if 'recovery' in states else 'denied' if 'denied' in states else 'unknown'
+
+
+def energy_supply_recovery_in_progress(headline: str) -> bool:
+    """Identify uncompleted recovery language that needs a conservative card tone."""
+    if not re.search(r'유가|원유|송유관|정유시설|유전|oil|crude|pipeline|refiner|oilfield', headline, re.I):
+        return False
+    if energy_supply_state(headline) != 'unknown':
+        return False
+    return bool(re.search(
+        r'(?:복구|정상화|가동\s*재개|공급\s*재개).{0,12}'
+        r'(?:중|진행\s*중|예정|시도|불투명|어려움|지연|난항|미완료|불확실|불가|실패)|'
+        r'(?:recovery|restoration)\s*(?:work\s*)?(?:underway|in\s+progress|planned|attempt)|'
+        r'(?:restored|reopened|resumed).{0,12}(?:uncertain|delayed|delay|not\s+complete|planned)|'
+        r'(?:attempting|planning)\s+to\s+(?:restore|resume|reopen)',
+        headline,
+        re.I,
+    ))
 
 
 def energy_supply_risk(headline: str) -> bool:
     return energy_supply_state(headline) == 'active'
+
+
+def active_energy_display_key(headline: str) -> str:
+    """Deduplicate only typography variants of an active energy headline."""
+    # Keep all words, digits, direction markers, and date punctuation intact.
+    # This intentionally removes only quotes, whitespace, and ellipses.
+    typography_only = re.sub(r'["“”\'‘’…‥]|\s+|\.{3}', '', headline.lower())
+    return 'energy-original:' + typography_only
 
 
 def critical_market_event(headline: str) -> tuple[bool, str | None]:
@@ -817,7 +880,14 @@ def critical_market_event(headline: str) -> tuple[bool, str | None]:
     # index, a country-specific watchword, or a realized price move.
     infrastructure = re.search(r'송유관|정유시설|유전|원유|항로|해협|pipeline|refinery|oilfield|shipping lane|strait|crude', text)
     disruption = re.search(r'피격|공격|폭발|가동 중단|공급 차질|봉쇄|수출 중단|attack|struck|outage|shutdown|offline|blockade|supply disruption', text)
-    if infrastructure and disruption:
+    # Keep this intentionally narrow: generic "damage" is not a critical event;
+    # it must identify physical pipeline damage.
+    pipeline_damage = re.search(
+        r'송유관.{0,12}파손|파손.{0,12}송유관|'
+        r'pipeline.{0,12}damag(?:e|ed|ing)|damag(?:e|ed|ing).{0,12}pipeline',
+        text,
+    )
+    if infrastructure and (disruption or pipeline_damage):
         return True, 'energy_transport_disruption'
     if any(keyword.lower() in text for keyword in CRITICAL_NEWS_KEYWORDS):
         return True, 'critical_keyword'
@@ -2235,18 +2305,25 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if mixed_inflation_relief_rate_burden_signal(f'{headline} {display_headline or ""}'):
                 final_impact_tone = 'neutral'
             final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
+            energy_state = energy_supply_state(headline)
             if energy_supply_risk(headline):
                 final_impact_tone = 'negative'
                 final_why = '에너지 공급 차질 우려는 물가와 기업 비용 부담을 키울 수 있습니다. 실제 공급량과 유가 반응은 별도로 확인합니다.'
-            elif energy_supply_state(headline) in ('mixed', 'recovery'):
+            elif energy_state == 'denied':
+                final_impact_tone = 'neutral'
+                final_why = '시설 피격 또는 공급 차질 주장이 부인·사실무근으로 전해졌습니다. 실제 가동과 공급량은 별도로 확인합니다.'
+            elif energy_state in ('mixed', 'recovery'):
                 final_impact_tone = 'neutral'
                 final_why = '공급 차질과 회복·반대 소식을 구분하고 실제 시설 가동과 공급량을 확인합니다. 시장 방향은 단정하지 않습니다.'
+            elif energy_supply_recovery_in_progress(headline):
+                final_impact_tone = 'neutral'
+                final_why = '복구 작업이 진행·예정·시도 단계여서 완료 회복으로 보지 않습니다. 실제 피해·차질과 가동 상태를 확인합니다.'
             if news_tone_explanation_conflict(final_impact_tone, final_why):
                 filtered_reasons['TONE_EXPLANATION_CONFLICT'] = filtered_reasons.get('TONE_EXPLANATION_CONFLICT', 0) + 1
                 continue
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if energy_supply_risk(headline):
-                display_key = 'energy-original:' + headline.lower()
+                display_key = active_energy_display_key(headline)
             if display_key in seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
                 continue
