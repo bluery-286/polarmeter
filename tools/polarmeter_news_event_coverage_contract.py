@@ -1,5 +1,7 @@
 """Offline regression: event collection is separate from direction certainty."""
 from polarmeter_news_rss_probe import critical_market_event, DEFAULT_FEEDS, energy_supply_risk, energy_supply_state, koreanize_english_headline
+from polarmeter_news_rss_probe import normalize_items, classify_relevance
+from datetime import datetime, timezone, timedelta
 
 def main():
     for headline in ('원유 송유관 피격', '정유시설 공급 차질', 'Crude pipeline offline after attack', '해협 봉쇄로 항로 중단'):
@@ -14,7 +16,18 @@ def main():
     assert '사우디 송유관 가동 중단' in koreanize_english_headline('Oil prices surge as Saudi pipeline shutdown continues')
     for title, state in [('원유 공급 차질 우려 완화', 'recovery'), ('원유 공급 차질 재개', 'active'), ('송유관 공격 부인에도 공급 차질 지속', 'mixed'), ('Oil companies struck a deal', 'unknown')]:
         assert energy_supply_state(title) == state, title
-    print('PASS energy event coverage: 15 checks (no network)')
+    assert energy_supply_state('Crude oil supply disruption eases') == 'recovery'
+    now = datetime.now(timezone.utc)
+    for title in ('송유관 공격', '정유시설 공급 차질', 'Pipeline offline after attack'):
+        items, report = normalize_items([{'label': 'Reuters', 'items': [{
+            'headline': title, 'publishedAt': now.isoformat(),
+            'url': 'https://www.reuters.com/world/energy-test',
+        }]}], 30)
+        assert len(items) == 1, (title, report)
+        assert items[0]['impactTone'] == 'negative', items
+        assert items[0]['critical'] is True, items
+        assert classify_relevance(title, 'Reuters', (now - timedelta(hours=25)).isoformat())[0] is None
+    print('PASS energy event coverage including full normalization and freshness gates (no network)')
 
 if __name__ == '__main__':
     main()

@@ -796,7 +796,7 @@ def energy_supply_state(headline: str) -> str:
         return 'unknown'
     states = []
     for clause in re.split(r'에도|지만|반면|\bbut\b|\bwhile\b|\bhowever\b|[;…]', re.sub(r'struck\s+a\s+deal', 'agreement', text)):
-        if re.search(r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|복구|정상화|봉쇄\s*해제|restor|reopen|resum.{0,12}(operation|supply|flow)', clause):
+        if re.search(r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|복구|정상화|봉쇄\s*해제|restor|reopen|resum.{0,12}(operation|supply|flow)|supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b', clause):
             states.append('recovery')
         elif re.search(r'부인|오보|공격.{0,8}없|차질.{0,8}없|den(?:y|ies|ied)|no\s+(?:attack|disruption)', clause):
             states.append('denied')
@@ -2003,6 +2003,12 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     for rule in MARKET_RELEVANCE_RULES:
         if rule_matches_headline(rule, headline, headline_lower):
             matched_rules.append(rule)
+    # Physical infrastructure incidents can lack the broad market keywords.
+    # Keep all preceding safety/freshness filters and the impact-score gate.
+    if critical_market_event(headline) == (True, 'energy_transport_disruption'):
+        supply_rule = next(rule for rule in MARKET_RELEVANCE_RULES if rule['category'] == 'geopolitics_supply')
+        if supply_rule not in matched_rules:
+            matched_rules.append(supply_rule)
     if not matched_rules:
         return None, 'MARKET_IMPACT_LOW'
     multi_topic_calendar = (
