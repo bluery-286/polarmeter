@@ -11,7 +11,8 @@ from tempfile import TemporaryDirectory
 import polarmeter_github_pages_prepare as prepare
 
 
-SECRET = 'https://private.invalid/report?token=DO_NOT_PRINT'
+# Inert fixture text, not a credential: arbitrary input must never reach logs.
+UNTRUSTED_SENTINEL = 'UNTRUSTED_PAYLOAD_MUST_NOT_APPEAR'
 
 
 def write_payload(output_dir: Path, health: dict, snapshot: dict, manifest: dict) -> None:
@@ -57,9 +58,9 @@ def main() -> None:
             ('dataQuality.displayMode', lambda h, s, m: s['dataQuality'].update(displayMode='collecting')),
             ('snapshot.news.items', lambda h, s, m: s['news'].update(items=[])),
             ('manifest.okNewsCount', lambda h, s, m: m.update(okNewsCount=0)),
-            ('temperatureHistory.version', lambda h, s, m: s['temperatureHistory'].update(version=SECRET)),
+            ('temperatureHistory.version', lambda h, s, m: s['temperatureHistory'].update(version=UNTRUSTED_SENTINEL)),
             ('temperatureHistory.retentionDays', lambda h, s, m: s['temperatureHistory'].update(retentionDays=6)),
-            ('temperatureHistory.items', lambda h, s, m: s['temperatureHistory'].update(items={'private': SECRET})),
+            ('temperatureHistory.items', lambda h, s, m: s['temperatureHistory'].update(items={'private': UNTRUSTED_SENTINEL})),
             ('temperatureHistory.dailyDelta.status', lambda h, s, m: s['temperatureHistory'].update(dailyDelta={'status': 'pending'})),
         ]
         for check, mutate in mutations:
@@ -75,17 +76,17 @@ def main() -> None:
                 prepare.emit_public_payload_diagnostics(output_dir)
             emitted = captured.getvalue()
             assert emitted.startswith('{"pagesPublishabilityFailures":')
-            assert SECRET not in emitted
+            assert UNTRUSTED_SENTINEL not in emitted
             assert 'PRIVATE_EVALUATION_NOTE' not in emitted
             assert 'pagesPublishabilityFailures' not in json.dumps(s)
 
         # Malformed files get one bounded reason and never echo their contents.
-        (output_dir / 'health.json').write_text(SECRET, encoding='utf-8')
+        (output_dir / 'health.json').write_text(UNTRUSTED_SENTINEL, encoding='utf-8')
         captured = io.StringIO()
         with contextlib.redirect_stderr(captured):
             prepare.emit_public_payload_diagnostics(output_dir)
         assert 'unreadable' in captured.getvalue()
-        assert SECRET not in captured.getvalue()
+        assert UNTRUSTED_SENTINEL not in captured.getvalue()
 
     print('PASS Pages publishability diagnostics remain local and safe')
 
