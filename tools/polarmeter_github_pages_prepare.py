@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,10 @@ PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 
 LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 PUBLIC_BASE_URL = 'https://polarmeter.polarbearworks.com'
 MIN_PUBLISHABLE_NEWS_ITEMS = 10
+PUBLISHABLE_DISPLAY_MODES = {'normal', 'limited', 'fallback', 'collecting'}
+PUBLISHABLE_HISTORY_VERSIONS = {'temperature-history-v1'}
+PUBLISHABLE_DAILY_DELTA_STATUSES = {'ready', 'pending', 'unavailable'}
+_MISSING = object()
 
 
 def copy_site(site_dir: Path, output_dir: Path) -> None:
@@ -64,30 +69,164 @@ def read_remote_public_files(base_url: str = PUBLIC_BASE_URL) -> dict[str, str]:
 
 
 def public_payload_is_publishable(output_dir: Path) -> bool:
+    return not public_payload_publishability_failures(output_dir)
+
+
+def _safe_value_type(value: Any) -> str:
+    """Return a fixed type label; never stringify untrusted values."""
+    if value is _MISSING:
+        return 'missing'
+    if value is None:
+        return 'null'
+    if isinstance(value, bool):
+        return 'boolean'
+    if isinstance(value, (int, float)):
+        return 'number'
+    if isinstance(value, str):
+        return 'string'
+    if isinstance(value, list):
+        return 'array'
+    if isinstance(value, dict):
+        return 'object'
+    return 'other'
+
+
+def _safe_number(value: Any) -> int | float | None:
+    """Accept finite floats and integers without float-casting huge integers."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
+
+
+def _safe_enum(value: Any, allowed: set[str]) -> str:
+    if value is _MISSING:
+        return 'missing'
+    return value if isinstance(value, str) and value in allowed else 'other'
+
+
+def _publishability_failure(
+    check: str,
+    expected: dict[str, Any],
+    actual: Any,
+    reason: str,
+    *,
+    actual_value: Any = _MISSING,
+) -> dict[str, Any]:
+    """Build a bounded diagnostic record without copying untrusted values."""
+    return {
+        'check': check,
+        'expected': expected,
+        'actualType': _safe_value_type(actual),
+        'actual': _safe_value_type(actual) if actual_value is _MISSING else actual_value,
+        'reason': reason,
+    }
+
+
+def public_payload_publishability_failures(output_dir: Path) -> list[dict[str, Any]]:
+    """Return safe, field-level failures for the fresh Pages payload only."""
     try:
         health = json.loads((output_dir / 'health.json').read_text(encoding='utf-8'))
         snapshot = json.loads((output_dir / 'market-snapshot-latest.json').read_text(encoding='utf-8'))
         manifest = json.loads((output_dir / 'market-snapshot-manifest.json').read_text(encoding='utf-8'))
     except Exception:
-        return False
-    data_quality = snapshot.get('dataQuality') or {}
-    core_coverage = data_quality.get('coreCoverageRatio')
-    history = snapshot.get('temperatureHistory') or {}
-    daily_delta_status = (history.get('dailyDelta') or {}).get('status')
-    news_count = len((snapshot.get('news') or {}).get('items') or [])
-    manifest_news_count = manifest.get('okNewsCount') or 0
-    return (
-        health.get('ok') is True
-        and isinstance(core_coverage, (int, float))
-        and core_coverage >= 0.6
-        and data_quality.get('displayMode') != 'collecting'
-        and news_count >= MIN_PUBLISHABLE_NEWS_ITEMS
-        and manifest_news_count >= MIN_PUBLISHABLE_NEWS_ITEMS
-        and history.get('version') == 'temperature-history-v1'
-        and history.get('retentionDays') == 7
-        and isinstance(history.get('items'), list)
-        and daily_delta_status == 'ready'
-    )
+        return [{
+            'check': 'payload',
+            'expected': {'type': 'object', 'value': 'valid_json'},
+            'actualType': 'unreadable',
+            'actual': 'unreadable',
+            'reason': 'unreadable',
+        }]
+
+    failures: list[dict[str, Any]] = []
+    health_ok = health.get('ok', _MISSING) if isinstance(health, dict) else _MISSING
+    if health_ok is not True:
+        failures.append(_publishability_failure(
+            'health.ok', {'type': 'boolean', 'value': True}, health_ok,
+            'missing' if health_ok is _MISSING else 'wrong_type' if not isinstance(health_ok, bool) else 'value_mismatch',
+            actual_value=health_ok if isinstance(health_ok, bool) else _MISSING,
+        ))
+
+    data_quality = snapshot.get('dataQuality') if isinstance(snapshot, dict) else None
+    data_quality = data_quality if isinstance(data_quality, dict) else {}
+    core_coverage = data_quality.get('coreCoverageRatio', _MISSING)
+    safe_core_coverage = _safe_number(core_coverage)
+    if safe_core_coverage is None or safe_core_coverage < 0.6:
+        failures.append(_publishability_failure(
+            'dataQuality.coreCoverageRatio', {'type': 'number', 'minimum': 0.6}, core_coverage,
+            'missing' if core_coverage is _MISSING else 'wrong_type' if not isinstance(core_coverage, (int, float)) or isinstance(core_coverage, bool) else 'invalid_number' if safe_core_coverage is None else 'below_minimum',
+            actual_value=safe_core_coverage if safe_core_coverage is not None else _MISSING,
+        ))
+
+    display_mode = data_quality.get('displayMode', _MISSING)
+    if display_mode == 'collecting':
+        failures.append(_publishability_failure(
+            'dataQuality.displayMode', {'type': 'string', 'not': 'collecting'}, display_mode,
+            'forbidden_value', actual_value=_safe_enum(display_mode, PUBLISHABLE_DISPLAY_MODES),
+        ))
+
+    news = snapshot.get('news') if isinstance(snapshot, dict) else None
+    news = news if isinstance(news, dict) else {}
+    news_items = news.get('items', _MISSING)
+    news_count = len(news_items) if isinstance(news_items, list) else None
+    if news_count is None or news_count < MIN_PUBLISHABLE_NEWS_ITEMS:
+        failures.append(_publishability_failure(
+            'snapshot.news.items', {'type': 'array', 'minimumLength': MIN_PUBLISHABLE_NEWS_ITEMS}, news_items,
+            'missing' if news_items is _MISSING else 'wrong_type' if not isinstance(news_items, list) else 'below_minimum',
+            actual_value=news_count if isinstance(news_items, list) else _MISSING,
+        ))
+
+    manifest_news_count = manifest.get('okNewsCount', _MISSING) if isinstance(manifest, dict) else _MISSING
+    if not isinstance(manifest_news_count, int) or isinstance(manifest_news_count, bool) or manifest_news_count < MIN_PUBLISHABLE_NEWS_ITEMS:
+        failures.append(_publishability_failure(
+            'manifest.okNewsCount', {'type': 'integer', 'minimum': MIN_PUBLISHABLE_NEWS_ITEMS}, manifest_news_count,
+            'missing' if manifest_news_count is _MISSING else 'wrong_type' if not isinstance(manifest_news_count, int) or isinstance(manifest_news_count, bool) else 'below_minimum',
+            actual_value=manifest_news_count if isinstance(manifest_news_count, int) and not isinstance(manifest_news_count, bool) else _MISSING,
+        ))
+
+    history = snapshot.get('temperatureHistory') if isinstance(snapshot, dict) else None
+    history = history if isinstance(history, dict) else {}
+    version = history.get('version', _MISSING)
+    if version != 'temperature-history-v1':
+        failures.append(_publishability_failure(
+            'temperatureHistory.version', {'type': 'string', 'value': 'temperature-history-v1'}, version,
+            'missing' if version is _MISSING else 'wrong_value',
+            actual_value=_safe_enum(version, PUBLISHABLE_HISTORY_VERSIONS),
+        ))
+
+    retention_days = history.get('retentionDays', _MISSING)
+    if retention_days != 7:
+        failures.append(_publishability_failure(
+            'temperatureHistory.retentionDays', {'type': 'integer', 'value': 7}, retention_days,
+            'missing' if retention_days is _MISSING else 'wrong_type' if not isinstance(retention_days, int) or isinstance(retention_days, bool) else 'value_mismatch',
+            actual_value=retention_days if isinstance(retention_days, int) and not isinstance(retention_days, bool) else _MISSING,
+        ))
+
+    history_items = history.get('items', _MISSING)
+    if not isinstance(history_items, list):
+        failures.append(_publishability_failure(
+            'temperatureHistory.items', {'type': 'array'}, history_items,
+            'missing' if history_items is _MISSING else 'wrong_type',
+        ))
+
+    daily_delta = history.get('dailyDelta') if isinstance(history.get('dailyDelta'), dict) else {}
+    daily_delta_status = daily_delta.get('status', _MISSING)
+    if daily_delta_status != 'ready':
+        failures.append(_publishability_failure(
+            'temperatureHistory.dailyDelta.status', {'type': 'string', 'value': 'ready'}, daily_delta_status,
+            'missing' if daily_delta_status is _MISSING else 'wrong_value',
+            actual_value=_safe_enum(daily_delta_status, PUBLISHABLE_DAILY_DELTA_STATUSES),
+        ))
+    return failures
+
+
+def emit_public_payload_diagnostics(output_dir: Path) -> None:
+    failures = public_payload_publishability_failures(output_dir)
+    if failures:
+        print(json.dumps({'pagesPublishabilityFailures': failures}, ensure_ascii=False, separators=(',', ':')), file=sys.stderr)
 
 
 def summary_from_public_payload(output_dir: Path, summary: dict[str, Any], *, reused_existing: bool) -> dict[str, Any]:
@@ -299,6 +438,7 @@ def main() -> int:
         print(f'warning: worker failed; trying current public cache fallback: {error}', file=sys.stderr)
         restore_public_files(args.output, fallback_public_files)
         if not public_payload_is_publishable(args.output):
+            emit_public_payload_diagnostics(args.output)
             raise
         summary = summary_from_public_payload(
             args.output,
@@ -310,6 +450,7 @@ def main() -> int:
             reused_existing=True,
         )
     if not public_payload_is_publishable(args.output):
+        emit_public_payload_diagnostics(args.output)
         if not args.allow_stale_fallback or not fallback_public_files:
             raise RuntimeError('fresh Pages payload is not publishable; refusing to report success with old public data')
         restore_public_files(args.output, fallback_public_files)
