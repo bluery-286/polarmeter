@@ -21,6 +21,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from polarmeter_news_source_diagnostics import emit_news_source_diagnostics
+
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
 TOOLS = WORKSPACE / 'tools'
@@ -282,6 +284,9 @@ def run_worker(output_dir: Path, last_known_good: Path, *, attempts: int = 2) ->
                 '--json',
             ]
             result = subprocess.run(cmd, cwd=WORKSPACE, text=True, capture_output=True)
+            # Read the private per-source report before the temporary worker
+            # directory disappears, including a successful worker with too few news.
+            emit_news_source_diagnostics(tmp_path / 'news-rss-probe-report.json')
             if result.returncode == 0:
                 return json.loads(result.stdout)
             last_result = result

@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# Local QA/source reports are not part of the public cache publication.
+artifacts/
+
 # Local credentials and signing material must never enter the public repo.
 .env
 .env.*
