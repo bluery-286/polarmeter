@@ -15,6 +15,8 @@ import json
 import re
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -469,6 +471,18 @@ def has_bellwether_company_context(text: str) -> bool:
         pattern.search(text) for pattern in BELLWETHER_COMPANY_MARKET_CONTEXT_PATTERNS
     )
 
+def isolated_company_enforcement(headline: str) -> bool:
+    """A named-company legal event needs evidence before getting macro reach.
+
+    Do not suppress policy-wide sanctions, bank/systemic risk, withdrawals, or
+    explicit index/sector impact. Use source facts, not generated explanations.
+    """
+    company = re.search(r'바이낸스|코인베이스|\b(?:binance|coinbase|company|firm|platform|exchange)\b|기업|회사|업체|거래소|플랫폼', headline, re.I)
+    legal = re.search(r'검찰\s*조사|수사|기소|벌금|법원|\b(?:probe|investigation|prosecutors?|indictment|fine|fined|lawsuit)\b', headline, re.I)
+    broad = re.search(r'금융시장|금융시스템|은행|뱅크런|전염|도미노|유동성|출금\s*(?:중단|쇄도)|자금\s*경색|증시|코스피|코스닥|나스닥|업종|산업\s*전반|시장\s*전반|\b(?:bank|banks|systemic|contagion|liquidity|withdrawals?|nasdaq|dow)\b|s&p|stock\s*market|sector[- ]wide|industry[- ]wide', headline, re.I)
+    return bool(company and legal and not broad and not has_bellwether_company_context(headline))
+
+
 def market_impact_components(headline: str, source_name: str, matched_rules: list[dict[str, Any]], age_hours: float) -> dict[str, Any]:
     text = f'{headline} {source_name}'
     lower = text.lower()
@@ -537,6 +551,11 @@ def market_impact_components(headline: str, source_name: str, matched_rules: lis
         market_linkage = max(market_linkage, 58)
 
     magnitude = 72 if has_magnitude else 35 if has_market_linkage else 10
+    isolated_enforcement = isolated_company_enforcement(headline)
+    if isolated_enforcement:
+        market_linkage = min(market_linkage, 45)
+        breadth = min(breadth, 25)
+        magnitude = min(magnitude, 35)
     if age_hours <= 6:
         time_sensitivity = 82
     elif age_hours <= 12:
@@ -567,6 +586,7 @@ def market_impact_components(headline: str, source_name: str, matched_rules: lis
         'civicLifestylePolicy': civic_lifestyle_policy,
         'civicPolicyMarketOverride': civic_market_override,
         'localWelfareDonation': local_welfare_donation,
+        'isolatedCompanyEnforcement': isolated_enforcement,
     }
 
 ENGLISH_HEADLINE_PATTERNS = [
@@ -822,6 +842,8 @@ def energy_supply_state(headline: str) -> str:
             r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|'
             r'복구\s*(?:완료|마쳐|끝|성공)|정상화\s*(?:완료|마쳐|끝)|봉쇄\s*해제|'
             r'(?:restored|reopened|resumed).{0,12}(?:operation|operations|supply|flow)?|'
+            r'repairs?\s+(?:are\s+)?complet(?:e|ed)\b|'
+            r'resumes\s+(?:oil\s+)?(?:loadings?|shipments?|exports?|operations?)\b|'
             r'supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b',
             clause,
         )
@@ -876,6 +898,8 @@ def active_energy_display_key(headline: str) -> str:
 
 def critical_market_event(headline: str) -> tuple[bool, str | None]:
     text = headline.lower()
+    if isolated_company_enforcement(headline):
+        return False, None
     # Physical energy/shipping disruptions are important even without a stock
     # index, a country-specific watchword, or a realized price move.
     infrastructure = re.search(r'송유관|정유시설|유전|원유|항로|해협|pipeline|refinery|oilfield|shipping lane|strait|crude', text)
@@ -910,6 +934,24 @@ def google_news_url(query: str, *, hl: str = 'ko', gl: str = 'KR', ceid: str = '
 
 
 DEFAULT_FEEDS = [
+    {
+        'sourceId': 'rss:google-news:macro-releases-kr',
+        'label': 'Google News RSS — 물가·고용·중앙은행 발표',
+        'region': 'KR',
+        'url': google_news_url('(소비자물가 OR CPI OR PCE OR 고용지표 OR 실업률 OR 한국은행 OR FOMC) (발표 OR 금리 OR 예상 OR 속보) when:1d -관련주 -추천주'),
+    },
+    {
+        'sourceId': 'rss:google-news:macro-releases-us',
+        'label': 'Google News RSS — Inflation employment and central bank releases',
+        'region': 'US',
+        'url': google_news_url('(CPI OR PCE OR payrolls OR unemployment OR FOMC) (release OR decision OR surprise OR inflation) when:1d -portfolio -dividend', hl='en-US', gl='US', ceid='US:en'),
+    },
+    {
+        'sourceId': 'rss:google-news:policy-shocks-kr',
+        'label': 'Google News RSS — 관세·제재·시장 급변',
+        'region': 'KR',
+        'url': google_news_url('(관세 OR 수출통제 OR 제재 OR 휴전 OR 서킷브레이커 OR 환율급등) (발표 OR 합의 OR 발효 OR 철회 OR 속보) when:1d -관련주 -추천주'),
+    },
     {
         'sourceId': 'rss:google-news:energy-infrastructure-kr',
         'label': 'Google News RSS — 에너지 시설·수송 사건',
@@ -962,7 +1004,7 @@ DEFAULT_FEEDS = [
         'sourceId': 'rss:google-news:market-context-us-macro',
         'label': 'Google News RSS — global macro translated',
         'region': 'US',
-        'url': google_news_url('Fed FOMC Treasury yield dollar index VIX oil Iran Middle East markets when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
+        'url': google_news_url('(Fed OR FOMC OR Treasury OR dollar OR VIX OR oil) (markets OR decision OR yields OR inflation) when:1d -buy -dividend -portfolio', hl='en-US', gl='US', ceid='US:en'),
     },
     {
         'sourceId': 'rss:google-news:us-tech-semis',
@@ -1229,16 +1271,61 @@ def english_market_context_translation(headline: str) -> str | None:
     return None
 
 
+def energy_event_identity(headline: str) -> str:
+    """Named subjects only; never infer facility ownership from an attacker."""
+    names = [
+        (r'\bfujairah\b', '푸자이라항'),
+        (r'\b(?:kuybyshev|kuibyshev)\b', '쿠이비셰프 정유시설'),
+        (r'\bsamara\b', '사마라'),
+        (r'\bsharara\b', '샤라라 유전'),
+        (r'\beast[- ]west\s+pipeline\b', '동서 송유관'),
+        (r'\bhormuz\b', '호르무즈'),
+        (r'\bsaudi\b', '사우디'),
+    ]
+    return next((name for pattern, name in names if re.search(pattern, headline, re.I)), '')
+
+
+def energy_export_response(headline: str) -> bool:
+    return bool(re.search(r'\b(?:ramps?\s+up|increases?|lifts?)\s+(?:gulf\s+)?oil\s+(?:exports?|loadings?)\b', headline, re.I)
+                and re.search(r'(?:following|after|in\s+response\s+to).{0,40}pipeline\s+attack', headline, re.I))
+
+
+def coordinated_oil_yield_easing(headline: str) -> bool:
+    return bool(re.search(r'\boil\s*,?\s*(?:and\s+)?treasury\s+yields?\s+(?:ease|eases|fall|falls|drop|drops)\b', headline, re.I))
+
+
+def directly_observed_index_rise(headline: str) -> bool:
+    subject = r'\b(?:dow|nasdaq|s&p\s*500)\s+(?:and\s+(?:nasdaq|dow)\s+)?'
+    return bool(re.search(subject + r'(?:gains?|rises?|rallies|climbs?)\b', headline, re.I)
+                and not re.search(subject + r'(?:falls?|drops?|slides?|slips?|declines?)\b', headline, re.I))
+
+
 def koreanize_english_headline(headline: str) -> str | None:
     if not headline or has_korean(headline):
         return None
     text = headline.strip()
+    # Coordinated subjects share the following verb, not the preceding index
+    # rise: "Nasdaq rise as oil, Treasury yields ease" means both costs fall.
+    if coordinated_oil_yield_easing(text):
+        if directly_observed_index_rise(text):
+            return '미국 지수 상승·유가·국채 금리 하락'
+        return '유가·국채 금리 하락…지수 반응은 별도 확인'
+    identity = energy_event_identity(text)
+    if energy_export_response(text):
+        return f'{identity or "원유"} 공격 뒤 수출 확대 대응…남은 공급 차질 확인'
+    if energy_supply_state(text) == 'recovery':
+        if re.search(r'resumes\s+(?:oil\s+)?loadings?', text, re.I):
+            return f'{identity or "원유"} 선적 재개 소식…공급량과 남은 차질 확인'
+        return f'{identity or "에너지 시설"} 복구 소식…실제 공급 회복 범위 확인'
     if energy_supply_risk(text):
         facility = '송유관' if re.search(r'pipeline', text, re.I) else '정유시설' if re.search(r'refiner', text, re.I) else '유전' if re.search(r'oilfield', text, re.I) else '원유 공급'
         countries = {'saudi': '사우디', 'libyan': '리비아', 'russian': '러시아', 'iranian': '이란', 'iraqi': '이라크', 'canadian': '캐나다', 'norwegian': '노르웨이'}
         place = next((ko for en, ko in countries.items() if re.search(rf'\b{en}\s+(?:oil\s+)?(?:pipeline|refiner|oilfield)', text, re.I)), '')
         event = '가동 중단 소식' if re.search(r'shutdown|shut\s*down|offline|outage', text, re.I) else '공격 소식' if re.search(r'attack|struck', text, re.I) else '공급 차질 우려'
-        return f'{place} {facility} {event}…실제 공급·유가 영향 확인'.strip()
+        subject = identity if identity and any(word in identity for word in ('송유관', '정유시설', '유전')) else f'{identity or place} {facility}'.strip()
+        if subject.endswith('원유 공급') and event == '공급 차질 우려':
+            subject = subject.removesuffix(' 공급')
+        return f'{subject} {event}…실제 공급·유가 영향 확인'.strip()
     for pattern, translated in FORCED_ENGLISH_HEADLINE_TRANSLATIONS:
         if pattern.search(text):
             return translated
@@ -1507,7 +1594,28 @@ def headline_tone(headline: str) -> str:
     return 'neutral'
 
 
+def index_giveback_tone(headline: str) -> str | None:
+    if not re.search(r'코스피|코스닥|나스닥|다우|지수|\b(?:kospi|kosdaq|nasdaq|dow)\b|s&p', headline, re.I):
+        return None
+    giveback = re.search(r'(?:상승분|상승폭|오름폭).{0,12}(?:반납|축소)|\b(?:give|gives|gave|giving)\s+back\s+(?:(?:early|opening|some|all|its|the)\s+)*gains\b', headline, re.I)
+    if not giveback:
+        return None
+    # Only the subsequent result can establish net direction, not the open.
+    tail = headline[giveback.end():]
+    if re.match(r'\s*(?:없이|없었|하지\s*않|아니)', tail):
+        return None
+    direction = 'neutral'
+    for result in re.finditer(r'하락\s*(?:전환|마감)|약세\s*마감|상승\s*마감|강세\s*마감|\bclos(?:e|es|ed)\s+(?:lower|higher)\b', tail, re.I):
+        if re.search(r'전망|가능|예상|우려|할까|할지|실패|부인', tail[result.end():result.end() + 12]):
+            continue
+        direction = 'negative' if re.search(r'하락|약세|lower', result.group(), re.I) else 'positive'
+    return direction
+
+
 def market_burden_tone(headline: str, fallback: str | None = None) -> str:
+    giveback_tone = index_giveback_tone(headline)
+    if giveback_tone is not None:
+        return giveback_tone
     # A factual market wrap may have a column label such as "투자 노하우".
     # Bind both moves to their subjects before generic commentary detection.
     if explicit_oil_price_directions(headline) == {'rise'} and not re.search(r'전망|예상|가능성|forecast|\bwill\b', headline, re.I):
@@ -1963,6 +2071,8 @@ def tone_aligned_why(headline: str, display_headline: str, fallback_why: str, to
         return '유가 하락이나 공급 불안 완화는 물가와 기업 비용 부담을 낮춥니다.'
     if tone == 'positive' and inflation_relief_signal(text):
         return '물가 부담이 낮아지면 금리 압박이 줄어 시장 부담을 덜 수 있습니다.'
+    if tone == 'positive' and re.search(r'(?:treasury\s+)?yields?\s+(?:ease|eases|retreat|retreats|fall|falls|drop|drops)\b', headline, re.I):
+        return '국채 금리 하락은 자금 조달 부담을 덜 수 있습니다. 다른 시장 신호도 함께 확인합니다.'
     return fallback_why
 
 
@@ -2016,6 +2126,12 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     source_lower = source_name.lower()
     headline_lower = headline.lower()
     full_text = f'{headline} {source_name}'
+    if (
+        re.search(r'natural\s+gas\s+pipeline', headline, re.I)
+        and re.search(r'contractor|local\s+utility|neighbou?rhood', headline, re.I)
+        and not re.search(r'wholesale|national|export|futures|lng|europe|유럽|수출|국제', headline, re.I)
+    ):
+        return None, 'LOCAL_UTILITY_NOT_MARKET_TEMPERATURE'
     if expired_macro_event_preview(headline, published_at):
         return None, 'EXPIRED_MACRO_EVENT_PREVIEW'
     if any(hint.lower() in source_lower for hint in EXCLUDED_SOURCE_HINTS):
@@ -2117,7 +2233,7 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     if is_critical:
         impact['marketImpactScore'] = min(100.0, impact['marketImpactScore'] + 12.0)
     if impact['marketImpactScore'] < MARKET_IMPACT_THRESHOLD:
-        return None, 'MARKET_IMPACT_SCORE_BELOW_THRESHOLD'
+        return None, 'COMPANY_ENFORCEMENT_NO_BROAD_MARKET_LINK' if impact.get('isolatedCompanyEnforcement') else 'MARKET_IMPACT_SCORE_BELOW_THRESHOLD'
 
     quality_score = 0.62 + (impact['marketImpactScore'] / 100.0) * 0.28
     quality_score -= min(max(age_hours, 0) / 72.0, 0.20)
@@ -2193,6 +2309,25 @@ def safe_public_news_url(value: Any) -> str | None:
 
 
 def fetch_feed(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, Any]:
+    """Retry a transient transport failure once, not filtering/empty results.
+
+    Authentication and rate-limit responses are not retried immediately.
+    Never expand the source list or relax article-quality gates to fill a quota.
+    """
+    first_error = None
+    for attempt in (1, 2):
+        result = _fetch_feed_once(feed, timeout=timeout, limit=limit)
+        result['attemptCount'] = attempt
+        if first_error:
+            result['firstErrorType'] = first_error
+        if attempt == 2 or not result.get('retryable'):
+            return result
+        first_error = result.get('error')
+        time.sleep(0.5)
+    raise AssertionError('unreachable RSS retry state')
+
+
+def _fetch_feed_once(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, Any]:
     feed_url = safe_public_news_url(feed.get('url'))
     if not feed_url:
         return {
@@ -2234,11 +2369,18 @@ def fetch_feed(feed: dict[str, str], *, timeout: int, limit: int) -> dict[str, A
                 'provider': 'public-rss',
                 'licenseNote': 'public RSS headline cache only; no body or image scraping',
             })
-            if len(items) >= limit:
-                break
+        # RSS ordering is not a freshness contract. Inspect the already bounded
+        # response before applying the per-feed cap, otherwise late-listed
+        # breaking stories can never reach relevance/importance selection.
+        items.sort(key=lambda item: item.get('publishedAt') or '', reverse=True)
+        items = items[:max(0, limit)]
         return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'ok' if items else 'empty', 'urlHost': urllib.parse.urlparse(feed_url).netloc, 'items': items}
     except Exception as error:
-        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'error', 'urlHost': urllib.parse.urlparse(feed_url).netloc, 'error': type(error).__name__, 'items': []}
+        retryable = (
+            error.code in {500, 502, 503, 504} if isinstance(error, urllib.error.HTTPError)
+            else isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionResetError))
+        )
+        return {'sourceId': feed['sourceId'], 'label': feed.get('label'), 'region': feed.get('region'), 'status': 'error', 'urlHost': urllib.parse.urlparse(feed_url).netloc, 'error': type(error).__name__, 'retryable': retryable, 'items': []}
 
 
 def categorize(headline: str) -> tuple[str, str, list[str]]:
@@ -2305,8 +2447,24 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if mixed_inflation_relief_rate_burden_signal(f'{headline} {display_headline or ""}'):
                 final_impact_tone = 'neutral'
             final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
+            giveback_tone = index_giveback_tone(headline)
+            if giveback_tone is not None:
+                final_impact_tone = giveback_tone
+                if has_korean(headline):
+                    display_headline = headline
+                final_why = {
+                    'neutral': '장 초반 상승폭을 반납했습니다. 현재 등락률이나 마감 방향이 확인되지 않으면 상승 지속이나 하락 전환으로 단정하지 않습니다.',
+                    'negative': '상승폭을 반납한 뒤 하락 전환 또는 하락 마감이 전해졌습니다. 장 초반 상승과 이후 약세를 구분합니다.',
+                    'positive': '상승폭을 반납했지만 최종적으로 상승 마감했습니다. 장중 흔들림과 마감 방향을 구분합니다.',
+                }[giveback_tone]
+            if coordinated_oil_yield_easing(headline) and directly_observed_index_rise(headline):
+                final_impact_tone = 'positive'
+                final_why = '주가지수는 상승했고 유가와 국채 금리는 하락했습니다. 비용 부담 완화와 지수 반응을 함께 확인합니다.'
             energy_state = energy_supply_state(headline)
-            if energy_supply_risk(headline):
+            if energy_export_response(headline):
+                final_impact_tone = 'neutral'
+                final_why = '시설 공격 이후 수출 확대 대응이 나왔습니다. 실제 공급 회복량과 남은 차질을 함께 확인합니다.'
+            elif energy_supply_risk(headline):
                 final_impact_tone = 'negative'
                 final_why = '에너지 공급 차질 우려는 물가와 기업 비용 부담을 키울 수 있습니다. 실제 공급량과 유가 반응은 별도로 확인합니다.'
             elif energy_state == 'denied':
@@ -2382,26 +2540,52 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     target_kr = min(len(kr_items), max(4, max_items // 3)) if max_items >= 10 else min(len(kr_items), 2)
     target_us = min(len(us_items), max(4, max_items // 3)) if max_items >= 10 else min(len(us_items), 2)
     critical_items = [item for item in out if item.get('critical')]
-    def add_item(item: dict[str, Any]) -> bool:
+    # When eligible macro-release stories exist, energy-event volume must not
+    # consume every available slot. This does not bypass relevance/freshness.
+    macro_release_items = [item for item in out if re.search(
+        r'\b(?:CPI|PCE|PPI|FOMC|payrolls|unemployment)\b|소비자물가|고용지표|실업률|금리\s*(?:결정|인상|인하|동결)',
+        item.get('originalHeadline') or item.get('headline') or '', re.I,
+    )]
+    # Topic anchors are taken only from already eligible stories. Region labels
+    # alone are insufficient: US oil reports are not US index observations.
+    topic_patterns = {
+        'inflation': r'\b(?:CPI|PCE|PPI)\b|소비자물가',
+        'employment': r'\b(?:payrolls|unemployment)\b|고용지표|비농업\s*고용|실업률',
+        'policy_rate': r'\bFOMC\b|금리\s*(?:결정|인상|인하|동결)',
+        'kr_indices': r'코스피|코스닥|\b(?:kospi|kosdaq)\b',
+        'us_indices': r'나스닥|다우|뉴욕증시|\b(?:nasdaq|dow)\b|s&p\s*500',
+    }
+    anchors: list[dict[str, Any]] = []
+    for pattern in topic_patterns.values():
+        candidates = [item for item in out if re.search(pattern, item.get('originalHeadline') or item.get('headline') or '', re.I)]
+        if candidates:
+            anchors.append(max(candidates, key=lambda item: (item.get('publishedAt') or '', sort_key(item))))
+    seen_issues: set[str] = set()
+    def add_item(item: dict[str, Any], distinct_issue: bool = False) -> bool:
         key = str(item.get('url') or item.get('headline')).lower()
-        if key in seen_balanced:
+        issue = str(item.get('issueClusterKey') or key)
+        if key in seen_balanced or (distinct_issue and issue in seen_issues):
             return False
         balanced.append(item)
         seen_balanced.add(key)
+        seen_issues.add(issue)
         return True
     # Critical events should lead. Translated overseas cards get a minimum
     # presence, but the quota must not override stronger market triggers.
     critical_lead_limit = min(len(critical_items), max(4, max_items // 4))
-    for bucket, limit in [
-        (critical_items, critical_lead_limit),
-        (kr_items, target_kr),
-        (us_items, target_us),
-        (overseas_items, target_overseas),
-        (out, max_items),
+    for bucket, limit, distinct_issue in [
+        (critical_items, critical_lead_limit, True),
+        (anchors, len(topic_patterns), False),
+        (macro_release_items, min(3, max(1, max_items // 5)), True),
+        (kr_items, target_kr, True),
+        (us_items, target_us, True),
+        (overseas_items, target_overseas, True),
+        (out, max_items, True),
+        (out, max_items, False),
     ]:
         count = 0
         for item in bucket:
-            if add_item(item):
+            if add_item(item, distinct_issue):
                 count += 1
             if len(balanced) >= max_items or count >= limit:
                 break
@@ -2429,10 +2613,17 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     return selected, {
         'filteredReasons': filtered_reasons,
         'filteredOutCount': sum(filtered_reasons.values()),
-        'balancedPolicy': 'critical_first_then_translated_overseas_and_kr_mix',
+        'balancedPolicy': 'critical_then_latest_topic_anchors_distinct_issues_then_regional_mix',
         'criticalCount': sum(1 for item in selected if item.get('critical')),
         'translatedOverseasCount': sum(1 for item in selected if item.get('region') == 'US' and item.get('originalHeadline')),
         'issueClusterCount': len({item.get('issueClusterKey') for item in selected if item.get('issueClusterKey')}),
+        'anchorCoverage': {
+            topic: {
+                'eligibleCount': sum(bool(re.search(pattern, item.get('originalHeadline') or item.get('headline') or '', re.I)) for item in out),
+                'selectedCount': sum(bool(re.search(pattern, item.get('originalHeadline') or item.get('headline') or '', re.I)) for item in selected),
+            }
+            for topic, pattern in topic_patterns.items()
+        },
     }
 
 
@@ -2485,17 +2676,20 @@ def news_dedupe_key(item: dict[str, Any]) -> str:
 
 
 def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
-    counts: dict[str, int] = {}
-    capped: list[dict[str, Any]] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
     for item in items:
         key = issue_cluster_key(item)
-        count = counts.get(key, 0)
-        if count >= per_issue_limit:
-            continue
-        counts[key] = count + 1
         item['issueClusterKey'] = key
-        capped.append(item)
-    return capped
+        groups.setdefault(key, []).append(item)
+    selected_ids: set[int] = set()
+    for group in groups.values():
+        selected = group[:max(0, per_issue_limit)]
+        if selected:
+            latest = max(group, key=lambda item: item.get('publishedAt') or '')
+            if not any(item is latest for item in selected):
+                selected[-1] = latest
+            selected_ids.update(id(item) for item in selected)
+    return [item for item in items if id(item) in selected_ids]
 
 
 def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes: int) -> dict[str, Any]:
