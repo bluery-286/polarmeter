@@ -117,12 +117,11 @@ def main() -> None:
     assert "'6,21,36,51 18,19 * * 1-5'" in workflow
     assert 'macro_watch_schedules' in workflow
     assert 'CACHE_SNAPSHOT_URL' in workflow
-    build_line = next(
-        line for line in workflow.splitlines()
-        if 'python3 tools/polarmeter_github_pages_prepare.py --output ' in line
-    )
-    assert '--allow-stale-fallback' not in build_line
-    assert '"$RUNNER_TEMP/polarmeter-site"' in build_line
+    assert 'python3 tools/polarmeter_github_pages_prepare.py ' in workflow
+    assert '--allow-stale-fallback' not in workflow
+    assert '--news-shortfall-retries 1' in workflow
+    assert '--news-shortfall-retry-delay-seconds 45' in workflow
+    assert '"$RUNNER_TEMP/polarmeter-site"' in workflow
     assert 'x-access-token:' not in workflow
     assert 'git push --force origin HEAD:gh-pages' in workflow
     print('PASS — worker failure is fatal and official macro release watch is scheduled')
