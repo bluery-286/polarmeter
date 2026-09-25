@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,10 @@ PUBLISHABLE_DISPLAY_MODES = {'normal', 'limited', 'fallback', 'collecting'}
 PUBLISHABLE_HISTORY_VERSIONS = {'temperature-history-v1'}
 PUBLISHABLE_DAILY_DELTA_STATUSES = {'ready', 'pending', 'unavailable'}
 _MISSING = object()
+TRANSIENT_NEWS_SHORTFALL_CHECKS = {
+    'snapshot.news.items',
+    'manifest.okNewsCount',
+}
 
 
 def copy_site(site_dir: Path, output_dir: Path) -> None:
@@ -231,6 +236,15 @@ def emit_public_payload_diagnostics(output_dir: Path) -> None:
         print(json.dumps({'pagesPublishabilityFailures': failures}, ensure_ascii=False, separators=(',', ':')), file=sys.stderr)
 
 
+def transient_news_shortfall_only(failures: list[dict[str, Any]]) -> bool:
+    """Retry only a bounded fresh-news shortage, never another contract failure."""
+    return bool(failures) and all(
+        failure.get('check') in TRANSIENT_NEWS_SHORTFALL_CHECKS
+        and failure.get('reason') == 'below_minimum'
+        for failure in failures
+    )
+
+
 def summary_from_public_payload(output_dir: Path, summary: dict[str, Any], *, reused_existing: bool) -> dict[str, Any]:
     manifest = json.loads((output_dir / 'market-snapshot-manifest.json').read_text(encoding='utf-8'))
     return {
@@ -302,6 +316,29 @@ def run_worker(output_dir: Path, last_known_good: Path, *, attempts: int = 2) ->
         'polarmeter_free_cache_worker failed after '
         f'{attempts} attempts with exit {last_result.returncode if last_result else "unknown"}'
     )
+
+
+def run_worker_with_publishability_retries(
+    output_dir: Path,
+    last_known_good: Path,
+    *,
+    news_shortfall_retries: int,
+    retry_delay_seconds: float,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Regenerate after a transient news shortage without relaxing quality gates."""
+    for retry_index in range(news_shortfall_retries + 1):
+        summary = run_worker(output_dir, last_known_good)
+        failures = public_payload_publishability_failures(output_dir)
+        if not transient_news_shortfall_only(failures) or retry_index >= news_shortfall_retries:
+            return summary, failures
+        print(
+            'warning: fresh news count is below the publishable minimum; '
+            f'retrying full collection {retry_index + 1}/{news_shortfall_retries}',
+            file=sys.stderr,
+        )
+        if retry_delay_seconds > 0:
+            time.sleep(retry_delay_seconds)
+    raise AssertionError('unreachable publishability retry state')
 
 
 def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
@@ -421,6 +458,18 @@ def main() -> int:
         action='store_true',
         help='Local-preview escape hatch only: reuse the prior public payload when fresh generation fails.',
     )
+    parser.add_argument(
+        '--news-shortfall-retries',
+        type=int,
+        default=1,
+        help='Retry full collection this many times when fresh news alone is below the publishable minimum.',
+    )
+    parser.add_argument(
+        '--news-shortfall-retry-delay-seconds',
+        type=float,
+        default=45,
+        help='Delay before a full retry after a transient fresh-news shortage.',
+    )
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
 
@@ -435,8 +484,16 @@ def main() -> int:
     if remote_public_files:
         restore_public_files(args.output, remote_public_files)
     seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
+    if args.news_shortfall_retries < 0 or args.news_shortfall_retry_delay_seconds < 0:
+        parser.error('news shortfall retry values must be non-negative')
+    publishability_failures: list[dict[str, Any]] = []
     try:
-        summary = run_worker(args.output, LAST_KNOWN_GOOD)
+        summary, publishability_failures = run_worker_with_publishability_retries(
+            args.output,
+            LAST_KNOWN_GOOD,
+            news_shortfall_retries=args.news_shortfall_retries,
+            retry_delay_seconds=args.news_shortfall_retry_delay_seconds,
+        )
     except Exception as error:
         if not args.allow_stale_fallback or not fallback_public_files:
             raise
@@ -454,7 +511,7 @@ def main() -> int:
             },
             reused_existing=True,
         )
-    if not public_payload_is_publishable(args.output):
+    if publishability_failures:
         emit_public_payload_diagnostics(args.output)
         if not args.allow_stale_fallback or not fallback_public_files:
             raise RuntimeError('fresh Pages payload is not publishable; refusing to report success with old public data')

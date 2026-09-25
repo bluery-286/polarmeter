@@ -7,6 +7,7 @@ import io
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import polarmeter_github_pages_prepare as prepare
 
@@ -87,6 +88,46 @@ def main() -> None:
             prepare.emit_public_payload_diagnostics(output_dir)
         assert 'unreadable' in captured.getvalue()
         assert UNTRUSTED_SENTINEL not in captured.getvalue()
+
+    news_shortfall = [
+        {'check': 'snapshot.news.items', 'reason': 'below_minimum'},
+        {'check': 'manifest.okNewsCount', 'reason': 'below_minimum'},
+    ]
+    assert prepare.transient_news_shortfall_only(news_shortfall)
+    assert not prepare.transient_news_shortfall_only([
+        {'check': 'health.ok', 'reason': 'value_mismatch'},
+    ])
+    with (
+        patch.object(prepare, 'run_worker', side_effect=[{'attempt': 1}, {'attempt': 2}]) as worker,
+        patch.object(prepare, 'public_payload_publishability_failures', side_effect=[news_shortfall, []]),
+        patch.object(prepare.time, 'sleep') as sleeper,
+    ):
+        summary, failures = prepare.run_worker_with_publishability_retries(
+            Path('output'),
+            Path('last-good'),
+            news_shortfall_retries=1,
+            retry_delay_seconds=45,
+        )
+    assert summary == {'attempt': 2} and failures == []
+    assert worker.call_count == 2
+    sleeper.assert_called_once_with(45)
+
+    with (
+        patch.object(prepare, 'run_worker', return_value={'attempt': 1}) as worker,
+        patch.object(prepare, 'public_payload_publishability_failures', return_value=[
+            {'check': 'health.ok', 'reason': 'value_mismatch'},
+        ]),
+        patch.object(prepare.time, 'sleep') as sleeper,
+    ):
+        _, failures = prepare.run_worker_with_publishability_retries(
+            Path('output'),
+            Path('last-good'),
+            news_shortfall_retries=1,
+            retry_delay_seconds=45,
+        )
+    assert failures[0]['check'] == 'health.ok'
+    assert worker.call_count == 1
+    sleeper.assert_not_called()
 
     print('PASS Pages publishability diagnostics remain local and safe')
 
