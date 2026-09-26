@@ -148,7 +148,8 @@ jobs:
           python3 tools/polarmeter_github_pages_prepare.py \
             --output "$RUNNER_TEMP/polarmeter-site" \
             --news-shortfall-retries 1 \
-            --news-shortfall-retry-delay-seconds 45
+            --news-shortfall-retry-delay-seconds 45 \
+            --news-shortfall-fallback-max-age-minutes 120
           python3 tools/polarmeter_security_contract.py --public-dir "$RUNNER_TEMP/polarmeter-site"
           python3 tools/polarmeter_github_pages_smoke.py --prepared-site "$RUNNER_TEMP/polarmeter-site"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

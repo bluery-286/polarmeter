@@ -2,8 +2,11 @@
 """Regression contract: production cache generation must not hide a failed worker."""
 from __future__ import annotations
 
+import io
+import json
 import subprocess
 import sys
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,6 +20,27 @@ import polarmeter_github_pages_smoke as pages_smoke
 
 WORKSPACE = Path(__file__).resolve().parent.parent
 WORKFLOW = WORKSPACE / '.github/workflows/polarmeter-cache-pages.yml'
+
+
+def public_payload(now: datetime, age: timedelta, *, news_count: int = 10) -> dict[str, str]:
+    snapshot = {
+        'status': 'partial',
+        'generatedAt': (now - age).isoformat().replace('+00:00', 'Z'),
+        'dataQuality': {'coreCoverageRatio': 0.8, 'displayMode': 'normal'},
+        'news': {'items': [{} for _ in range(news_count)]},
+        'temperatureHistory': {
+            'version': 'temperature-history-v1',
+            'retentionDays': 7,
+            'items': [],
+            'dailyDelta': {'status': 'ready'},
+        },
+    }
+    manifest = {'snapshotStatus': 'partial', 'okNewsCount': news_count}
+    return {
+        'market-snapshot-latest.json': json.dumps(snapshot),
+        'market-snapshot-manifest.json': json.dumps(manifest),
+        'health.json': json.dumps({'ok': True}),
+    }
 
 
 def main() -> None:
@@ -36,6 +60,63 @@ def main() -> None:
         '2026-08-12T12:31:00Z',
         '2026-08-12T12:30:00Z',
     )
+
+    now = datetime(2026, 9, 26, 0, 0, tzinfo=timezone.utc)
+    shortfall_failures = [
+        {'check': 'snapshot.news.items', 'reason': 'below_minimum'},
+        {'check': 'manifest.okNewsCount', 'reason': 'below_minimum'},
+    ]
+    recent_fallback = public_payload(now, timedelta(hours=1, minutes=59))
+    with TemporaryDirectory(prefix='polarmeter-recent-news-fallback-') as tmp:
+        output_dir = Path(tmp)
+        assert prepare.reuse_recent_public_payload_for_news_shortfall(
+            output_dir, recent_fallback, shortfall_failures, now=now,
+        )
+        restored = json.loads((output_dir / 'market-snapshot-latest.json').read_text())
+        assert restored['generatedAt'] == json.loads(recent_fallback['market-snapshot-latest.json'])['generatedAt']
+        assert prepare.recent_publishable_public_payload(
+            public_payload(now, timedelta(hours=2)), now=now,
+        ), 'a snapshot exactly 2 hours old must remain eligible'
+        assert not prepare.recent_publishable_public_payload(
+            public_payload(now, timedelta(hours=2, seconds=1)), now=now,
+        ), 'snapshots older than 2 hours must be rejected'
+        assert not prepare.recent_publishable_public_payload(
+            public_payload(now, timedelta(minutes=5), news_count=9), now=now,
+        ), 'fallback must still satisfy the 10-news minimum'
+        assert not prepare.reuse_recent_public_payload_for_news_shortfall(
+            output_dir,
+            recent_fallback,
+            shortfall_failures + [{'check': 'health.ok', 'reason': 'value_mismatch'}],
+            now=now,
+        ), 'non-news payload failures must never use the shortfall fallback'
+
+    live_now = datetime.now(timezone.utc)
+    live_fallback = public_payload(live_now, timedelta(minutes=30))
+    with TemporaryDirectory(prefix='polarmeter-main-news-fallback-') as tmp:
+        output = io.StringIO()
+        with (
+            patch.object(prepare, 'copy_site'),
+            patch.object(prepare, 'read_public_files', return_value=live_fallback),
+            patch.object(prepare, 'read_remote_public_files', return_value=live_fallback),
+            patch.object(prepare, 'seed_last_known_good_from_site', return_value=False),
+            patch.object(
+                prepare,
+                'run_worker_with_publishability_retries',
+                return_value=({'freshnessAudit': 'passed'}, shortfall_failures),
+            ),
+            patch.object(prepare, 'assert_pages_contract'),
+            patch.object(sys, 'argv', [
+                'polarmeter_github_pages_prepare.py', '--output', tmp, '--json',
+                '--news-shortfall-retries', '1', '--news-shortfall-retry-delay-seconds', '0',
+            ]),
+            redirect_stdout(output),
+        ):
+            assert prepare.main() == 0
+        result = json.loads(output.getvalue())
+        assert result['ok'] is True
+        assert result['usedExistingPublicSnapshot'] is True
+        assert result['newsShortfallFallbackUsed'] is True
+        assert result['okNewsCount'] == 10
 
     now = datetime.now(timezone.utc)
     signal = {
@@ -121,6 +202,7 @@ def main() -> None:
     assert '--allow-stale-fallback' not in workflow
     assert '--news-shortfall-retries 1' in workflow
     assert '--news-shortfall-retry-delay-seconds 45' in workflow
+    assert '--news-shortfall-fallback-max-age-minutes 120' in workflow
     assert '"$RUNNER_TEMP/polarmeter-site"' in workflow
     assert 'x-access-token:' not in workflow
     assert 'git push --force origin HEAD:gh-pages' in workflow
