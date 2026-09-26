@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 
 LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 PUBLIC_BASE_URL = 'https://polarmeter.polarbearworks.com'
 MIN_PUBLISHABLE_NEWS_ITEMS = 10
+NEWS_SHORTFALL_FALLBACK_MAX_AGE = timedelta(hours=2)
 PUBLISHABLE_DISPLAY_MODES = {'normal', 'limited', 'fallback', 'collecting'}
 PUBLISHABLE_HISTORY_VERSIONS = {'temperature-history-v1'}
 PUBLISHABLE_DAILY_DELTA_STATUSES = {'ready', 'pending', 'unavailable'}
@@ -243,6 +245,69 @@ def transient_news_shortfall_only(failures: list[dict[str, Any]]) -> bool:
         and failure.get('reason') == 'below_minimum'
         for failure in failures
     )
+
+
+def parse_aware_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def recent_publishable_public_payload(
+    payload: dict[str, str],
+    *,
+    max_age: timedelta = NEWS_SHORTFALL_FALLBACK_MAX_AGE,
+    now: datetime | None = None,
+) -> bool:
+    """Allow a shortfall fallback only to a recent, already-publishable snapshot."""
+    if not all(name in payload for name in PUBLIC_FILES):
+        return False
+    try:
+        snapshot = json.loads(payload['market-snapshot-latest.json'])
+        manifest = json.loads(payload['market-snapshot-manifest.json'])
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(snapshot, dict) or not isinstance(manifest, dict):
+        return False
+    if snapshot.get('status') not in {'ok', 'partial'} or manifest.get('snapshotStatus') not in {'ok', 'partial'}:
+        return False
+    generated_at = parse_aware_datetime(snapshot.get('generatedAt'))
+    if generated_at is None:
+        return False
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None or current.utcoffset() is None:
+        return False
+    age = current.astimezone(timezone.utc) - generated_at
+    if age < timedelta(0) or age > max_age:
+        return False
+
+    with tempfile.TemporaryDirectory(prefix='polarmeter-pages-fallback-check-') as tmp:
+        fallback_dir = Path(tmp)
+        restore_public_files(fallback_dir, payload)
+        return public_payload_is_publishable(fallback_dir)
+
+
+def reuse_recent_public_payload_for_news_shortfall(
+    output_dir: Path,
+    payload: dict[str, str],
+    failures: list[dict[str, Any]],
+    *,
+    max_age: timedelta = NEWS_SHORTFALL_FALLBACK_MAX_AGE,
+    now: datetime | None = None,
+) -> bool:
+    """Restore a recent healthy publication only after retries fail on news count alone."""
+    if not transient_news_shortfall_only(failures):
+        return False
+    if not recent_publishable_public_payload(payload, max_age=max_age, now=now):
+        return False
+    restore_public_files(output_dir, payload)
+    return True
 
 
 def summary_from_public_payload(output_dir: Path, summary: dict[str, Any], *, reused_existing: bool) -> dict[str, Any]:
@@ -470,6 +535,12 @@ def main() -> int:
         default=45,
         help='Delay before a full retry after a transient fresh-news shortage.',
     )
+    parser.add_argument(
+        '--news-shortfall-fallback-max-age-minutes',
+        type=float,
+        default=NEWS_SHORTFALL_FALLBACK_MAX_AGE.total_seconds() / 60,
+        help='Maximum age of an already-publishable snapshot allowed after news retries fail.',
+    )
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
 
@@ -484,9 +555,14 @@ def main() -> int:
     if remote_public_files:
         restore_public_files(args.output, remote_public_files)
     seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
-    if args.news_shortfall_retries < 0 or args.news_shortfall_retry_delay_seconds < 0:
-        parser.error('news shortfall retry values must be non-negative')
+    if (
+        args.news_shortfall_retries < 0
+        or args.news_shortfall_retry_delay_seconds < 0
+        or args.news_shortfall_fallback_max_age_minutes < 0
+    ):
+        parser.error('news shortfall retry and fallback age values must be non-negative')
     publishability_failures: list[dict[str, Any]] = []
+    reused_existing_public_snapshot = False
     try:
         summary, publishability_failures = run_worker_with_publishability_retries(
             args.output,
@@ -511,6 +587,28 @@ def main() -> int:
             },
             reused_existing=True,
         )
+        reused_existing_public_snapshot = True
+    if publishability_failures and reuse_recent_public_payload_for_news_shortfall(
+        args.output,
+        fallback_public_files,
+        publishability_failures,
+        max_age=timedelta(minutes=args.news_shortfall_fallback_max_age_minutes),
+    ):
+        print(
+            'warning: news remained below the publishable minimum after retries; '
+            'reusing a recent healthy public snapshot',
+            file=sys.stderr,
+        )
+        summary = summary_from_public_payload(
+            args.output,
+            {
+                **summary,
+                'newsShortfallFallbackUsed': True,
+            },
+            reused_existing=True,
+        )
+        reused_existing_public_snapshot = True
+        publishability_failures = []
     if publishability_failures:
         emit_public_payload_diagnostics(args.output)
         if not args.allow_stale_fallback or not fallback_public_files:
@@ -518,7 +616,11 @@ def main() -> int:
         restore_public_files(args.output, fallback_public_files)
         summary = summary_from_public_payload(args.output, summary, reused_existing=True)
     else:
-        summary = summary_from_public_payload(args.output, summary, reused_existing=False)
+        summary = summary_from_public_payload(
+            args.output,
+            summary,
+            reused_existing=reused_existing_public_snapshot,
+        )
     assert_pages_contract(args.output, summary)
 
     payload = {
@@ -531,6 +633,7 @@ def main() -> int:
         'freshnessAudit': summary.get('freshnessAudit'),
         'usedExistingPublicSnapshot': summary.get('usedExistingPublicSnapshot') is True,
         'workerFallbackUsed': summary.get('workerFallbackUsed') is True,
+        'newsShortfallFallbackUsed': summary.get('newsShortfallFallbackUsed') is True,
         'seededLastKnownGoodFromSite': seeded_last_known_good,
         'publicUrls': {
             'snapshot': 'market-snapshot-latest.json',
