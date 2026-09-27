@@ -13,9 +13,11 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import polarmeter_cache_snapshot as cache
+import polarmeter_data_freshness_audit as freshness
 import polarmeter_free_cache_worker as worker
 import polarmeter_github_pages_prepare as prepare
 import polarmeter_github_pages_smoke as pages_smoke
+import polarmeter_market_calendar as market_calendar
 
 
 WORKSPACE = Path(__file__).resolve().parent.parent
@@ -44,6 +46,70 @@ def public_payload(now: datetime, age: timedelta, *, news_count: int = 10) -> di
 
 
 def main() -> None:
+    holiday_close = datetime(2026, 9, 27, 16, 0, tzinfo=market_calendar.KST_ZONE)
+    last_trade = datetime(2026, 9, 23, 15, 30, tzinfo=market_calendar.KST_ZONE)
+    holiday_signal = {
+        'status': 'ok',
+        'dataAsOf': last_trade.isoformat(),
+    }
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 24, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 25, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 26, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 27, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 28, 12, tzinfo=market_calendar.KST_ZONE)) is None
+    assert '근로자의날' in market_calendar.kr_market_closed_reason(datetime(2026, 5, 1, 12, tzinfo=market_calendar.KST_ZONE))
+    assert '전국동시지방선거' in market_calendar.kr_market_closed_reason(datetime(2026, 6, 3, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 7, 17, 12, tzinfo=market_calendar.KST_ZONE)) is None
+    assert freshness.last_completed_kr_trading_date(holiday_close) == last_trade.date()
+    for key in ('kospi', 'kosdaq'):
+        assert freshness.tolerated_kr_session_gap(key, holiday_signal, holiday_close, 96.0)
+        assert freshness.hard_stale_ok_error(key, holiday_signal, holiday_close, 96.0) is None
+
+    reopening = datetime(2026, 9, 28, 10, 0, tzinfo=market_calendar.KST_ZONE)
+    assert market_calendar.is_kr_market_active(reopening)
+    for key in ('kospi', 'kosdaq'):
+        assert not freshness.tolerated_kr_session_gap(key, holiday_signal, reopening, 96.0)
+        assert freshness.hard_stale_ok_error(key, holiday_signal, reopening, 96.0)
+        assert freshness.active_market_stale_ok_error(key, holiday_signal, reopening)
+    long_stale_signal = {'status': 'ok', 'dataAsOf': datetime(2026, 9, 22, 15, 30, tzinfo=market_calendar.KST_ZONE).isoformat()}
+    for key in ('kospi', 'kosdaq'):
+        assert not freshness.tolerated_kr_session_gap(key, long_stale_signal, holiday_close, 96.0)
+        assert freshness.hard_stale_ok_error(key, long_stale_signal, holiday_close, 96.0)
+
+    thanksgiving = datetime(2026, 11, 26, 18, 0, tzinfo=market_calendar.NY_ZONE)
+    thanksgiving_signal = {
+        'status': 'ok',
+        'dataAsOf': datetime(2026, 11, 25, 16, 0, tzinfo=market_calendar.NY_ZONE).isoformat(),
+    }
+    assert market_calendar.us_market_closed_reason(thanksgiving)
+    assert freshness.last_completed_us_trading_date(thanksgiving) == datetime(2026, 11, 25).date()
+    # Use a 24h test boundary to exercise the existing session-gap allowance;
+    # the production SP500 hard limit remains its configured 72 hours.
+    assert freshness.tolerated_us_session_gap('sp500', thanksgiving_signal, thanksgiving, 24.0)
+
+    friday_open = datetime(2026, 11, 27, 10, 0, tzinfo=market_calendar.NY_ZONE)
+    assert market_calendar.is_us_market_active(friday_open)
+    assert freshness.active_market_stale_ok_error('sp500', thanksgiving_signal, friday_open)
+
+    christmas = datetime(2026, 12, 25, 12, 0, tzinfo=market_calendar.NY_ZONE)
+    christmas_weekend = datetime(2026, 12, 27, 18, 0, tzinfo=market_calendar.NY_ZONE)
+    christmas_signal = {
+        'status': 'ok',
+        'dataAsOf': datetime(2026, 12, 24, 13, 0, tzinfo=market_calendar.NY_ZONE).isoformat(),
+    }
+    assert market_calendar.us_market_closed_reason(christmas)
+    assert market_calendar.us_market_closed_reason(christmas_weekend)
+    assert freshness.last_completed_us_trading_date(christmas_weekend) == datetime(2026, 12, 24).date()
+    assert freshness.tolerated_us_session_gap('sp500', christmas_signal, christmas_weekend, 72.0)
+    assert freshness.hard_stale_ok_error('sp500', christmas_signal, christmas_weekend, 72.0) is None
+
+    older_us_session = {
+        'status': 'ok',
+        'dataAsOf': datetime(2026, 12, 23, 16, 0, tzinfo=market_calendar.NY_ZONE).isoformat(),
+    }
+    assert not freshness.tolerated_us_session_gap('sp500', older_us_session, christmas_weekend, 72.0)
+    assert freshness.hard_stale_ok_error('sp500', older_us_session, christmas_weekend, 72.0)
+
     cpi_preview = 'Nasdaq 100: Tech Stocks Lead Monday’s Pre-Market Bid Ahead of CPI'
     assert not pages_smoke.is_expired_cpi_preview(
         cpi_preview,
