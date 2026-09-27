@@ -32,6 +32,7 @@ MAX_SELECTED_AGE_HOURS = {
     'vix': 72.0,
 }
 US_SESSION_SIGNAL_KEYS = {'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix'}
+KR_SESSION_SIGNAL_KEYS = {'kospi', 'kosdaq'}
 ACTIVE_MARKET_MAX_AGE_HOURS = 3.0
 KR_ACTIVE_MARKET_KEYS = {'kospi', 'kosdaq', 'usd_krw'}
 US_ACTIVE_MARKET_KEYS = {'sp500', 'nasdaq100', 'iwm', 'soxx', 'smh', 'eem', 'vix'}
@@ -179,6 +180,35 @@ def tolerated_us_session_gap(key: str, signal: dict[str, Any], as_of: datetime, 
     return data_date >= last_completed_us_trading_date(as_of)
 
 
+def is_kr_trading_day(day: Any) -> bool:
+    probe_time = datetime.combine(day, day_time(12, 0), tzinfo=calendar.KST_ZONE)
+    return calendar.kr_market_closed_reason(probe_time) is None
+
+
+def last_completed_kr_trading_date(as_of: datetime) -> Any:
+    candidate = as_of.astimezone(calendar.KST_ZONE).date()
+    while not is_kr_trading_day(candidate):
+        candidate -= timedelta(days=1)
+    return candidate
+
+
+def tolerated_kr_session_gap(key: str, signal: dict[str, Any], as_of: datetime, max_age: float | None) -> bool:
+    if key not in KR_SESSION_SIGNAL_KEYS or max_age is None:
+        return False
+    # Only excuse the age limit while the exchange is closed, and only for its
+    # most recent completed session. Opening weekdays return to strict checks.
+    if calendar.kr_market_closed_reason(as_of) is None:
+        return False
+    age = selected_age(signal, as_of)
+    if age is None or age <= max_age:
+        return False
+    data_as_of = cache.parse_utc_datetime(signal.get('dataAsOf'))
+    if data_as_of is None:
+        return False
+    data_date = data_as_of.astimezone(calendar.KST_ZONE).date()
+    return data_date == last_completed_kr_trading_date(as_of)
+
+
 def active_market_stale_ok_error(key: str, signal: dict[str, Any], as_of: datetime) -> str | None:
     status = str(signal.get('status') or '')
     if status != 'ok':
@@ -203,7 +233,7 @@ def hard_stale_ok_error(key: str, signal: dict[str, Any], as_of: datetime, max_a
     age = selected_age(signal, as_of)
     if age is not None and age <= max_age:
         return None
-    if tolerated_us_session_gap(key, signal, as_of, max_age):
+    if tolerated_us_session_gap(key, signal, as_of, max_age) or tolerated_kr_session_gap(key, signal, as_of, max_age):
         return None
     return f'{key}: too-old data must not be status=ok: age={age}, max={max_age}'
 
@@ -232,7 +262,10 @@ def audit(snapshot: dict[str, Any], probe: dict[str, Any]) -> list[str]:
                 errors.append(f'{key}: critical signal missing {field}')
         age = selected_age(signal, as_of)
         max_age = CRITICAL_SIGNAL_MAX_AGE_HOURS.get(key)
-        if max_age is not None and (age is None or age > max_age) and not tolerated_us_session_gap(key, signal, as_of, max_age):
+        if max_age is not None and (age is None or age > max_age) and not (
+            tolerated_us_session_gap(key, signal, as_of, max_age)
+            or tolerated_kr_session_gap(key, signal, as_of, max_age)
+        ):
             errors.append(f'{key}: critical signal too old: age={age}, max={max_age}')
         hard_error = hard_stale_ok_error(key, signal, as_of, max_age)
         if hard_error:
@@ -255,7 +288,10 @@ def audit(snapshot: dict[str, Any], probe: dict[str, Any]) -> list[str]:
             continue
         age = selected_age(signal, as_of)
         max_age = MAX_SELECTED_AGE_HOURS.get(key)
-        if max_age is not None and (age is None or age > max_age) and not tolerated_us_session_gap(key, signal, as_of, max_age):
+        if max_age is not None and (age is None or age > max_age) and not (
+            tolerated_us_session_gap(key, signal, as_of, max_age)
+            or tolerated_kr_session_gap(key, signal, as_of, max_age)
+        ):
             errors.append(f'{key}: selected data too old for fast-moving signal: age={age}, max={max_age}')
 
         candidates = provider_candidates(probe, key)
