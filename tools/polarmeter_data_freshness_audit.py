@@ -186,7 +186,13 @@ def is_kr_trading_day(day: Any) -> bool:
 
 
 def last_completed_kr_trading_date(as_of: datetime) -> Any:
-    candidate = as_of.astimezone(calendar.KST_ZONE).date()
+    local = as_of.astimezone(calendar.KST_ZONE)
+    candidate = local.date()
+    # Delayed/free providers may need a short grace period after the KRX close.
+    # Until then, keep the previous completed session as the freshness baseline.
+    if is_kr_trading_day(candidate) and local.time() >= day_time(16, 45):
+        return candidate
+    candidate -= timedelta(days=1)
     while not is_kr_trading_day(candidate):
         candidate -= timedelta(days=1)
     return candidate
@@ -195,10 +201,8 @@ def last_completed_kr_trading_date(as_of: datetime) -> Any:
 def tolerated_kr_session_gap(key: str, signal: dict[str, Any], as_of: datetime, max_age: float | None) -> bool:
     if key not in KR_SESSION_SIGNAL_KEYS or max_age is None:
         return False
-    # Only excuse the age limit while the exchange is closed, and only for its
-    # most recent completed session. Opening weekdays return to strict checks.
-    if calendar.kr_market_closed_reason(as_of) is None:
-        return False
+    # Excuse the age limit only for the most recently completed KRX session.
+    # On active weekdays, active_market_stale_ok_error still blocks status=ok.
     age = selected_age(signal, as_of)
     if age is None or age <= max_age:
         return False

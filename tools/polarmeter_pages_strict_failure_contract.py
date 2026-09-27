@@ -45,6 +45,19 @@ def public_payload(now: datetime, age: timedelta, *, news_count: int = 10) -> di
     }
 
 
+def freshness_fixture_snapshot(as_of: datetime, kr_data_as_of: datetime) -> dict[str, object]:
+    signals: dict[str, dict[str, object]] = {}
+    for key in freshness.CRITICAL_SIGNAL_REQUIRED_FIELDS:
+        data_as_of = kr_data_as_of if key in {'kospi', 'kosdaq'} else as_of - timedelta(hours=1)
+        signals[key] = {
+            'status': 'ok',
+            'value': 1,
+            'changePct': 0,
+            'dataAsOf': data_as_of.isoformat(),
+        }
+    return {'generatedAt': as_of.isoformat(), 'signals': signals}
+
+
 def main() -> None:
     holiday_close = datetime(2026, 9, 27, 16, 0, tzinfo=market_calendar.KST_ZONE)
     last_trade = datetime(2026, 9, 23, 15, 30, tzinfo=market_calendar.KST_ZONE)
@@ -65,12 +78,41 @@ def main() -> None:
         assert freshness.tolerated_kr_session_gap(key, holiday_signal, holiday_close, 96.0)
         assert freshness.hard_stale_ok_error(key, holiday_signal, holiday_close, 96.0) is None
 
+    preopen = datetime(2026, 9, 28, 7, 0, tzinfo=market_calendar.KST_ZONE)
+    assert freshness.last_completed_kr_trading_date(preopen) == last_trade.date()
+    for key in ('kospi', 'kosdaq'):
+        assert freshness.tolerated_kr_session_gap(key, holiday_signal, preopen, 96.0)
+        assert freshness.hard_stale_ok_error(key, holiday_signal, preopen, 96.0) is None
+    assert freshness.audit(freshness_fixture_snapshot(preopen, last_trade), {}) == []
+
     reopening = datetime(2026, 9, 28, 10, 0, tzinfo=market_calendar.KST_ZONE)
     assert market_calendar.is_kr_market_active(reopening)
     for key in ('kospi', 'kosdaq'):
-        assert not freshness.tolerated_kr_session_gap(key, holiday_signal, reopening, 96.0)
-        assert freshness.hard_stale_ok_error(key, holiday_signal, reopening, 96.0)
+        # The pipeline's session-age check permits the last completed session,
+        # but the separate active-market guard prevents old status=ok data.
+        assert freshness.tolerated_kr_session_gap(key, holiday_signal, reopening, 96.0)
+        assert freshness.hard_stale_ok_error(key, holiday_signal, reopening, 96.0) is None
         assert freshness.active_market_stale_ok_error(key, holiday_signal, reopening)
+    assert any('active-market stale data' in error for error in freshness.audit(
+        freshness_fixture_snapshot(reopening, last_trade), {},
+    ))
+
+    after_close_grace = datetime(2026, 9, 28, 16, 45, tzinfo=market_calendar.KST_ZONE)
+    assert freshness.last_completed_kr_trading_date(after_close_grace) == after_close_grace.date()
+    for key in ('kospi', 'kosdaq'):
+        assert not freshness.tolerated_kr_session_gap(key, holiday_signal, after_close_grace, 96.0)
+        assert freshness.hard_stale_ok_error(key, holiday_signal, after_close_grace, 96.0)
+        current_day_signal = {
+            'status': 'ok',
+            'dataAsOf': datetime(2026, 9, 28, 15, 30, tzinfo=market_calendar.KST_ZONE).isoformat(),
+        }
+        assert freshness.hard_stale_ok_error(key, current_day_signal, after_close_grace, 96.0) is None
+    assert freshness.audit(
+        freshness_fixture_snapshot(after_close_grace, datetime(2026, 9, 28, 15, 30, tzinfo=market_calendar.KST_ZONE)),
+        {},
+    ) == []
+    assert freshness.audit(freshness_fixture_snapshot(after_close_grace, last_trade), {})
+
     long_stale_signal = {'status': 'ok', 'dataAsOf': datetime(2026, 9, 22, 15, 30, tzinfo=market_calendar.KST_ZONE).isoformat()}
     for key in ('kospi', 'kosdaq'):
         assert not freshness.tolerated_kr_session_gap(key, long_stale_signal, holiday_close, 96.0)
