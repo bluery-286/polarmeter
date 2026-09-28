@@ -15,4 +15,7 @@ p, li { font-size:16px; line-height:1.7; }
 .lead { font-size:20px; color:var(--muted); }
 .note { border-left:4px solid var(--accent); background:#f1f4ff; padding:12px 14px; border-radius:12px; color:#28345c; }
 .button { display:inline-block; padding:11px 16px; background:var(--accent); color:white; text-decoration:none; border-radius:999px; font-weight:700; }
+.download-actions { display:flex; flex-wrap:wrap; gap:10px; margin:22px 0 18px; }
+.button-secondary { background:var(--ink); }
+@media (max-width:480px) { .download-actions .button { width:100%; text-align:center; } }
 footer { margin-top:20px; color:var(--muted); font-size:13px; }
