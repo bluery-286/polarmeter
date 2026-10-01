@@ -1,0 +1,40 @@
+{
+  "tones": [
+    {"headline":"외국인 2조원대 ‘팔자’에 코스피 6838선 후퇴…코스닥은 상승","tone":"neutral"},
+    {"headline":"코스피 상승…코스닥은 하락 마감","tone":"neutral"},
+    {"headline":"Nasdaq falls while Dow rises","tone":"neutral"},
+    {"headline":"브렌트유 103달러…트럼프, 이란 제재 완화 배제","tone":"negative"},
+    {"headline":"Oil rises as Iran rules out sanctions relief","tone":"negative"},
+    {"headline":"이란 휴전 합의 불발…중동 긴장 고조","tone":"negative"},
+    {"headline":"이란 제재 완화 배제…원유 공급 재개","tone":"neutral"},
+    {"headline":"이란 제재 완화 배제…호르무즈 통항 재개","tone":"neutral"},
+    {"headline":"이란 긴장 완화, 유가 3% 하락","tone":"positive"},
+    {"headline":"뉴욕증시, 美 국채금리 급등에 3대 지수 하락 마감","tone":"negative"},
+    {"headline":"뉴욕증시, 美 국채금리 급등에 3대 지수 동반 하락 마감","tone":"negative"},
+    {"headline":"미 국채 수익률 급등, 뉴욕증시 3대 지수 일제히 하락 마감","tone":"negative"},
+    {"headline":"美 8월 근원 PCE 3.0% 상승…시장 예상 밑돌아","tone":"positive"},
+    {"headline":"美 8월 PCE 물가 전년 대비 3.4% 상승…예상 하회","tone":"positive"},
+    {"headline":"美 PCE 예상 하회에 비트코인 8만5,000달러 돌파…반등 지속성은 금리 기대가 관건","tone":"positive"},
+    {"headline":"US PCE Inflation Rises Less Than Expected in August","tone":"positive"},
+    {"headline":"US PCE Inflation Misses Forecasts Even as Consumer Spending Accelerates","tone":"positive"},
+    {"headline":"미국 8월 CPI 3.2% 상승…시장 예상 상회","tone":"negative"},
+    {"headline":"美 8월 CPI 예상 하회 아냐","tone":"neutral"},
+    {"headline":"US August CPI did not miss forecasts","tone":"neutral"},
+    {"headline":"미국 8월 PCE 예상보다 낮은 게 아니다","tone":"neutral"},
+    {"headline":"美 8월 PCE 예상 밑돌아, 美 국채금리 급등","tone":"neutral"},
+    {"headline":"9월 프랑스 CPI, 3% 상승…8월 2.4%에서 큰 폭 올라","tone":"negative"},
+    {"headline":"미국 8월 PCE 예상 하회에도 나스닥 1% 하락","tone":"negative"}
+  ],
+  "pairs": [
+    {"a":"美 8월 근원 PCE 3.0% 상승…시장 예상 밑돌아","b":"9월 프랑스 CPI, 3% 상승…8월 2.4%에서 큰 폭 올라","same":false},
+    {"a":"미국 8월 PCE 3.0% 상승…예상 하회","b":"미국 7월 PCE 3.0% 상승…예상 하회","same":false},
+    {"a":"미국 8월 PCE 3.0% 상승…예상 하회","b":"미국 8월 CPI 3.0% 상승…예상 하회","same":false},
+    {"a":"미국 8월 CPI 3.0% 상승…예상 하회","b":"독일 8월 CPI 3.0% 상승…예상 하회","same":false},
+    {"a":"9월 프랑스 CPI, 3% 상승…8월 2.4%에서 큰 폭 올라","b":"CPI inflation rises to 3%","same":false},
+    {"a":"美 8월 PCE 물가 3.4% 상승…예상 하회","b":"U.S. Final GDP Unexpectedly Revised Higher, Core PCE Misses Estimates Sending Dollar Lower","same":false},
+    {"a":"미국 8월 근원 PCE 3.0% 상승…예상 하회","b":"미국 8월 PCE 3.4% 상승…예상 상회","same":false},
+    {"a":"미국 8월 PCE 예상 하회","b":"미국 8월 PCE 예상 하회 아냐","same":false},
+    {"a":"美 8월 근원 PCE 3.0% 상승…시장 예상 밑돌아","b":"美 8월 PCE 물가 전년 대비 3.4% 상승…예상 하회","same":true},
+    {"a":"美 8월 PCE 물가 3.4% 상승…예상 하회","b":"美 PCE 예상 하회에 비트코인 8만5,000달러 돌파","same":true}
+  ]
+}
