@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
+from polarmeter_news_fact_semantics import mask_negated_moves, has_supply_recovery_fact, has_divergent_index_moves, inflation_release, factual_market_tone, inflation_surprise_why
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = WORKSPACE / 'testflight/news-rss-probe-latest.json'
@@ -773,7 +774,7 @@ MARKET_RELEVANCE_RULES = [
     {
         'category': 'market_event',
         'label': '시장이벤트',
-        'keywords': ['코스피', 'kospi', '코스닥', '나스닥', 's&p', 'sp500', 's&p500', 'vix', '급락', '폭락', '급등', '반등', '상승', '하락', '순매수', '순매도', 'sidecar', '서킷브레이커'],
+        'keywords': ['코스피', 'kospi', '코스닥', 'kosdaq', '나스닥', 'nasdaq', 'dow jones', 's&p', 'sp500', 's&p500', 'vix', '급락', '폭락', '급등', '반등', '상승', '하락', '순매수', '순매도', 'sidecar', '서킷브레이커'],
         'tags': ['지수'],
         'target': 'market',
         'relatedFactors': ['indices', 'news'],
@@ -1558,6 +1559,10 @@ def broad_index_up_company_mixed_signal(text: str) -> bool:
 
 
 def headline_tone(headline: str) -> str:
+    fact_tone = factual_market_tone(headline)
+    if fact_tone is not None:
+        return fact_tone
+    headline = mask_negated_moves(headline)
     text = headline.lower()
     if is_market_warning_commentary(headline):
         return 'negative'
@@ -1613,6 +1618,10 @@ def index_giveback_tone(headline: str) -> str | None:
 
 
 def market_burden_tone(headline: str, fallback: str | None = None) -> str:
+    fact_tone = factual_market_tone(headline)
+    if fact_tone is not None:
+        return fact_tone
+    headline = mask_negated_moves(headline)
     giveback_tone = index_giveback_tone(headline)
     if giveback_tone is not None:
         return giveback_tone
@@ -1947,6 +1956,10 @@ def dampened_burden_signal(text: str) -> bool:
 
 
 def inflation_relief_signal(text: str) -> bool:
+    release = inflation_release(text)
+    if release and release['surprise'] != 'unknown':
+        return release['surprise'] == 'below'
+    text = mask_negated_moves(text)
     stress = (
         r'too\s+high|sticky|hotter[-\s]?than[-\s]?expected|hot\b|elevated|'
         r'fuel(?:s|ed|ing)?\s+inflation|inflation.{0,32}fuel(?:s|ed|ing)?\s+(?:rate|yield|cost|price|burden|pressure)|'
@@ -2038,6 +2051,19 @@ def news_tone_explanation_conflict(tone: str, why: str) -> bool:
 
 
 def tone_aligned_why(headline: str, display_headline: str, fallback_why: str, tone: str) -> str:
+    if has_divergent_index_moves(headline):
+        return '지수별 방향이 엇갈렸습니다. 오른 지수와 내린 지수를 나누어 보고 시장 전체의 회복으로 단정하지 않습니다.'
+    release = inflation_release(headline)
+    if release and release['deniedComparison']:
+        return '예상보다 낮거나 높았다는 주장이 부정된 소식입니다. 실제 발표값과 예상치를 확인하기 전에는 방향을 단정하지 않습니다.'
+    if release and release['surprise'] != 'unknown':
+        if release['surprise'] == 'below' and tone == 'neutral':
+            return '물가 예상 하회의 완화 신호와 다른 부담 신호가 함께 있습니다. 금리·지수 반응을 나눠 봅니다.'
+        if release['surprise'] == 'below' and tone == 'negative':
+            return '물가는 예상보다 낮았지만 대표 지수는 하락했습니다. 물가 소식이 가격 회복으로 이어졌다고 보지 않습니다.'
+        return inflation_surprise_why(release) or fallback_why
+    if mask_negated_moves(headline) != headline and re.search(r'이란|제재|sanction|iran', headline, re.I):
+        return '제재 완화 배제의 부담과 공급 재개의 완화 신호가 함께 있습니다. 실제 공급량과 유가 반응을 따로 봅니다.' if has_supply_recovery_fact(headline) else '제재 완화가 배제되어 공급 위험이 남아 있는 소식입니다. 실제 유가 변화는 별도로 확인합니다.'
     text = f'{display_headline or ""} {headline or ""}'
     index_up = re.search(
         r'(코스피|코스닥|나스닥|nasdaq|s&p|sp500|다우|dow|지수|선물|futures?|증시|stocks?).{0,48}'
@@ -2429,6 +2455,13 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons[reason] = filtered_reasons.get(reason, 0) + 1
                 continue
             translated_headline = koreanize_english_headline(headline)
+            if has_divergent_index_moves(headline) and not has_korean(headline):
+                translated_headline = '주요 지수 등락 엇갈림…지수별 가격 흐름 확인'
+            release = inflation_release(headline)
+            if release and release['deniedComparison'] and not has_korean(headline):
+                translated_headline = f"{release['metric'].upper()} 물가 예상치 비교 주장 부정·실제 발표 확인"
+            if release and release['surprise'] != 'unknown' and not has_korean(headline):
+                translated_headline = f"{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
             if has_korean(headline):
                 display_headline = cause_aware_display_headline(headline, headline)
             else:
@@ -2446,6 +2479,16 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 final_impact_tone = display_impact_tone
             if mixed_inflation_relief_rate_burden_signal(f'{headline} {display_headline or ""}'):
                 final_impact_tone = 'neutral'
+            # Source fact lock: a generated display phrase may not reverse the original event.
+            fact_tone = factual_market_tone(headline)
+            if fact_tone is not None:
+                final_impact_tone = fact_tone
+                if has_korean(headline):
+                    display_headline = headline
+                else:
+                    release = inflation_release(headline)
+                    if release and release['surprise'] != 'unknown':
+                        display_headline = f"{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
             final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
             giveback_tone = index_giveback_tone(headline)
             if giveback_tone is not None:
@@ -2638,6 +2681,9 @@ def normalized_news_topic_text(item: dict[str, Any]) -> str:
 
 
 def issue_cluster_key(item: dict[str, Any]) -> str:
+    release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
+    if release and release['country'] and release['month']:
+        return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{release['month']}:{str(item.get('publishedAt') or '')[:10]}:{'denied' if release['deniedComparison'] else release['surprise']}"
     text = normalized_news_topic_text(item)
     raw = ' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline'), item.get('sourceName')])
     if re.search(r'(이란|중동|호르무즈|iran|hormuz|u\s*s\s*iran|us\s*iran)', raw, re.I) and re.search(r'(유가|원유|oil|wti|협상|negotiation|talks|strait|긴장|완화)', raw, re.I):
