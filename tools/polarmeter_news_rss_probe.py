@@ -810,9 +810,14 @@ MARKET_RELEVANCE_RULES = [
 ]
 
 
+def is_energy_supply_headline(text: str) -> bool:
+    return bool(re.search(r'유가|원유|송유관|정유시설|유전|유조선|oil|crude|pipeline|refiner|oilfield|\btankers?\b', text, re.I)
+                or re.search(r'(?:호르무즈|hormuz).{0,40}(?:통항|해협|선박|피격|공격|봉쇄|vessel|ship|attack|blockade)|(?:통항|선박|피격|공격|봉쇄|vessel|ship|attack|blockade).{0,40}(?:호르무즈|hormuz)', text, re.I))
+
+
 def energy_supply_state(headline: str) -> str:
     text = headline.lower()
-    energy = re.search(r'유가|원유|송유관|정유시설|유전|oil|crude|pipeline|refiner|oilfield', text)
+    energy = is_energy_supply_headline(text)
     if not energy:
         return 'unknown'
     states = []
@@ -870,7 +875,7 @@ def energy_supply_state(headline: str) -> str:
 
 def energy_supply_recovery_in_progress(headline: str) -> bool:
     """Identify uncompleted recovery language that needs a conservative card tone."""
-    if not re.search(r'유가|원유|송유관|정유시설|유전|oil|crude|pipeline|refiner|oilfield', headline, re.I):
+    if not is_energy_supply_headline(headline):
         return False
     if energy_supply_state(headline) != 'unknown':
         return False
@@ -897,13 +902,37 @@ def active_energy_display_key(headline: str) -> str:
     return 'energy-original:' + typography_only
 
 
+def tanker_incident_key(headline: str, published_at: str | None) -> str | None:
+    """Collapse counted reports of one passage incident, never different vessel/date/count/state."""
+    text = headline.lower()
+    if re.search(r'다른\s*(?:유조선|선박)|별도\s*(?:피격|공격|사건)|새로운\s*(?:피격|공격)|different\s+(?:tanker|vessel)|separate\s+(?:attack|incident)', text):
+        return None
+    if not (re.search(r'호르무즈|\bhormuz\b', text) and re.search(r'유조선|\btankers?\b', text)
+            and re.search(r'피격|공격|attack|struck', text)
+            and energy_supply_state(text) == 'active'):
+        return None
+    period = 'this_month' if re.search(r'이번\s*달|이달|this\s+month', text) else 'last_month' if re.search(r'지난\s*달|last\s+month', text) else None
+    match = re.search(r'(\d+)\s*(?:번째|차례|차|회)|(?:이달|이번\s*달).{0,15}(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)\s*번째', text)
+    words = {'한': 1, '두': 2, '세': 3, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10}
+    count = str(match.group(1) or words[match.group(2)]) if match else None
+    date = parse_utc(published_at)
+    if not period or not count or not date:
+        return None
+    facts = re.findall(r'\d+(?:[.,]\d+)?(?:\s*[~∼～\-–—]\s*\d+(?:[.,]\d+)?)?\s*(?:%|퍼센트|일|주|개월|배럴|만|억|bpd|barrels?|hours?|days?|weeks?|months?)|\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}\s*월\s*\d{1,2}\s*일|\b\d{1,2}\s*월', text)
+    focus = re.findall(r'사우디|이라크|오만|아랍에미리트|러시아|중국|그리스|영국|미국|이란|saudi|iraq|oman|russia|china|greece|british|american|iran', text)
+    vessels = re.findall(r'[“"\'‘]([^”"\'’\n]+)[”"\'’]\s*호|유조선\s*[“"\'‘]([^”"\'’\n]+)[”"\'’]|([^\s“"\'‘]+호)\s*(?:유조선|피격)', text)
+    names = sorted(next(v for v in group if v).strip() for group in vessels)
+    return '|'.join(['hormuz:tanker:attack', period, count, date.date().isoformat(),
+                     ','.join(sorted(re.sub(r'\s+', '', f) for f in facts)), ','.join(sorted(set(focus))), ','.join(names)])
+
+
 def critical_market_event(headline: str) -> tuple[bool, str | None]:
     text = headline.lower()
     if isolated_company_enforcement(headline):
         return False, None
     # Physical energy/shipping disruptions are important even without a stock
     # index, a country-specific watchword, or a realized price move.
-    infrastructure = re.search(r'송유관|정유시설|유전|원유|항로|해협|pipeline|refinery|oilfield|shipping lane|strait|crude', text)
+    infrastructure = re.search(r'송유관|정유시설|유전|원유|항로|해협|유조선|호르무즈|pipeline|refinery|oilfield|shipping lane|strait|crude|tanker|hormuz', text)
     disruption = re.search(r'피격|공격|폭발|가동 중단|공급 차질|봉쇄|수출 중단|attack|struck|outage|shutdown|offline|blockade|supply disruption', text)
     # Keep this intentionally narrow: generic "damage" is not a critical event;
     # it must identify physical pipeline damage.
@@ -2519,12 +2548,19 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             elif energy_supply_recovery_in_progress(headline):
                 final_impact_tone = 'neutral'
                 final_why = '복구 작업이 진행·예정·시도 단계여서 완료 회복으로 보지 않습니다. 실제 피해·차질과 가동 상태를 확인합니다.'
+            if is_energy_supply_headline(headline) and not explicit_oil_price_directions(headline):
+                if has_korean(headline) and explicit_oil_price_directions(display_headline or ''):
+                    display_headline = headline
+                if explicit_oil_price_directions(final_why):
+                    final_why = '공급 상황과 통항·운송 비용은 실제 유가 움직임과 나누어 확인합니다. 이 보도만으로 유가 방향을 단정하지 않습니다.'
+                    if energy_state == 'unknown':
+                        final_impact_tone = 'neutral'
             if news_tone_explanation_conflict(final_impact_tone, final_why):
                 filtered_reasons['TONE_EXPLANATION_CONFLICT'] = filtered_reasons.get('TONE_EXPLANATION_CONFLICT', 0) + 1
                 continue
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
             if energy_supply_risk(headline):
-                display_key = active_energy_display_key(headline)
+                display_key = tanker_incident_key(headline, item.get('publishedAt')) or active_energy_display_key(headline)
             if display_key in seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
                 continue

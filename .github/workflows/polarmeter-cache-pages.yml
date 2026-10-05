@@ -145,6 +145,7 @@ jobs:
           PYTHONPATH=tools python3 tools/polarmeter_news_source_diagnostics_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_temperature_score_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_event_coverage_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_news_source_event_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_worker_error_contract.py
           python3 tools/polarmeter_github_pages_prepare.py \
             --output "$RUNNER_TEMP/polarmeter-site" \
