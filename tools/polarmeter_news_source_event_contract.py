@@ -75,6 +75,22 @@ def main():
     assert koreanize_english_headline(local) is None
     assert classify_relevance(local, 'QA', now)[1] == 'LOCAL_UTILITY_NOT_MARKET_TEMPERATURE'
     assert normalize([local]) == [], 'local heating pipe must not become an oil attack'
+    for utility in (
+        'HMWSSB saves 18 MGD of drinking water during Krishna pipeline shutdown',
+        'Krishna pipeline shutdown disrupts municipal drinking water supply',
+        'Potable-water supply restored after pipeline repairs',
+        'Pipeline maintenance delays wastewater treatment',
+    ):
+        assert is_local_non_oil_infrastructure(utility), utility
+        assert energy_supply_state(utility) == 'unknown', utility
+        assert not critical_market_event(utility)[0], utility
+        assert koreanize_english_headline(utility) is None, utility
+        assert normalize([utility]) == [], utility
+    for market in (
+        'Crude pipeline shutdown contaminates drinking water',
+        'Drinking water pipeline repair affects global gas supply',
+    ):
+        assert not is_local_non_oil_infrastructure(market), market
     # Explicit crude/national-gas reports must remain eligible, even when a
     # local heating pipe is mentioned in the same headline.
     assert normalize(['Crude pipeline shutdown after attack disrupts heating pipeline'])
