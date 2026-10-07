@@ -816,12 +816,18 @@ def is_local_non_oil_infrastructure(text: str) -> bool:
         r'\b(?:heating|district\s+heating|water|sewage|data|software)\s+pipelines?\b|'
         r'난방관|상수도관|하수도관|데이터\s*파이프라인', text, re.I,
     )
+    # Utility identity and pipe name may be separated in the original headline
+    # (for example, drinking water ... Krishna pipeline shutdown).
+    water_utility_pipe = (
+        re.search(r'\b(?:(?:drinking|potable|municipal|tap)[\s-]+water|waste[\s-]*water)\b', text, re.I)
+        and re.search(r'\bpipelines?\b', text, re.I)
+    )
     explicit_market = re.search(
         r'원유|송유관|유가|정유|유전|\b(?:oil|crude|refiner\w*|oilfield|lng)\b|'
         r'natural\s+gas|천연가스|전국\s*공급|national\s+supply|wholesale|수출|exports?|'
         r'\b(?:global|international|european)\s+(?:gas|energy|supply)|\bgas\s+(?:prices?|futures?)\b|가스\s*(?:가격|선물)', text, re.I,
     )
-    return bool(local_pipe and not explicit_market)
+    return bool((local_pipe or water_utility_pipe) and not explicit_market)
 
 
 def is_energy_supply_headline(text: str) -> bool:
