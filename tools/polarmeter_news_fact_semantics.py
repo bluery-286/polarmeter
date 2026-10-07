@@ -15,10 +15,10 @@ def has_supply_recovery_fact(text: str) -> bool:
 
 def has_divergent_index_moves(text: str) -> bool:
     subject = r'(?:코스피|코스닥|나스닥|다우|s&p\s*500|kospi|kosdaq|nasdaq|dow)'
-    stop = subject + r'|유가|원유|금리|국채|vix|변동성|[…;,·]|\.{3}'
+    stop = subject + r'|유가|원유|금리|국채|vix|변동성|\boil\b|\bcrude\b|\btreasury\b|\byields?\b|[…;,·]|\.{3}'
     clauses = list(re.finditer(subject + r'(?:(?!' + stop + r').){0,36}', text, re.I))
-    down = [m for m in clauses if re.search(r'하락|급락|후퇴|밀려|밀린|약세|내린|↓|falls?|fell|drops?|lower', m[0], re.I)]
-    up = [m for m in clauses if re.search(r'상승|급등|반등|강세|오른|↑|rises?|gain|higher', m[0], re.I)]
+    down = [m for m in clauses if re.search(r'하락|급락|후퇴|밀려|밀린|약세|내린|선\s*내(?:줘|준)|↓|falls?|fell|drops?|lower', m[0], re.I)]
+    up = [m for m in clauses if re.search(r'상승|급등|반등|강세|오른|↑|rises?|gain|higher|climbs?|rall(?:y|ies)', m[0], re.I)]
     return any(re.match(subject, d[0], re.I)[0].lower() != re.match(subject, u[0], re.I)[0].lower() for d in down for u in up)
 
 

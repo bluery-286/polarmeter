@@ -810,7 +810,23 @@ MARKET_RELEVANCE_RULES = [
 ]
 
 
+def is_local_non_oil_infrastructure(text: str) -> bool:
+    """A heating/water/data pipe is not evidence of an oil supply incident."""
+    local_pipe = re.search(
+        r'\b(?:heating|district\s+heating|water|sewage|data|software)\s+pipelines?\b|'
+        r'난방관|상수도관|하수도관|데이터\s*파이프라인', text, re.I,
+    )
+    explicit_market = re.search(
+        r'원유|송유관|유가|정유|유전|\b(?:oil|crude|refiner\w*|oilfield|lng)\b|'
+        r'natural\s+gas|천연가스|전국\s*공급|national\s+supply|wholesale|수출|exports?|'
+        r'\b(?:global|international|european)\s+(?:gas|energy|supply)|\bgas\s+(?:prices?|futures?)\b|가스\s*(?:가격|선물)', text, re.I,
+    )
+    return bool(local_pipe and not explicit_market)
+
+
 def is_energy_supply_headline(text: str) -> bool:
+    if is_local_non_oil_infrastructure(text):
+        return False
     return bool(re.search(r'유가|원유|송유관|정유시설|유전|유조선|oil|crude|pipeline|refiner|oilfield|\btankers?\b', text, re.I)
                 or re.search(r'(?:호르무즈|hormuz).{0,40}(?:통항|해협|선박|피격|공격|봉쇄|vessel|ship|attack|blockade)|(?:통항|선박|피격|공격|봉쇄|vessel|ship|attack|blockade).{0,40}(?:호르무즈|hormuz)', text, re.I))
 
@@ -829,13 +845,15 @@ def energy_supply_state(headline: str) -> str:
         recovery_in_progress = re.search(
             r'복구(?:\s*작업)?\s*(?:중|진행\s*중|예정|시도)|'
             r'정상화\s*(?:중|진행\s*중|예정|시도)|'
+            r'(?:재가동|수송\s*회복|운송\s*회복)\s*(?:중|예정|시도|기대|가능|계획|전망)|'
             r'(?:recovery|restoration)\s*(?:work\s*)?(?:underway|in\s+progress|planned|attempt)|'
             r'(?:attempting|planning)\s+to\s+(?:restore|resume|reopen)',
             clause,
         )
         unconfirmed_recovery = re.search(
-            r'(?:복구|정상화|가동\s*재개|공급\s*재개|restored|reopened|resumed)'
-            r'.{0,12}(?:불투명|어려움|지연|난항|미완료|불확실|불가|실패|예정|'
+            r'(?:복구|정상화|재가동|수송\s*회복|운송\s*회복|가동\s*재개|공급\s*재개|restored|reopened|resumed)'
+            r'.{0,12}(?:불투명|어려움|지연|난항|미완료|불확실|불가|실패|예정|기대|가능|계획|전망|'
+            r'하지\s*않|되지\s*않|못|'
             r'uncertain|delayed|delay|not\s+complete|planned)',
             clause,
         )
@@ -846,6 +864,7 @@ def energy_supply_state(headline: str) -> str:
         )
         confirmed_recovery = re.search(
             r'공급\s*차질.{0,12}(완화|해소|진정)|가동\s*재개|공급\s*재개|'
+            r'재가동|(?:수송|운송|공급량).{0,12}회복|'
             r'복구\s*(?:완료|마쳐|끝|성공)|정상화\s*(?:완료|마쳐|끝)|봉쇄\s*해제|'
             r'(?:restored|reopened|resumed).{0,12}(?:operation|operations|supply|flow)?|'
             r'repairs?\s+(?:are\s+)?complet(?:e|ed)\b|'
@@ -859,6 +878,11 @@ def energy_supply_state(headline: str) -> str:
             clause,
         )
         attack = re.search(r'피격|공격|attack|struck', clause)
+        ongoing_disruption = re.search(
+            r'(?:공급\s*차질|가동\s*중단|생산\s*중단|수출\s*중단|피격|공격).{0,12}(?:지속|계속|여전|이어|반복)|'
+            r'(?:shutdown|outage|disruption|attacks?).{0,12}(?:continues?|persists?|ongoing)|'
+            r'(?:still|remains?).{0,12}(?:offline|closed|disrupted)', clause,
+        )
         if denied:
             states.append('denied')
         elif partial_recovery:
@@ -866,6 +890,8 @@ def energy_supply_state(headline: str) -> str:
             states.extend(('active', 'recovery'))
         elif confirmed_recovery and not (recovery_in_progress or unconfirmed_recovery):
             states.append('recovery')
+            if ongoing_disruption:
+                states.append('active')
         elif explicit_disruption or (attack and not (recovery_in_progress or unconfirmed_recovery)):
             states.append('active')
     if 'active' in states and ('recovery' in states or 'denied' in states):
@@ -880,8 +906,8 @@ def energy_supply_recovery_in_progress(headline: str) -> bool:
     if energy_supply_state(headline) != 'unknown':
         return False
     return bool(re.search(
-        r'(?:복구|정상화|가동\s*재개|공급\s*재개).{0,12}'
-        r'(?:중|진행\s*중|예정|시도|불투명|어려움|지연|난항|미완료|불확실|불가|실패)|'
+        r'(?:복구|정상화|재가동|수송\s*회복|운송\s*회복|가동\s*재개|공급\s*재개).{0,12}'
+        r'(?:중|진행\s*중|예정|시도|기대|가능|계획|전망|불투명|어려움|지연|난항|미완료|불확실|불가|실패|하지\s*않|되지\s*않|못)|'
         r'(?:recovery|restoration)\s*(?:work\s*)?(?:underway|in\s+progress|planned|attempt)|'
         r'(?:restored|reopened|resumed).{0,12}(?:uncertain|delayed|delay|not\s+complete|planned)|'
         r'(?:attempting|planning)\s+to\s+(?:restore|resume|reopen)',
@@ -928,7 +954,7 @@ def tanker_incident_key(headline: str, published_at: str | None) -> str | None:
 
 def critical_market_event(headline: str) -> tuple[bool, str | None]:
     text = headline.lower()
-    if isolated_company_enforcement(headline):
+    if isolated_company_enforcement(headline) or is_local_non_oil_infrastructure(headline):
         return False, None
     # Physical energy/shipping disruptions are important even without a stock
     # index, a country-specific watchword, or a realized price move.
@@ -1321,7 +1347,13 @@ def energy_export_response(headline: str) -> bool:
 
 
 def coordinated_oil_yield_easing(headline: str) -> bool:
-    return bool(re.search(r'\boil\s*,?\s*(?:and\s+)?treasury\s+yields?\s+(?:ease|eases|fall|falls|drop|drops)\b', headline, re.I))
+    if re.search(r'\b(?:may|might|could|will|forecast|expected|prediction)\b', headline, re.I):
+        return False
+    return bool(re.search(
+        r'\boil\s*,?\s*(?:and\s+)?treasury\s+yields?\s+(?:ease|eases|fall|falls|drop|drops)\b|'
+        r'\boil\s+prices?\s+(?:fall|falls|drop|drops|ease|eases)\s+and\s+treasury\s+yields?\s+(?:ease|eases|fall|falls|drop|drops)\b',
+        headline, re.I,
+    ))
 
 
 def directly_observed_index_rise(headline: str) -> bool:
@@ -1332,6 +1364,8 @@ def directly_observed_index_rise(headline: str) -> bool:
 
 def koreanize_english_headline(headline: str) -> str | None:
     if not headline or has_korean(headline):
+        return None
+    if is_local_non_oil_infrastructure(headline):
         return None
     text = headline.strip()
     # Coordinated subjects share the following verb, not the preceding index
@@ -2181,6 +2215,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     source_lower = source_name.lower()
     headline_lower = headline.lower()
     full_text = f'{headline} {source_name}'
+    if is_local_non_oil_infrastructure(headline):
+        return None, 'LOCAL_UTILITY_NOT_MARKET_TEMPERATURE'
     if (
         re.search(r'natural\s+gas\s+pipeline', headline, re.I)
         and re.search(r'contractor|local\s+utility|neighbou?rhood', headline, re.I)
@@ -2545,7 +2581,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             elif energy_state in ('mixed', 'recovery'):
                 final_impact_tone = 'neutral'
                 final_why = '공급 차질과 회복·반대 소식을 구분하고 실제 시설 가동과 공급량을 확인합니다. 시장 방향은 단정하지 않습니다.'
-            elif energy_supply_recovery_in_progress(headline):
+            elif energy_supply_recovery_in_progress(headline) and not explicit_oil_price_directions(headline):
                 final_impact_tone = 'neutral'
                 final_why = '복구 작업이 진행·예정·시도 단계여서 완료 회복으로 보지 않습니다. 실제 피해·차질과 가동 상태를 확인합니다.'
             if is_energy_supply_headline(headline) and not explicit_oil_price_directions(headline):
@@ -2717,6 +2753,18 @@ def normalized_news_topic_text(item: dict[str, Any]) -> str:
 
 
 def issue_cluster_key(item: dict[str, Any]) -> str:
+    # These are topic groups, NOT proof that casualties or facilities are the
+    # same. Keep material updates and originals in relatedReports below.
+    source = str(item.get('originalHeadline') or item.get('headline') or '')
+    published = parse_utc(item.get('publishedAt'))
+    state = energy_supply_state(source)
+    # classify_relevance already limits eligible news to the rolling 24-hour
+    # window. Topic groups must not split arbitrarily at UTC midnight.
+    if published and state == 'active':
+        if re.search(r'호르무즈|\bhormuz\b', source, re.I) and re.search(r'유조선|\btankers?\b', source, re.I):
+            return 'issue:related:hormuz_tanker_attack:rolling_24h'
+        if re.search(r'후티|\bhouthi\w*\b', source, re.I) and re.search(r'사우디|\bsaudi\b', source, re.I) and re.search(r'공항|정유시설|airports?|refiner', source, re.I):
+            return 'issue:related:houthi_saudi_infrastructure:rolling_24h'
     release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
     if release and release['country'] and release['month']:
         return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{release['month']}:{str(item.get('publishedAt') or '')[:10]}:{'denied' if release['deniedComparison'] else release['surprise']}"
@@ -2770,6 +2818,20 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
             latest = max(group, key=lambda item: item.get('publishedAt') or '')
             if not any(item is latest for item in selected):
                 selected[-1] = latest
+            if len(group) > len(selected) and str(group[0].get('issueClusterKey', '')).startswith('issue:related:'):
+                # Reduction of repetitive slots must not erase new facts.
+                # Publish every source headline and URL separately; do not
+                # pretend these reports corroborate one identical incident.
+                related_reports = [
+                    {field: item.get(field) for field in ('headline', 'originalHeadline', 'sourceName', 'publishedAt', 'url')}
+                    for item in sorted(group, key=lambda row: row.get('publishedAt') or '', reverse=True)
+                ]
+                # Later regional selection can omit any one representative.
+                # Every retained card therefore carries the full update list.
+                for representative in selected:
+                    representative['relatedReportCount'] = len(group)
+                    representative['relatedReports'] = related_reports
+                    representative['issueGrouping'] = 'related_topic_not_confirmed_same_event'
             selected_ids.update(id(item) for item in selected)
     return [item for item in items if id(item) in selected_ids]
 
