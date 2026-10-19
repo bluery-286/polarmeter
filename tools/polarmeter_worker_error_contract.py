@@ -12,7 +12,97 @@ import polarmeter_free_cache_worker as worker
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_prepare as prepare
 import polarmeter_data_freshness_audit as freshness
-from polarmeter_market_source_diagnostics import summarize_market_sources
+from polarmeter_market_source_diagnostics import summarize_market_sources, summarize_market_freshness_failure
+
+
+def check_freshness_failure_details():
+    secret = 'SENSITIVE_TEST_CREDENTIAL'
+    base = datetime(2026, 10, 19, 10, tzinfo=timezone.utc)
+    cases = (
+        ('us10y', 'provider_recency_gap', base, 25),
+        ('sp500', 'active_market_stale', base.replace(hour=16), 4),
+        ('kospi', 'public_candidate_rank', base, 1),
+    )
+    for key, expected_reason, now, age in cases:
+        class Frozen(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+
+        signals = {name: {'key': name, 'status': 'ok', 'valuePolicy': 'show', 'value': 1,
+                          'changePct': 0, 'dataAsOf': now.isoformat()}
+                   for name in freshness.CRITICAL_SIGNAL_REQUIRED_FIELDS}
+        signals[key].update(value=4.2 if key == 'us10y' else 7000, provider='twelvedata-free',
+                            freshnessRank=1, dataAsOf=(now - timedelta(hours=age)).isoformat())
+        snapshot = {'generatedAt': now.isoformat(), 'signals': signals}
+        probe = {'providers': [{'provider': 'public-chart-delayed', 'items': [
+            {'key': key, 'status': 'ok', 'price': signals[key]['value'], 'changePct': 0,
+             'asOf': (now - timedelta(minutes=30)).isoformat()}]}]} if key != 'sp500' else {}
+        # Each selected quote looks clean to the original source summary.
+        assert summarize_market_sources(snapshot, probe, now=now)['signals'] == []
+        with patch.object(freshness.cache, 'datetime', Frozen):
+            errors = freshness.audit(snapshot, probe)
+        assert any(error.startswith(key + ': ') for error in errors)
+        # Raw provider details stay in captured child output only.
+        child_output = json.dumps({'ok': False, 'errors': errors + [
+            f'{key}: private body https://private.invalid/?apikey={secret}']})
+        failure = subprocess.CalledProcessError(1, ['private'], output=child_output, stderr=secret)
+        output = io.StringIO()
+        with patch.object(worker.subprocess, 'run', side_effect=failure) as child, contextlib.redirect_stderr(output):
+            try:
+                worker.run_freshness_audit(Path('snapshot.json'), Path('probe.json'))
+            except RuntimeError as error:
+                assert error.__suppress_context__
+                assert str(error) == 'data freshness audit failed; see marketSourceDiagnostics'
+            else:
+                raise AssertionError('audit rejection must still stop publication')
+        assert child.call_args.args[0][-1] == '--json'
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        diagnostics = records[-1]['marketSourceDiagnostics']
+        row = next(item for item in diagnostics['signals'] if item['key'] == key)
+        assert expected_reason in row['reasons'], diagnostics
+        for private in (secret, 'private body', 'https://', 'apikey', now.isoformat()):
+            assert private not in output.getvalue()
+
+    for malformed in (None, b'private', secret, '[]', '{"ok": true, "errors": []}',
+                      '{"ok": false, "errors": "private"}', 'x' * 262145):
+        assert summarize_market_freshness_failure(malformed) == {
+            'reportStatus': 'freshness_audit_unreadable', 'signals': []}
+    bounded = summarize_market_freshness_failure(json.dumps({'ok': False, 'errors': [
+        secret + ': private', [], 'us10y: ' + secret, 'us10y: ' + 'x' * 4096] + ['us10y: private'] * 200}))
+    assert bounded == {'reportStatus': 'freshness_audit_failed',
+                       'signals': [{'key': 'us10y', 'reasons': ['freshness_audit_failure']}],
+                       'hasUnclassifiedFailure': True}
+    assert secret not in json.dumps(bounded)
+    output = io.StringIO()
+    with patch.object(worker.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '{}', '')), contextlib.redirect_stderr(output):
+        worker.run_freshness_audit(Path('snapshot.json'), Path('probe.json'))
+    assert output.getvalue() == ''
+
+    # Exercise the real CLI/JSON boundary, not only a mocked child response.
+    now = datetime.now(timezone.utc)
+    signals = {name: {'status': 'ok', 'value': 1, 'changePct': 0, 'dataAsOf': now.isoformat()}
+               for name in freshness.CRITICAL_SIGNAL_REQUIRED_FIELDS}
+    signals['us10y'].update(value=4.2, provider=secret,
+                            dataAsOf=(now - timedelta(hours=25)).isoformat())
+    with TemporaryDirectory(prefix='polarmeter-audit-json-') as folder:
+        snapshot_path, probe_path = Path(folder) / 'snapshot.json', Path(folder) / 'probe.json'
+        snapshot_path.write_text(json.dumps({'generatedAt': now.isoformat(), 'signals': signals}), encoding='utf-8')
+        probe_path.write_text(json.dumps({'providers': [{'provider': 'public-chart-delayed', 'items': [
+            {'key': 'us10y', 'status': 'ok', 'price': 4.2, 'changePct': 0,
+             'asOf': (now - timedelta(minutes=30)).isoformat()}]}]}), encoding='utf-8')
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output):
+            try:
+                worker.run_freshness_audit(snapshot_path, probe_path)
+            except RuntimeError as error:
+                assert error.__suppress_context__
+            else:
+                raise AssertionError('real CLI must still reject the older selected quote')
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert records[-1]['marketSourceDiagnostics']['signals'] == [
+            {'key': 'us10y', 'reasons': ['provider_recency_gap']}]
+        assert secret not in output.getvalue() and str(snapshot_path) not in output.getvalue()
 
 
 def check_market_recovery():
@@ -131,12 +221,14 @@ def check_market_recovery():
             assert error.__suppress_context__
         else:
             raise AssertionError('audit must still stop publication')
-    diagnostic = json.loads(output.getvalue())
+    diagnostic, fallback = [json.loads(line) for line in output.getvalue().splitlines()]
     assert diagnostic['workerFailure'] == 'market_freshness_audit_failed'
     assert diagnostic['failureStage'] == 'market_freshness' and diagnostic['errorType'] == 'unknown'
+    assert fallback['marketSourceDiagnostics']['reportStatus'] == 'freshness_audit_unreadable'
     assert secret not in output.getvalue()
 
 def main():
+    check_freshness_failure_details()
     check_market_recovery()
     secret = 'SENSITIVE_TEST_CREDENTIAL'
     failure = subprocess.CalledProcessError(1, ['python', 'polarmeter_cache_snapshot.py'], stderr=f'https://provider.invalid/?apikey={secret}\nValueError: official FOMC statement target range was not found\n')

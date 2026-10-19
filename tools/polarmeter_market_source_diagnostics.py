@@ -124,3 +124,47 @@ def emit_market_source_diagnostics(snapshot_path: Path, probe_path: Path) -> Non
     except Exception:
         summary = {'reportStatus': 'unreadable', 'signals': []}
     print(json.dumps({'marketSourceDiagnostics': summary}, ensure_ascii=False), file=sys.stderr)
+
+
+def summarize_market_freshness_failure(output: object) -> dict:
+    """Classify the actual audit result, never repeat its untrusted prose.
+
+    Source summaries intentionally omit healthy-looking quotes. The audit can
+    still reject those quotes for candidate selection or active-market age, so
+    its authoritative failure needs its own bounded, fixed-vocabulary record.
+    """
+    unreadable = {'reportStatus': 'freshness_audit_unreadable', 'signals': []}
+    if not isinstance(output, str) or len(output) > 262144:
+        return unreadable
+    try:
+        report = json.loads(output)
+    except (ValueError, RecursionError):
+        return unreadable
+    if not isinstance(report, dict) or report.get('ok') is not False or not isinstance(report.get('errors'), list):
+        return unreadable
+    errors = report['errors']
+    reasons_by_key = {}
+    unclassified = not errors or len(errors) > 128
+    for error in errors[:128]:
+        if not isinstance(error, str) or len(error) > 4096:
+            unclassified = True
+            continue
+        key, separator, detail = error.partition(': ')
+        if not separator or key not in SIGNALS:
+            unclassified = True
+            continue
+        reason = 'freshness_audit_failure'
+        if detail.startswith('selected ') and ' is older than ' in detail:
+            reason = 'provider_recency_gap'
+        elif detail.startswith('active-market stale data must not be status=ok:'):
+            reason = 'active_market_stale'
+        elif detail.startswith('fresher public chart candidate exists but selected provider is '):
+            reason = 'public_candidate_rank'
+        reasons_by_key.setdefault(key, set()).add(reason)
+    return {'reportStatus': 'freshness_audit_failed',
+            'signals': [{'key': key, 'reasons': sorted(reasons)} for key, reasons in sorted(reasons_by_key.items())],
+            'hasUnclassifiedFailure': unclassified}
+
+
+def emit_market_freshness_failure(output: object) -> None:
+    print(json.dumps({'marketSourceDiagnostics': summarize_market_freshness_failure(output)}), file=sys.stderr)

@@ -25,7 +25,7 @@ from urllib.request import urlopen
 
 from polarmeter_market_calendar import KST_ZONE, kr_market_closed_reason, market_session_context
 from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
-from polarmeter_market_source_diagnostics import emit_market_source_diagnostics
+from polarmeter_market_source_diagnostics import emit_market_source_diagnostics, emit_market_freshness_failure
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -227,10 +227,12 @@ def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
             str(APP_TOOLS / 'polarmeter_data_freshness_audit.py'),
             str(snapshot_path),
             str(report_path),
+            '--json',
         ])
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as error:
         # Per-source fixed-vocabulary diagnostics were emitted before this
         # check. Raw audit output can contain provider strings or credentials.
+        emit_market_freshness_failure(error.stdout)
         raise RuntimeError('data freshness audit failed; see marketSourceDiagnostics') from None
 
 
