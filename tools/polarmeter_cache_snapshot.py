@@ -740,7 +740,7 @@ def provider_metrics(probe: dict[str, Any]) -> dict[str, Any]:
 def as_float(value: Any) -> float | None:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -749,6 +749,14 @@ def validate_candidate(key: str, item: dict[str, Any]) -> tuple[str, str | None]
         return 'unavailable', item.get('reason') or 'no_price'
     rule = SANITY_RANGES.get(key, {})
     price = as_float(item.get('price'))
+    if key == 'us10y':
+        if isinstance(item.get('price'), bool) or price is None or not math.isfinite(price) or price <= 0:
+            return 'invalid', 'invalid_rate_price'
+        pct = as_float(item.get('changePct'))
+        if item.get('changePct') in (None, ''):
+            return 'partial', 'missing_changePct'
+        if isinstance(item.get('changePct'), bool) or pct is None or not math.isfinite(pct) or pct <= -100:
+            return 'invalid', 'invalid_rate_changePct'
     if key == 'vix':
         if isinstance(item.get('price'), bool) or price is None or not math.isfinite(price) or price <= 0:
             return 'invalid', 'invalid_vix_price'
@@ -1019,6 +1027,10 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
     previous = last_good.get(key)
     if not isinstance(previous, dict) or previous.get('value') in (None, ''):
         return None
+    if key == 'us10y' and (previous.get('key', key) != key or previous.get('valuePolicy') != 'show' or not valid_last_close(previous)):
+        # A hidden, malformed or future-dated public seed is not a good quote.
+        # Do not invent an observation time from fetchedAt/lastSuccessfulAt.
+        return None
     retained_samsung = key == 'kr_samsung' and valid_last_close(previous)
     retained_session = session_close_reference(key, previous) is not None
     if key == 'kr_samsung' and not retained_samsung:
@@ -1090,6 +1102,16 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
                 failures.append({'provider': provider, 'quality': 'invalid', 'reason': 'invalid_last_close'})
                 continue
             quality, reason = validate_candidate(key, item)
+            if key == 'us10y' and quality in {'ok', 'suspect', 'partial'}:
+                try:
+                    observed = None if isinstance(item.get('asOf'), bool) else parse_utc_datetime(item.get('asOf'))
+                    timestamp_valid = observed is not None and observed <= datetime.now(timezone.utc)
+                except (OverflowError, ValueError, TypeError):
+                    timestamp_valid = False
+                if not timestamp_valid:
+                    failures.append({'provider': provider, 'quality': 'invalid',
+                                     'reason': 'missing_or_invalid_rate_timestamp'})
+                    continue
             if key == 'vix':
                 # Relax only the move-size rejection, never observation-time
                 # evidence. normalized_as_of(None) otherwise invents "now".

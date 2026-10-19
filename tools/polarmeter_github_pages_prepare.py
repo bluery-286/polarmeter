@@ -24,6 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from polarmeter_news_source_diagnostics import emit_news_source_diagnostics
+from polarmeter_market_source_diagnostics import PROVIDERS
+from polarmeter_last_close_policy import valid_last_close, last_close_time
+import polarmeter_cache_snapshot as cache_policy
+from polarmeter_free_provider_probe import REQUIRED_SIGNALS
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -33,6 +37,11 @@ DEFAULT_OUTPUT = PROJECT / '_site'
 PUBLIC_FILES = ['market-snapshot-latest.json', 'market-snapshot-manifest.json', 'health.json']
 LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 PUBLIC_BASE_URL = 'https://polarmeter.polarbearworks.com'
+PROVIDER_SYMBOL_FIELDS = {
+    'public-chart-delayed': 'yahoo_chart', 'twelvedata-free': 'twelvedata',
+    'fmp-free': 'fmp', 'bok-ecos-free': 'bok_ecos',
+    'data-go-kr-free': 'data_go_kr', 'data-go-kr-index-free': 'data_go_kr_index',
+}
 MIN_PUBLISHABLE_NEWS_ITEMS = 10
 NEWS_SHORTFALL_FALLBACK_MAX_AGE = timedelta(hours=2)
 PUBLISHABLE_DISPLAY_MODES = {'normal', 'limited', 'fallback', 'collecting'}
@@ -329,16 +338,58 @@ def seed_last_known_good_from_site(site_dir: Path, output_path: Path) -> bool:
         snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
     except Exception:
         return False
-    signals = snapshot.get('signals')
-    if not isinstance(signals, dict) or not signals:
+    if not isinstance(snapshot, dict):
         return False
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps({
-        'updatedAt': snapshot.get('generatedAt'),
-        'source': 'github-pages-site/market-snapshot-latest.json',
-        'signals': signals,
-    }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    return True
+    now = datetime.now(timezone.utc)
+    snapshot_at = last_close_time({'dataAsOf': snapshot.get('generatedAt')}, now)
+    if (snapshot_at is None or not isinstance(snapshot.get('status'), str) or snapshot.get('status') not in {'ok', 'partial'}
+            or snapshot.get('paidProviderEnabled') is not False
+            or snapshot.get('clientDirectProviderCalls') is not False
+            or not isinstance(snapshot.get('signals'), dict)):
+        return False
+    try:
+        existing = json.loads(output_path.read_text(encoding='utf-8')) if output_path.exists() else {}
+    except Exception:
+        existing = {}
+    existing_signals = existing.get('signals', {}) if isinstance(existing, dict) else {}
+    specifications = {item['key']: item for item in REQUIRED_SIGNALS}
+    merged = {}
+    for signals, reference_at in ((existing_signals, now), (snapshot['signals'], snapshot_at)):
+        if not isinstance(signals, dict):
+            continue
+        for key, signal in signals.items():
+            if (key not in specifications or not isinstance(signal, dict) or signal.get('key') != key
+                    or not all(name in signal for name in ('value', 'changePct', 'dataAsOf', 'status', 'provider', 'valuePolicy'))
+                    or signal.get('valuePolicy') != 'show' or not isinstance(signal.get('provider'), str) or signal.get('provider') not in PROVIDERS
+                    or not valid_last_close(signal, reference_at)):
+                continue
+            symbol_field = PROVIDER_SYMBOL_FIELDS.get(signal['provider'])
+            if not symbol_field or not specifications[key].get('providerSymbol', {}).get(symbol_field):
+                continue
+            # Store only fixed-schema quote fields, never prior diagnostics,
+            # histories or arbitrary metadata from a public response.
+            quote = {name: signal[name] for name in ('key', 'value', 'changePct', 'dataAsOf', 'status', 'provider', 'valuePolicy')}
+            quote.update(label=specifications[key]['label'], sourceId=f'{signal["provider"]}:{key}')
+            for name in ('change', 'previousClose'):
+                value = signal.get(name)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    try:
+                        if math.isfinite(value):
+                            quote[name] = value
+                    except OverflowError:
+                        pass
+            try:
+                usable = cache_policy.stale_from_last_good(specifications[key], {key: quote}, 'validated_public_seed')
+            except (TypeError, ValueError, OverflowError):
+                usable = None
+            if usable is None:
+                continue
+            if key not in merged or last_close_time(quote, now) > last_close_time(merged[key], now):
+                merged[key] = quote
+    cache_policy.atomic_write_json(output_path, {
+        'updatedAt': snapshot.get('generatedAt'), 'source': 'validated_public_snapshot', 'signals': merged,
+    })
+    return bool(merged)
 
 
 def tail_text(text: str, limit: int = 3000) -> str:
@@ -554,7 +605,9 @@ def main() -> int:
     fallback_public_files = remote_public_files or baseline_public_files
     if remote_public_files:
         restore_public_files(args.output, remote_public_files)
-    seeded_last_known_good = seed_last_known_good_from_site(args.site, LAST_KNOWN_GOOD)
+    # args.output already contains the current deployed response when available.
+    # Seeding args.site instead silently used the old checked-in fixture in CI.
+    seeded_last_known_good = seed_last_known_good_from_site(args.output, LAST_KNOWN_GOOD)
     if (
         args.news_shortfall_retries < 0
         or args.news_shortfall_retry_delay_seconds < 0

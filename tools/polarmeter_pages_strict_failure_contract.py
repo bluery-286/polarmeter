@@ -275,9 +275,10 @@ def main() -> None:
         try:
             worker.run_freshness_audit(Path('snapshot.json'), Path('probe.json'))
         except RuntimeError as error:
-            assert 'kospi: synthetic freshness failure' in str(error)
+            assert 'data freshness audit failed; see marketSourceDiagnostics' == str(error)
+            assert 'synthetic freshness failure' not in str(error)
         else:
-            raise AssertionError('freshness audit failure details were hidden')
+            raise AssertionError('freshness audit failure must remain fatal')
 
     fallback_files = {
         'market-snapshot-latest.json': '{}',
@@ -290,7 +291,7 @@ def main() -> None:
             patch.object(prepare, 'read_public_files', return_value=fallback_files),
             patch.object(prepare, 'read_remote_public_files', return_value=fallback_files),
             patch.object(prepare, 'restore_public_files'),
-            patch.object(prepare, 'seed_last_known_good_from_site', return_value=True),
+            patch.object(prepare, 'seed_last_known_good_from_site', return_value=True) as seeded,
             patch.object(prepare, 'run_worker', side_effect=RuntimeError('synthetic worker failure')),
             patch.object(sys, 'argv', ['polarmeter_github_pages_prepare.py', '--output', tmp]),
         ):
@@ -300,6 +301,7 @@ def main() -> None:
                 assert 'synthetic worker failure' in str(error)
             else:
                 raise AssertionError('production prepare path hid a worker failure behind stale public data')
+            seeded.assert_called_once_with(Path(tmp), prepare.LAST_KNOWN_GOOD)
 
     workflow = WORKFLOW.read_text(encoding='utf-8')
     assert "'6,21,36,51 12,13,14 * * 1-5'" in workflow
