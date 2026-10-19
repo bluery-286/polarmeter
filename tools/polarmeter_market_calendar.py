@@ -121,6 +121,48 @@ def in_market_window(now: datetime, zone: ZoneInfo, start: time, end: time) -> b
     return start <= current <= end
 
 
+def last_completed_session_date(now: datetime, market: str) -> date | None:
+    """Shared delayed-feed baseline; never guess an unsupported KR calendar."""
+    if market not in {'KR', 'US'}:
+        return None
+    zone = KST_ZONE if market == 'KR' else NY_ZONE
+    closed = kr_market_closed_reason if market == 'KR' else us_market_closed_reason
+    local = now.astimezone(zone)
+    if market == 'KR' and local.year != 2026:
+        return None
+    candidate = local.date()
+    if closed(local) is None and local.time() >= time(16, 45):
+        return candidate
+    for _ in range(32):
+        candidate -= timedelta(days=1)
+        if market == 'KR' and candidate.year != 2026:
+            return None
+        if closed(datetime.combine(candidate, time(12), tzinfo=zone)) is None:
+            return candidate
+    return None
+
+
+def market_session_context(now: datetime, market: str) -> dict | None:
+    """Calendar context independent of whether any received quote is usable."""
+    if market not in {'KR', 'US'}:
+        return None
+    zone = KST_ZONE if market == 'KR' else NY_ZONE
+    local = now.astimezone(zone)
+    if market == 'KR' and local.year != 2026:
+        return None
+    reason = (kr_market_closed_reason if market == 'KR' else us_market_closed_reason)(now)
+    minutes = local.hour * 60 + local.minute
+    opening, closing = (540, 930) if market == 'KR' else (570, 960)
+    phase = ('closed' if reason else 'pre_open' if minutes < opening
+             else 'open' if minutes < closing else 'after_close')
+    completed = last_completed_session_date(now, market)
+    return {'version': 'market-session-v1', 'market': market,
+            'referenceAsOf': now.astimezone(ZoneInfo('UTC')).isoformat().replace('+00:00', 'Z'),
+            'localDate': local.date().isoformat(), 'phase': phase,
+            'closedKind': ('weekend' if local.weekday() >= 5 else 'holiday') if reason else None,
+            'completedSessionDate': completed.isoformat() if completed else None}
+
+
 def is_us_market_active(now: datetime, start: time = time(9, 30), end: time = time(17, 30)) -> bool:
     return us_market_closed_reason(now) is None and in_market_window(now, NY_ZONE, start, end)
 

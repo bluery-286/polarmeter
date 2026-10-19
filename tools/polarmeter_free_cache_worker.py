@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
+from polarmeter_market_calendar import KST_ZONE, kr_market_closed_reason, market_session_context
+from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
+
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
 TOOLS = WORKSPACE / 'tools'
@@ -301,27 +304,25 @@ def kst_date_key(value: Any) -> str | None:
     return parsed.astimezone(KST).date().isoformat()
 
 
-def snapshot_score_point(signal: dict[str, Any] | None, key: str | None = None) -> dict[str, Any]:
+def snapshot_score_point(signal: dict[str, Any] | None, key: str | None = None, *, as_of: datetime | None = None) -> dict[str, Any]:
     signal = signal or {}
     status = signal.get('status') or 'unavailable'
     scoreable = status in {'ok', 'stale', 'suspect'}
-    # Preserve the app's stale-age safety limits while sharing one calculation.
-    # Missing age does not invent a timestamp; ordinary stale/suspect data keeps
-    # its existing inclusion policy and visible freshness disclosure.
-    if status == 'stale':
-        default_max = 96 if (key or signal.get('key')) == 'kr_samsung' else None
-        def finite_number(value: Any) -> float | None:
-            try:
-                parsed = float(value)
-                return parsed if math.isfinite(parsed) else None
-            except (TypeError, ValueError):
-                return None
-        max_age = finite_number(signal.get('maxStaleAgeHours'))
-        if max_age is None:
-            max_age = default_max
-        age = finite_number(signal.get('dataAgeHours'))
-        if age is not None and max_age is not None and age > max_age:
-            scoreable = False
+    # A valid Samsung last close remains in the calculation at low confidence,
+    # however old. Age still controls stale disclosure, never quote validity.
+    if (key or signal.get('key')) == 'kr_samsung':
+        scoreable = scoreable and valid_last_close(signal, as_of)
+    elif status in {'stale', 'suspect'}:
+        signal_key = key or signal.get('key')
+        max_age = MAX_STALE_SIGNAL_AGE_HOURS.get(signal_key)
+        if max_age is not None:
+            observed = parse_utc_datetime(signal.get('dataAsOf'))
+            current = as_of or datetime.now(timezone.utc)
+            age = (current - observed).total_seconds() / 3600 if observed else None
+            if age is None or age < 0:
+                scoreable = False
+            elif age > max_age and session_close_reference(signal_key, signal, current) is None:
+                scoreable = False
     return {
         'status': status,
         'close': signal.get('value') if scoreable else None,
@@ -336,22 +337,12 @@ def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]
     signals = snapshot.get('signals') or {}
     if not isinstance(signals, dict) or not signals:
         return None
-    items = {
-        'S&P500': snapshot_score_point(signals.get('sp500')),
-        'Nasdaq100': snapshot_score_point(signals.get('nasdaq100')),
-        'Russell 2000': snapshot_score_point(signals.get('iwm')),
-        'VIX': snapshot_score_point(signals.get('vix')),
-        '미국 10년물': snapshot_score_point(signals.get('us10y')),
-        'DXY': snapshot_score_point(signals.get('dxy')),
-        'USD/KRW': snapshot_score_point(signals.get('usd_krw')),
-        'KOSPI': snapshot_score_point(signals.get('kospi')),
-        'KOSDAQ': snapshot_score_point(signals.get('kosdaq')),
-        '삼성전자': snapshot_score_point(signals.get('kr_samsung'), key='kr_samsung'),
-        'SK하이닉스': snapshot_score_point(signals.get('kr_hynix')),
-        'SOXX': snapshot_score_point(signals.get('soxx')),
-        'SMH': snapshot_score_point(signals.get('smh')),
-    }
     generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
+    names = {'S&P500': 'sp500', 'Nasdaq100': 'nasdaq100', 'Russell 2000': 'iwm',
+             'VIX': 'vix', '미국 10년물': 'us10y', 'DXY': 'dxy', 'USD/KRW': 'usd_krw',
+             'KOSPI': 'kospi', 'KOSDAQ': 'kosdaq', '삼성전자': 'kr_samsung',
+             'SK하이닉스': 'kr_hynix', 'SOXX': 'soxx', 'SMH': 'smh'}
+    items = {name: snapshot_score_point(signals.get(key), key, as_of=generated_at) for name, key in names.items()}
     session_type = detect_session(snapshot, now=generated_at.astimezone(KST) if generated_at else None)
     scores = build_scores(snapshot_from_points(items, session_type=session_type), session_type='normal')
     if isinstance(scores.get('market_context'), dict):
@@ -380,6 +371,7 @@ def public_temperature_score_core(snapshot: dict[str, Any]) -> dict[str, Any] | 
     return {
         'schemaVersion': 'polarmeter-score-core-v1',
         'formulaVersion': 'score_core_v2_normal_freshness',
+        'inputPolicyVersion': 'last-close-session-v1',
         'generatedAt': snapshot.get('generatedAt'),
         'calculationProfile': 'normal',
         'marketSession': context.get('market_session_type'),
@@ -408,6 +400,7 @@ def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None
         'usLabel': us.get('label'),
         'krLabel': kr.get('label'),
         'source': 'score_core_v2_normal_freshness',
+        'inputPolicyVersion': 'last-close-session-v1',
     }
 
 
@@ -759,7 +752,58 @@ def public_health(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def sanitize_public_signal(signal: dict[str, Any]) -> dict[str, Any]:
+def daily_close_reference(signal: dict[str, Any], as_of: datetime | None = None) -> dict[str, Any] | None:
+    """Display-only disclosure; never change quote time, quality or scoring.
+
+    FSC daily prices open after 13:00 on the following business day. The next
+    newer observation therefore needs two business-day steps from basDt.
+    Exact windows use only the years covered by our local KR calendar.
+    """
+    if signal.get('key') != 'kr_samsung' or signal.get('provider') != 'data-go-kr-free':
+        return None
+    if signal.get('status') not in {'ok', 'stale', 'suspect'} or signal.get('valuePolicy') != 'show':
+        return None
+    current = (as_of or datetime.now(timezone.utc)).astimezone(KST_ZONE)
+    raw_date = signal.get('dataAsOf')
+    observed = None
+    if isinstance(raw_date, str):
+        for pattern, fmt in ((r'\d{8}', '%Y%m%d'), (r'\d{4}-\d{2}-\d{2}', '%Y-%m-%d')):
+            if re.fullmatch(pattern, raw_date):
+                try:
+                    observed = datetime.strptime(raw_date, fmt).date()
+                except ValueError:
+                    pass
+                break
+    if observed is not None and observed > current.date():
+        observed = None
+    out = {
+        'kind': 'delayed_daily_close',
+        'label': '종가 참고자료 · 실시간 아님',
+        'calculationLabel': '마지막 확인 종가로 계산' if valid_last_close(signal, current) else '값·기준일 확인 전 계산 미반영',
+        'observedDate': observed.isoformat() if observed else None,
+        'observedDateLabel': f'기준일 {observed.isoformat()}' if observed else '기준일 확인 필요',
+        'expectedUpdateAt': None,
+        'updateLabel': '다음 갱신 시각 확인 필요',
+        'scheduleStatus': 'calendar_unavailable' if observed else 'date_unavailable',
+    }
+    if observed is not None and observed.year == current.year == 2026:
+        candidate = observed
+        for _ in range(2):
+            candidate += timedelta(days=1)
+            while candidate.year == 2026 and kr_market_closed_reason(
+                datetime(candidate.year, candidate.month, candidate.day, 13, tzinfo=KST_ZONE)
+            ):
+                candidate += timedelta(days=1)
+        if candidate.year == 2026:
+            expected = datetime(candidate.year, candidate.month, candidate.day, 13, tzinfo=KST_ZONE)
+            out['expectedUpdateAt'] = expected.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+            out['scheduleStatus'] = 'awaiting_window' if current < expected else 'check_provider_update'
+            prefix = '새 자료 확인' if current >= expected else '다음 갱신'
+            out['updateLabel'] = f'{prefix} {candidate.month}/{candidate.day} 오후 1시 이후 예상'
+    return out
+
+
+def sanitize_public_signal(signal: dict[str, Any], *, as_of: datetime | None = None) -> dict[str, Any]:
     """Return the app-facing subset of a normalized signal.
 
     Public cache artifacts must be enough for the app to render source/freshness
@@ -785,6 +829,27 @@ def sanitize_public_signal(signal: dict[str, Any]) -> dict[str, Any]:
     public_reason = public_signal_reason(signal)
     if public_reason:
         out.update(public_reason)
+    max_age = MAX_STALE_SIGNAL_AGE_HOURS.get(signal.get('key'))
+    if max_age is not None:
+        out['maxStaleAgeHours'] = max_age
+    session = session_close_reference(signal.get('key'), signal, as_of)
+    if session:
+        out['sessionCloseReference'] = session
+        if signal.get('status') == 'suspect':
+            out['publicReasonLabel'] = f'{out["publicReasonLabel"]} · {session["label"]}'
+        else:
+            out.update(publicReasonCode='last_completed_session_reference', publicReasonLabel=session['label'])
+    reference = daily_close_reference(signal, as_of)
+    if reference:
+        # Generate this allowlisted object ourselves; never pass provider copy
+        # or untrusted nested metadata through to the public cache.
+        out['dailyCloseReference'] = reference
+        copy = ' · '.join(reference[name] for name in ('label', 'calculationLabel', 'observedDateLabel', 'updateLabel'))
+        if signal.get('status') == 'suspect':
+            out['publicReasonLabel'] = f'{out["publicReasonLabel"]} · {copy}'
+        else:
+            out['publicReasonCode'] = 'daily_close_reference'
+            out['publicReasonLabel'] = copy
     return out
 
 
@@ -1037,9 +1102,11 @@ def sanitize_public_provider_status_by_name(status_by_name: dict[str, Any]) -> d
 
 def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     market_ttl_minutes = public_market_ttl_minutes(snapshot)
+    as_of = parse_utc_datetime(snapshot.get('generatedAt'))
     return {
         'mode': snapshot.get('mode') or 'free_cache_experiment',
         'generatedAt': snapshot.get('generatedAt'),
+        'marketSessions': {market: market_session_context(as_of, market) for market in ('KR', 'US')} if as_of else {},
         'status': snapshot.get('status'),
         'paidProviderEnabled': False,
         'clientDirectProviderCalls': False,
@@ -1059,7 +1126,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
             'dailyDelta': {'status': 'pending', 'reason': 'temperature_history_unavailable'},
         },
         'signals': {
-            key: sanitize_public_signal(value)
+            key: sanitize_public_signal(value, as_of=parse_utc_datetime(snapshot.get('generatedAt')))
             for key, value in (snapshot.get('signals') or {}).items()
             if isinstance(value, dict)
         },

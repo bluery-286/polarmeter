@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from polarmeter_market_calendar import is_kr_market_active, is_us_market_active
+from polarmeter_last_close_policy import (
+    MAX_STALE_SIGNAL_AGE_HOURS, last_close_time, valid_last_close, session_close_reference,
+)
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -30,25 +33,6 @@ DEFAULT_NEWS_PROBE = PROJECT / 'testflight/news-rss-probe-latest.json'
 DEFAULT_LAST_KNOWN_GOOD = PROJECT / 'testflight/last-known-good-snapshot.json'
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
 NEWS_SNAPSHOT_MAX_ITEMS = 30
-MAX_STALE_SIGNAL_AGE_HOURS = {
-    # Display-facing market values may be delayed, but multi-day-old numbers must
-    # not be recycled as current.
-    'sp500': 72,
-    'nasdaq100': 72,
-    'iwm': 72,
-    'soxx': 72,
-    'smh': 72,
-    'eem': 72,
-    'vix': 72,
-    'usd_krw': 72,
-    'wti': 72,
-    'kospi': 96,
-    'kosdaq': 96,
-    'kr_samsung': 96,
-    'us10y': 96,
-    'dxy': 96,
-    'gold': 96,
-}
 KST = timezone(timedelta(hours=9))
 KR_INTRADAY_STALE_KEYS = {'kospi', 'kosdaq', 'kr_samsung'}
 ACTIVE_MARKET_MAX_AGE_HOURS = 3.0
@@ -1035,10 +1019,14 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
     previous = last_good.get(key)
     if not isinstance(previous, dict) or previous.get('value') in (None, ''):
         return None
-    if stale_signal_is_too_old(key, previous):
+    retained_samsung = key == 'kr_samsung' and valid_last_close(previous)
+    retained_session = session_close_reference(key, previous) is not None
+    if key == 'kr_samsung' and not retained_samsung:
+        return None
+    if not (retained_samsung or retained_session) and stale_signal_is_too_old(key, previous):
         return None
     previous_as_of = previous.get('dataAsOf') or previous.get('lastSuccessfulAt') or previous.get('fetchedAt')
-    if kr_intraday_stale_reason(key, previous.get('provider') or 'last-known-good', {'asOf': previous_as_of}):
+    if not (retained_samsung or retained_session) and kr_intraday_stale_reason(key, previous.get('provider') or 'last-known-good', {'asOf': previous_as_of}):
         return None
     previous_quality, previous_reason = validate_candidate(key, {
         'status': 'ok',
@@ -1098,6 +1086,9 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
         for item in items:
             if item.get('key') != key:
                 continue
+            if key == 'kr_samsung' and not valid_last_close(item):
+                failures.append({'provider': provider, 'quality': 'invalid', 'reason': 'invalid_last_close'})
+                continue
             quality, reason = validate_candidate(key, item)
             if key == 'vix':
                 # Relax only the move-size rejection, never observation-time
@@ -1141,6 +1132,13 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
                     'ageHours': age_hours,
                 })
 
+    if key == 'kr_samsung' or session_close_reference(key, last_good.get(key) or {}):
+        retained = stale_from_last_good(signal, last_good, 'retained_last_close')
+        if retained:
+            retained_item = {'asOf': retained.get('dataAsOf')}
+            candidates.append({'signal': retained, 'quality': 'stale', 'qualityRank': 1,
+                               'freshnessRank': candidate_freshness_rank(retained_item),
+                               'ageHours': candidate_age_hours(retained_item)})
     showable_candidates = [item for item in candidates if item['quality'] in {'ok', 'suspect', 'stale'}]
     if showable_candidates:
         best = max(showable_candidates, key=candidate_selection_key)
@@ -1240,6 +1238,12 @@ def write_last_known_good(path: Path | None, snapshot: dict[str, Any]) -> None:
         return
     signals = snapshot.get('signals') or {}
     good_signals = {key: value for key, value in signals.items() if isinstance(value, dict) and value.get('status') in {'ok', 'suspect'} and value.get('valuePolicy') == 'show'}
+    samsung = signals.get('kr_samsung')
+    if isinstance(samsung, dict) and valid_last_close(samsung):
+        good_signals['kr_samsung'] = samsung
+    for key, value in signals.items():
+        if isinstance(value, dict) and session_close_reference(key, value):
+            good_signals[key] = value
     if not good_signals:
         return
     existing = {'signals': {}}
@@ -1255,7 +1259,11 @@ def write_last_known_good(path: Path | None, snapshot: dict[str, Any]) -> None:
         quality, _ = validate_candidate(key, {'status': 'ok', 'price': value.get('value'), 'changePct': value.get('changePct')})
         if quality != 'invalid':
             merged[key] = value
-    merged.update(good_signals)
+    for key, value in good_signals.items():
+        if (key == 'kr_samsung' or session_close_reference(key, value)) and valid_last_close(merged.get(key) or {}):
+            if last_close_time(merged[key]) > last_close_time(value):
+                continue
+        merged[key] = value
     atomic_write_json(path, {'updatedAt': utc_now(), 'signals': merged})
 
 
