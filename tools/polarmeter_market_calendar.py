@@ -13,6 +13,21 @@ from zoneinfo import ZoneInfo
 KST_ZONE = ZoneInfo('Asia/Seoul')
 NY_ZONE = ZoneInfo('America/New_York')
 
+# Official NYSE cash-equity calendar, checked 2026-10-19.
+# https://www.nyse.com/trade/hours-calendars
+# Published 2026-2028 dates only; do not infer July/Christmas half-days
+# from a generic weekday rule (some are full holidays instead).
+US_EQUITY_EARLY_CLOSE_DATES = frozenset({
+    date(2026, 11, 27), date(2026, 12, 24),
+    date(2027, 11, 26),
+    date(2028, 7, 3), date(2028, 11, 24),
+})
+
+
+def us_equity_close_time(now: datetime) -> time:
+    """Core cash-equity session close, not options or extended trading."""
+    return time(13) if now.astimezone(NY_ZONE).date() in US_EQUITY_EARLY_CLOSE_DATES else time(16)
+
 
 def nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
     current = date(year, month, 1)
@@ -131,7 +146,12 @@ def last_completed_session_date(now: datetime, market: str) -> date | None:
     if market == 'KR' and local.year != 2026:
         return None
     candidate = local.date()
-    if closed(local) is None and local.time() >= time(16, 45):
+    # Preserve the existing KR delayed-feed boundary. US feeds retain their
+    # 45-minute arrival grace, measured from the actual session close.
+    cutoff = time(16, 45) if market == 'KR' else (
+        datetime.combine(candidate, us_equity_close_time(local), tzinfo=zone) + timedelta(minutes=45)
+    ).time()
+    if closed(local) is None and local.time() >= cutoff:
         return candidate
     for _ in range(32):
         candidate -= timedelta(days=1)
@@ -152,7 +172,8 @@ def market_session_context(now: datetime, market: str) -> dict | None:
         return None
     reason = (kr_market_closed_reason if market == 'KR' else us_market_closed_reason)(now)
     minutes = local.hour * 60 + local.minute
-    opening, closing = (540, 930) if market == 'KR' else (570, 960)
+    close = time(15, 30) if market == 'KR' else us_equity_close_time(local)
+    opening, closing = (540 if market == 'KR' else 570), close.hour * 60 + close.minute
     phase = ('closed' if reason else 'pre_open' if minutes < opening
              else 'open' if minutes < closing else 'after_close')
     completed = last_completed_session_date(now, market)
@@ -164,7 +185,21 @@ def market_session_context(now: datetime, market: str) -> dict | None:
 
 
 def is_us_market_active(now: datetime, start: time = time(9, 30), end: time = time(17, 30)) -> bool:
-    return us_market_closed_reason(now) is None and in_market_window(now, NY_ZONE, start, end)
+    """Freshness-watch window, including the caller's post-close grace.
+
+    The default 17:30 check is 90 minutes after a normal 16:00 close; on
+    a 13:00 early close the same check ends at 14:30. This is deliberately
+    separate from the public regular-session phase, which ends at 13:00.
+    """
+    if us_market_closed_reason(now) is not None:
+        return False
+    close = us_equity_close_time(now)
+    if close < time(16):
+        end_minutes = end.hour * 60 + end.minute
+        grace_minutes = max(0, end_minutes - 16 * 60)
+        shifted_end = min(end_minutes, close.hour * 60 + close.minute + grace_minutes)
+        end = time(shifted_end // 60, shifted_end % 60, end.second, end.microsecond)
+    return in_market_window(now, NY_ZONE, start, end)
 
 
 def is_kr_market_active(now: datetime, start: time = time(9, 30), end: time = time(16, 40)) -> bool:
