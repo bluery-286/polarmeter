@@ -44,7 +44,8 @@ def last_close_time(signal: dict, now: datetime | None = None) -> datetime | Non
 
 
 def valid_last_close(signal: dict, now: datetime | None = None) -> bool:
-    if signal.get('status') not in {'ok', 'stale', 'suspect'} or signal.get('valuePolicy') not in (None, 'show'):
+    status = signal.get('status')
+    if not isinstance(status, str) or status not in {'ok', 'stale', 'suspect'} or signal.get('valuePolicy') not in (None, 'show'):
         return False
     value = signal.get('value') if 'value' in signal else signal.get('price')
     pct = signal.get('changePct')

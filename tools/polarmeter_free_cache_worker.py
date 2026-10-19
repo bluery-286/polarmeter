@@ -25,6 +25,7 @@ from urllib.request import urlopen
 
 from polarmeter_market_calendar import KST_ZONE, kr_market_closed_reason, market_session_context
 from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
+from polarmeter_market_source_diagnostics import emit_market_source_diagnostics
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -204,7 +205,17 @@ def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.Comple
         }
         frames = re.findall(r'^\s*File "[^"\n]+", line \d+, in (\w+)\s*$', stderr, re.MULTILINE)
         stage = next((safe_stages[name] for name in reversed(frames) if name in safe_stages), 'unknown')
-        print(json.dumps({'workerFailure': reason, 'failureStage': stage, 'step': Path(cmd[1]).name if len(cmd) > 1 else 'unknown', 'exitCode': error.returncode, 'errorType': classes[-1] if classes else 'unknown'}), file=sys.stderr)
+        step = Path(cmd[1]).name if len(cmd) > 1 else 'unknown'
+        safe_steps = {'polarmeter_free_provider_probe.py', 'polarmeter_news_rss_probe.py',
+                      'polarmeter_cache_snapshot.py', 'polarmeter_data_freshness_audit.py',
+                      'polarmeter_free_cache_fixture.py'}
+        safe_errors = {'ValueError', 'RuntimeError', 'TypeError', 'OverflowError', 'JSONDecodeError',
+                       'HTTPError', 'URLError', 'TimeoutError', 'ConnectionError'}
+        if step == 'polarmeter_data_freshness_audit.py':
+            reason, stage = 'market_freshness_audit_failed', 'market_freshness'
+        print(json.dumps({'workerFailure': reason, 'failureStage': stage,
+                          'step': step if step in safe_steps else 'unknown', 'exitCode': error.returncode,
+                          'errorType': classes[-1] if classes and classes[-1] in safe_errors else 'unknown'}), file=sys.stderr)
         raise
 
 
@@ -217,13 +228,10 @@ def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
             str(snapshot_path),
             str(report_path),
         ])
-    except subprocess.CalledProcessError as error:
-        details = '\n'.join(
-            part.strip()
-            for part in (error.stdout or '', error.stderr or '')
-            if part and part.strip()
-        )
-        raise RuntimeError(f'data freshness audit failed:\n{details or "no child output"}') from error
+    except subprocess.CalledProcessError:
+        # Per-source fixed-vocabulary diagnostics were emitted before this
+        # check. Raw audit output can contain provider strings or credentials.
+        raise RuntimeError('data freshness audit failed; see marketSourceDiagnostics') from None
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -1224,6 +1232,7 @@ def main() -> int:
     news_ttl_minutes = recommended_news_ttl_minutes()
     run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report), '--ttl-minutes', str(news_ttl_minutes)])
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
+    emit_market_source_diagnostics(args.snapshot, args.report)
     previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
     temperature_history_seed = load_temperature_history_seed(args.temperature_history_seed)
     snapshot_for_history = load_json(args.snapshot)
