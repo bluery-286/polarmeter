@@ -1,13 +1,16 @@
 """Offline KR/US session-close retention and cross-client fixture contract."""
 from copy import deepcopy
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 import json
 import sys
 from unittest.mock import patch
 
 import polarmeter_cache_snapshot as cache
 import polarmeter_last_close_policy as policy
-from polarmeter_market_calendar import last_completed_session_date
+from polarmeter_market_calendar import (
+    NY_ZONE, KST_ZONE, last_completed_session_date, market_session_context,
+    us_equity_close_time, is_us_market_active,
+)
 from polarmeter_free_cache_worker import (
     assert_public_payload_safe, public_temperature_score_core, sanitize_public_signal,
     sanitize_public_snapshot, snapshot_score_point,
@@ -27,7 +30,52 @@ CASES = [
     ('us_intraday', 'sp500', '2026-01-20T10:00:00-05:00', '2026-01-16T16:00:00-05:00', '2026-01-16', 'open'),
     ('us_before_boundary', 'sp500', '2026-01-20T16:44:59-05:00', '2026-01-20T16:00:00-05:00', '2026-01-16', None),
     ('us_at_boundary', 'sp500', '2026-01-20T16:45:00-05:00', '2026-01-20T16:00:00-05:00', '2026-01-20', 'after_close'),
+    ('us_early_before_close', 'sp500', '2026-11-27T12:59:59-05:00', '2026-11-25T16:00:00-05:00', '2026-11-25', 'open'),
+    ('us_early_at_close', 'sp500', '2026-11-27T13:00:00-05:00', '2026-11-25T16:00:00-05:00', '2026-11-25', 'after_close'),
+    ('us_early_before_grace', 'sp500', '2026-11-27T13:44:59-05:00', '2026-11-27T13:00:00-05:00', '2026-11-25', None),
+    ('us_early_at_grace', 'sp500', '2026-11-27T13:45:00-05:00', '2026-11-27T13:00:00-05:00', '2026-11-27', 'after_close'),
+    ('us_early_review_regression', 'sp500', '2026-11-27T14:00:00-05:00', '2026-11-27T13:00:00-05:00', '2026-11-27', 'after_close'),
+    ('us_christmas_early_at_grace', 'nasdaq100', '2026-12-24T13:45:00-05:00', '2026-12-24T13:00:00-05:00', '2026-12-24', 'after_close'),
+    ('us_early_holiday_weekend', 'sp500', '2026-12-27T18:00:00-05:00', '2026-12-24T13:00:00-05:00', '2026-12-24', 'closed'),
+    ('us_early_weekend_after_thanksgiving', 'sp500', '2026-11-29T18:00:00-05:00', '2026-11-27T13:00:00-05:00', '2026-11-27', 'closed'),
 ]
+
+
+def check_early_close_calendar() -> None:
+    official_early_dates = (date(2026, 11, 27), date(2026, 12, 24), date(2027, 11, 26),
+                            date(2028, 7, 3), date(2028, 11, 24))
+    for day in official_early_dates:
+        close = datetime.combine(day, time(13), tzinfo=NY_ZONE)
+        assert us_equity_close_time(close) == time(13)
+        before = close - timedelta(seconds=1)
+        previous = last_completed_session_date(before, 'US')
+        assert previous < day
+        assert market_session_context(before, 'US')['phase'] == 'open'
+        assert market_session_context(close, 'US')['phase'] == 'after_close'
+        assert last_completed_session_date(close + timedelta(minutes=44, seconds=59), 'US') == previous
+        assert last_completed_session_date(close + timedelta(minutes=45), 'US') == day
+        # The KST representation must preserve the exchange-local calendar date.
+        assert last_completed_session_date((close + timedelta(hours=1)).astimezone(KST_ZONE), 'US') == day
+        assert is_us_market_active(close + timedelta(minutes=90))
+        assert not is_us_market_active(close + timedelta(minutes=90, seconds=1))
+        assert not is_us_market_active(close + timedelta(seconds=1), end=time(16))
+        assert is_us_market_active(datetime.combine(day, time(11), tzinfo=NY_ZONE), end=time(12))
+        assert not is_us_market_active(datetime.combine(day, time(12, 1), tzinfo=NY_ZONE), end=time(12))
+
+    # Adjacent normal sessions must retain their 16:00/16:45 boundaries.
+    for raw in ('2026-11-25T16:00:00-05:00', '2026-12-23T16:00:00-05:00',
+                '2028-07-05T16:00:00-04:00'):
+        close = datetime.fromisoformat(raw)
+        assert us_equity_close_time(close) == time(16)
+        assert last_completed_session_date(close + timedelta(minutes=44, seconds=59), 'US') < close.date()
+        assert last_completed_session_date(close + timedelta(minutes=45), 'US') == close.date()
+        assert is_us_market_active(close + timedelta(minutes=90))
+        assert not is_us_market_active(close + timedelta(minutes=90, seconds=1))
+    for raw in ('2026-07-03T12:00:00-04:00', '2026-12-25T12:00:00-05:00',
+                '2027-12-24T12:00:00-05:00', '2026-11-28T12:00:00-05:00'):
+        now = datetime.fromisoformat(raw)
+        assert market_session_context(now, 'US')['phase'] == 'closed'
+        assert not is_us_market_active(now)
 
 
 def contract_cases() -> list[dict]:
@@ -70,6 +118,7 @@ def contract_cases() -> list[dict]:
 
 
 def check_session_close_reference() -> None:
+    check_early_close_calendar()
     contract_cases()
     now = datetime.fromisoformat('2026-02-18T12:00:00+09:00')
     quote = {'key': 'kospi', 'status': 'stale', 'valuePolicy': 'show', 'value': 2750,
