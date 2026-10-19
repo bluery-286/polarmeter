@@ -4,6 +4,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import polarmeter_cache_snapshot as cache
+import polarmeter_data_freshness_audit as freshness
+from polarmeter_free_cache_worker import public_signal_reason, snapshot_score_point
 from polarmeter_cache_snapshot import (
     MAX_STALE_SIGNAL_AGE_HOURS,
     US_ACTIVE_MARKET_STALE_KEYS,
@@ -17,7 +20,76 @@ from polarmeter_free_provider_probe import yahoo_chart_change_fields
 from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
 
+def check_vix_stress_preservation() -> None:
+    now = datetime.now(timezone.utc)
+    observed_at = now.isoformat().replace('+00:00', 'Z')
+    signal = {'key': 'vix', 'label': 'CBOE VIX'}
+    item = {'key': 'vix', 'symbol': '^VIX', 'status': 'ok', 'price': 24.69,
+            'changePct': 50.0, 'asOf': observed_at}
+
+    def select(**changes):
+        return choose_signal(signal, {'public-chart-delayed': [{**item, **changes}]}, {})
+
+    def audit_errors(selected):
+        signals = {
+            key: {'status': 'ok', 'value': 1, 'changePct': 0, 'dataAsOf': observed_at}
+            for key in freshness.CRITICAL_SIGNAL_REQUIRED_FIELDS
+        }
+        signals['vix'] = selected
+        return freshness.audit({'generatedAt': observed_at, 'signals': signals}, {})
+
+    # Boundary, stress and rapid relief remain observations, never normal/hidden.
+    for change_pct in (12.01, 20.0, 20.01, 50.0, 100.0, -20.01, -50.0):
+        selected = select(changePct=change_pct)
+        assert selected['status'] == 'suspect', (change_pct, selected)
+        assert selected['valuePolicy'] == 'show'
+        assert selected['value'] == item['price']
+        assert selected['changePct'] == change_pct
+        assert selected['dataAsOf'] == observed_at
+        assert selected['reliability']['confidencePolicy'] == 'low_large_move_until_corroborated'
+        assert public_signal_reason(selected)['publicReasonCode'] == 'large_move_review'
+        point = snapshot_score_point(selected, 'vix')
+        assert point['status'] == 'suspect' and point['close'] == item['price']
+        assert point['pct'] == change_pct
+        assert audit_errors(selected) == []
+    assert select(changePct=12.0)['status'] == 'ok'
+
+    # Do not weaken value validity or the existing freshness/coverage gate.
+    for price in (None, '', 'bad', 0, -1, True, float('nan'), float('inf'), float('-inf')):
+        selected = select(price=price)
+        assert selected['status'] not in {'ok', 'suspect', 'stale'}
+        assert selected['valuePolicy'] != 'show'
+        assert audit_errors(selected)
+    for change_pct in (None, '', 'bad', True, float('nan'), float('inf'), -100, -101):
+        selected = select(changePct=change_pct)
+        assert selected['status'] not in {'ok', 'suspect', 'stale'}
+        assert audit_errors(selected)
+    for timestamp in (None, '', 'bad', True, float('nan'), float('inf'), 10**30):
+        selected = select(asOf=timestamp)
+        assert selected['status'] not in {'ok', 'suspect', 'stale'}
+        assert selected['dataAsOf'] is None
+        assert audit_errors(selected)
+    stale_at = (now - timedelta(hours=96)).isoformat().replace('+00:00', 'Z')
+    old = select(asOf=stale_at)
+    assert old['status'] == 'stale' and old['dataAsOf'] == stale_at
+    assert any('too old' in error for error in audit_errors(old))
+    missing_time = {**select(), 'dataAsOf': None}
+    assert any('missing dataAsOf' in error for error in audit_errors(missing_time))
+    # Stress data must not silently lose to an older normal last-known-good value.
+    previous = {'vix': {'value': 16.46, 'changePct': 1, 'status': 'ok',
+                        'dataAsOf': (now - timedelta(hours=1)).isoformat()}}
+    selected = choose_signal(signal, {'public-chart-delayed': [item]}, previous)
+    assert selected['status'] == 'suspect' and selected['value'] == item['price']
+    assert selected['dataAsOf'] == observed_at
+    selected = choose_signal(signal, {}, previous)
+    assert selected['status'] == 'stale' and selected['value'] == 16.46
+    assert selected['dataAsOf'] == previous['vix']['dataAsOf']
+    # The change is VIX-specific, not a blanket removal of anomaly rejection.
+    assert validate_candidate('sp500', {'status': 'ok', 'price': 100, 'changePct': 20})[0] == 'invalid'
+
+
 def main() -> int:
+    check_vix_stress_preservation()
     price, change, change_pct, previous, source = yahoo_chart_change_fields(
         {"regularMarketPrice": 7187.91, "regularMarketPreviousClose": 7475.94},
         [8051.33, 7291.91, 7475.94, 7187.91],
