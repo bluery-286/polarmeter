@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import re
 import tempfile
 import urllib.error
@@ -155,7 +156,9 @@ SANITY_RANGES = {
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
     'us10y': {'minPrice': 1.0, 'maxPrice': 8.0, 'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 15.0, 'requiresChangePct': False},
     'dxy': {'minPrice': 70.0, 'maxPrice': 140.0, 'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
-    'vix': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'requiresChangePct': False},
+    # VIX can genuinely jump more than 20% during market stress. Preserve that
+    # observation with low confidence instead of deleting a critical signal.
+    'vix': {'suspectAbsChangePct': 12.0, 'rejectAbsChangePct': 20.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
     'wti': {'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 12.0, 'requiresChangePct': False},
     'gold': {'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
     'soxx': {'minPrice': 100, 'maxPrice': 1200, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': False},
@@ -762,6 +765,15 @@ def validate_candidate(key: str, item: dict[str, Any]) -> tuple[str, str | None]
         return 'unavailable', item.get('reason') or 'no_price'
     rule = SANITY_RANGES.get(key, {})
     price = as_float(item.get('price'))
+    if key == 'vix':
+        if isinstance(item.get('price'), bool) or price is None or not math.isfinite(price) or price <= 0:
+            return 'invalid', 'invalid_vix_price'
+        change_pct = as_float(item.get('changePct'))
+        if item.get('changePct') not in (None, '') and (
+            isinstance(item.get('changePct'), bool) or change_pct is None
+            or not math.isfinite(change_pct) or change_pct <= -100
+        ):
+            return 'invalid', 'invalid_vix_changePct'
     if price is not None:
         min_price = rule.get('minPrice')
         max_price = rule.get('maxPrice')
@@ -1087,6 +1099,20 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
             if item.get('key') != key:
                 continue
             quality, reason = validate_candidate(key, item)
+            if key == 'vix':
+                # Relax only the move-size rejection, never observation-time
+                # evidence. normalized_as_of(None) otherwise invents "now".
+                try:
+                    valid_timestamp = not isinstance(item.get('asOf'), bool) and parse_utc_datetime(item.get('asOf')) is not None
+                except OverflowError:
+                    valid_timestamp = False
+                if not valid_timestamp:
+                    failures.append({
+                        'provider': provider, 'status': item.get('status'),
+                        'quality': 'invalid', 'reason': 'missing_or_invalid_vix_timestamp',
+                        'dataAsOf': None, 'dataAgeHours': None, 'freshnessRank': 0,
+                    })
+                    continue
             stale_reason = (
                 kr_intraday_stale_reason(key, provider, item)
                 or active_market_stale_reason(key, provider, item)

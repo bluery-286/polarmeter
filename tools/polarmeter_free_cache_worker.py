@@ -177,7 +177,31 @@ def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.Comple
             reason = 'official_fomc_target_range_unrecognized'
         elif 'official FOMC statement target range is invalid' in stderr:
             reason = 'official_fomc_target_range_invalid'
-        print(json.dumps({'workerFailure': reason, 'step': Path(cmd[1]).name if len(cmd) > 1 else 'unknown', 'exitCode': error.returncode, 'errorType': classes[-1] if classes else 'unknown'}), file=sys.stderr)
+        elif 'BLS API request failed:' in stderr:
+            reason = 'official_bls_request_failed'
+        elif re.search(r'BLS series \S+ is missing period \d{4}-\d{2}', stderr):
+            reason = 'official_bls_period_missing'
+        elif 'macro release label has no reference month:' in stderr:
+            reason = 'official_macro_reference_month_missing'
+        elif 'macro release label has invalid reference month:' in stderr:
+            reason = 'official_macro_reference_month_invalid'
+        # Fixed function/stage vocabulary only: never log the exception message,
+        # response body, provider URL, local path or arbitrary traceback names.
+        safe_stages = {
+            'normalized_as_of': 'provider_timestamp',
+            'normalize_signal': 'provider_signal',
+            'validate_candidate': 'provider_validation',
+            'build_macro_events': 'official_macro_rollover',
+            '_reference_period': 'official_macro_reference_period',
+            '_bls_series_points': 'official_bls_response',
+            '_required_bls_value': 'official_bls_period',
+            'parse_bls_cpi_release': 'official_cpi_result',
+            'parse_bls_employment_release': 'official_employment_result',
+            'parse_fomc_statement': 'official_fomc_result',
+        }
+        frames = re.findall(r'^\s*File "[^"\n]+", line \d+, in (\w+)\s*$', stderr, re.MULTILINE)
+        stage = next((safe_stages[name] for name in reversed(frames) if name in safe_stages), 'unknown')
+        print(json.dumps({'workerFailure': reason, 'failureStage': stage, 'step': Path(cmd[1]).name if len(cmd) > 1 else 'unknown', 'exitCode': error.returncode, 'errorType': classes[-1] if classes else 'unknown'}), file=sys.stderr)
         raise
 
 
