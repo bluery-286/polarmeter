@@ -15,6 +15,7 @@ import time
 from datetime import datetime, time as day_time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from polarmeter_last_close_policy import session_date_reference
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT
@@ -155,16 +156,7 @@ def is_us_trading_day(day: Any) -> bool:
 
 
 def last_completed_us_trading_date(as_of: datetime) -> Any:
-    local = as_of.astimezone(calendar.NY_ZONE)
-    candidate = local.date()
-    # Give delayed/free providers a little time after the regular close before
-    # requiring the current day's US close.
-    if is_us_trading_day(candidate) and local.time() >= day_time(16, 45):
-        return candidate
-    candidate -= timedelta(days=1)
-    while not is_us_trading_day(candidate):
-        candidate -= timedelta(days=1)
-    return candidate
+    return calendar.last_completed_session_date(as_of, 'US')
 
 
 def tolerated_us_session_gap(key: str, signal: dict[str, Any], as_of: datetime, max_age: float | None) -> bool:
@@ -173,11 +165,7 @@ def tolerated_us_session_gap(key: str, signal: dict[str, Any], as_of: datetime, 
     age = selected_age(signal, as_of)
     if age is None or age <= max_age:
         return False
-    data_as_of = cache.parse_utc_datetime(signal.get('dataAsOf'))
-    if data_as_of is None:
-        return False
-    data_date = data_as_of.astimezone(calendar.NY_ZONE).date()
-    return data_date >= last_completed_us_trading_date(as_of)
+    return session_date_reference(key, signal, as_of) is not None
 
 
 def is_kr_trading_day(day: Any) -> bool:
@@ -186,16 +174,7 @@ def is_kr_trading_day(day: Any) -> bool:
 
 
 def last_completed_kr_trading_date(as_of: datetime) -> Any:
-    local = as_of.astimezone(calendar.KST_ZONE)
-    candidate = local.date()
-    # Delayed/free providers may need a short grace period after the KRX close.
-    # Until then, keep the previous completed session as the freshness baseline.
-    if is_kr_trading_day(candidate) and local.time() >= day_time(16, 45):
-        return candidate
-    candidate -= timedelta(days=1)
-    while not is_kr_trading_day(candidate):
-        candidate -= timedelta(days=1)
-    return candidate
+    return calendar.last_completed_session_date(as_of, 'KR')
 
 
 def tolerated_kr_session_gap(key: str, signal: dict[str, Any], as_of: datetime, max_age: float | None) -> bool:
@@ -206,11 +185,7 @@ def tolerated_kr_session_gap(key: str, signal: dict[str, Any], as_of: datetime, 
     age = selected_age(signal, as_of)
     if age is None or age <= max_age:
         return False
-    data_as_of = cache.parse_utc_datetime(signal.get('dataAsOf'))
-    if data_as_of is None:
-        return False
-    data_date = data_as_of.astimezone(calendar.KST_ZONE).date()
-    return data_date == last_completed_kr_trading_date(as_of)
+    return session_date_reference(key, signal, as_of) is not None
 
 
 def active_market_stale_ok_error(key: str, signal: dict[str, Any], as_of: datetime) -> str | None:

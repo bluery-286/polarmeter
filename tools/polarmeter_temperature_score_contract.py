@@ -99,8 +99,17 @@ def main() -> None:
     absent = deepcopy(current)
     del absent['signals']['kr_samsung']
     absent_core, _ = assert_same_score(absent, 'normal')
-    assert expired_core['kr']['score'] == absent_core['kr']['score']
-    assert expired_core['kr']['components'] == absent_core['kr']['components']
+    last_close = deepcopy(expired)
+    last_close['signals']['kr_samsung'].update(status='ok', dataAgeHours=0)
+    last_close_core, _ = assert_same_score(last_close, 'normal')
+    assert expired_core['kr']['score'] == last_close_core['kr']['score']
+    assert expired_core['kr']['components'] == last_close_core['kr']['components']
+    assert expired_core['kr']['components'] != absent_core['kr']['components']
+    for observed_at in ('2026-09-10T05:00:00Z', '2026-09-09T05:01:00Z'):
+        future = deepcopy(expired)
+        future['signals']['kr_samsung']['dataAsOf'] = observed_at
+        future_core, _ = assert_same_score(future, 'normal')
+        assert future_core['kr']['components'] == absent_core['kr']['components']
 
     print('PolarMeter temperature score contract: PASS')
 

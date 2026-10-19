@@ -143,18 +143,19 @@ def data_go_kr_probe(api_key: str | None) -> dict[str, Any]:
         symbol = signal.get('providerSymbol', {}).get('data_go_kr')
         if not symbol:
             continue
-        params = {'resultType': 'json', 'pageNo': '1', 'numOfRows': '1', 'likeSrtnCd': symbol}
+        params = {'resultType': 'json', 'pageNo': '1', 'numOfRows': '10', 'likeSrtnCd': symbol}
         url = data_go_kr_url(endpoint, api_key, params)
         try:
             data = fetch_json(url)
             body = data.get('response', {}).get('body', {})
             raw_items = body.get('items', {}).get('item')
-            if isinstance(raw_items, list):
-                row = raw_items[0] if raw_items else {}
-            elif isinstance(raw_items, dict):
-                row = raw_items
-            else:
-                row = {}
+            rows = raw_items if isinstance(raw_items, list) else [raw_items] if isinstance(raw_items, dict) else []
+            from polarmeter_last_close_policy import last_close_time, valid_last_close
+            valid_rows = [candidate for candidate in rows if isinstance(candidate, dict)
+                          and str(candidate.get('srtnCd') or '').removeprefix('A') == symbol
+                          and valid_last_close({'status': 'ok', 'price': candidate.get('clpr'),
+                                                'changePct': candidate.get('fltRt'), 'asOf': candidate.get('basDt')})]
+            row = max(valid_rows, key=lambda candidate: last_close_time({'asOf': candidate.get('basDt')})) if valid_rows else {}
             status = 'ok' if row.get('clpr') is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
         except Exception as exc:  # pragma: no cover - network diagnostic

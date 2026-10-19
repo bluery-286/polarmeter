@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import polarmeter_cache_snapshot as cache
 import polarmeter_data_freshness_audit as freshness
+from polarmeter_daily_close_reference_contract import check_daily_close_reference
+from polarmeter_session_close_contract import check_session_close_reference
 from polarmeter_free_cache_worker import public_signal_reason, snapshot_score_point
 from polarmeter_cache_snapshot import (
     MAX_STALE_SIGNAL_AGE_HOURS,
@@ -89,6 +91,8 @@ def check_vix_stress_preservation() -> None:
 
 
 def main() -> int:
+    check_daily_close_reference()
+    check_session_close_reference()
     check_vix_stress_preservation()
     price, change, change_pct, previous, source = yahoo_chart_change_fields(
         {"regularMarketPrice": 7187.91, "regularMarketPreviousClose": 7475.94},
