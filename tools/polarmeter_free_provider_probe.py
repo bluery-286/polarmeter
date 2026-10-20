@@ -99,7 +99,8 @@ def yahoo_chart_change_fields(
     previous = as_float(meta.get('regularMarketPreviousClose'))
     change = as_float(first_present(meta, ['regularMarketChange']))
     change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
-    source = 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close'
+    source = ('meta_previous_close' if previous not in (None, 0)
+              else 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close')
     if previous in (None, 0) and prefer_daily_series_previous and numeric_closes:
         last_close = numeric_closes[-1]
         if price is not None and abs(last_close - price) <= max(0.01, abs(price) * 0.000001) and len(numeric_closes) >= 2:
@@ -116,10 +117,11 @@ def yahoo_chart_change_fields(
         previous = previous_candidates[-1] if previous_candidates else numeric_closes[-2]
         source = 'close_array_fallback'
     if price is not None and previous not in (None, 0):
-        if change is None:
-            change = price - previous
-        if change_pct is None:
-            change_pct = change / previous * 100
+        # Metadata and daily bars can use different comparison sessions.
+        # Once a previous close is selected, derive both fields from that
+        # exact base rather than mixing one raw field with one computed field.
+        change = price - previous
+        change_pct = change / previous * 100
     return price, change, change_pct, previous, source
 
 

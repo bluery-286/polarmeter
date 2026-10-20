@@ -16,6 +16,99 @@ import polarmeter_last_close_policy as close_policy
 from polarmeter_market_source_diagnostics import summarize_market_sources, summarize_market_freshness_failure
 
 
+def check_same_session_current_quote_priority():
+    now = datetime(2026, 10, 20, 12, 15, tzinfo=timezone.utc)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+
+    specs = {item['key']: item for item in prepare.REQUIRED_SIGNALS}
+    prices = {'sp500': 766.48, 'nasdaq100': 718.36, 'iwm': 271.28,
+              'soxx': 300, 'smh': 250, 'eem': 60, 'vix': 22,
+              'kospi': 7000, 'kosdaq': 1000}
+
+    def choose(key, current_at, retained_at, *, pct=0.4, retained_pct=0.4):
+        price = prices.get(key, 100)
+        item = {'key': key, 'symbol': key, 'status': 'ok', 'price': price,
+                'changePct': pct, 'asOf': current_at.isoformat(),
+                'history': {'version': 'market-series-v1', 'status': 'ok', 'interval': '1d',
+                            'sourceId': f'public-chart-delayed:{key}',
+                            'dataAsOf': current_at.isoformat(),
+                            'points': [{'timestamp': (current_at - timedelta(days=1)).isoformat(), 'value': price - 1},
+                                       {'timestamp': current_at.isoformat(), 'value': price}]}}
+        previous = {'key': key, 'value': price + 0.12, 'changePct': retained_pct,
+                    'dataAsOf': retained_at.isoformat(), 'status': 'ok', 'valuePolicy': 'show',
+                    'provider': 'fmp-free', 'sourceId': f'fmp-free:{key}'}
+        before_item, before_previous = deepcopy(item), deepcopy(previous)
+        selected = cache.choose_signal(specs[key], {'public-chart-delayed': [item]}, {key: previous})
+        assert item == before_item and previous == before_previous
+        return selected, item, previous
+
+    with patch.object(cache, 'datetime', Frozen), patch.object(close_policy, 'datetime', Frozen):
+        # All seven US session signals and both KR indices: timestamp rounding
+        # must not turn a usable current quote into a value-only retained quote.
+        for key in sorted(close_policy.US_SESSION_KEYS | close_policy.KR_SESSION_KEYS):
+            observed = (datetime(2026, 10, 20, 6, 30, tzinfo=timezone.utc)
+                        if key in close_policy.KR_SESSION_KEYS
+                        else datetime(2026, 10, 19, 20, tzinfo=timezone.utc))
+            for seconds in (-60, -1, 0, 1, 59, 60):
+                selected, item, _ = choose(key, observed, observed + timedelta(seconds=seconds))
+                assert selected['provider'] == 'public-chart-delayed', (key, seconds, selected['status'])
+                assert selected['value'] == item['price'] and selected['status'] == 'ok'
+                assert selected['dataAsOf'] == cache.normalized_as_of(item['asOf'])
+                assert selected['history']['status'] == 'ok' and len(selected['history']['points']) == 2
+                assert selected['freshnessRank'] == cache.candidate_freshness_rank(item)
+                public = worker.sanitize_public_signal(selected, as_of=now)
+                assert public['value'] == item['price'] and public['history']['status'] == 'ok'
+                assert worker.snapshot_score_point(public, key, as_of=now)['close'] == item['price']
+                assert public['sessionCloseReference']['completedSessionDate'] == observed.date().isoformat()
+            # Larger timing differences still use the original recency order.
+            selected, _, previous = choose(key, observed, observed + timedelta(seconds=61))
+            assert selected['provider'] == 'fmp-free' and selected['status'] == 'stale'
+            assert selected['value'] == previous['value'] and selected['history']['points'] == []
+            # A live suspect quote is not silently promoted to normal quality.
+            suspect_pct = cache.SANITY_RANGES[key]['suspectAbsChangePct'] + 0.1
+            selected, item, _ = choose(key, observed, observed + timedelta(seconds=1), pct=suspect_pct)
+            assert selected['status'] == 'suspect' and selected['value'] == item['price']
+            assert selected['reliability'] == cache.signal_reliability(
+                key, 'public-chart-delayed', 'suspect', selected['qualityReason'], item['asOf'])
+            # Invalid current input must not remove a valid retained close.
+            selected, _, previous = choose(key, observed, observed + timedelta(seconds=1), pct=None)
+            if cache.SANITY_RANGES[key].get('requiresChangePct'):
+                assert selected['status'] == 'stale' and selected['value'] == previous['value']
+
+        observed = datetime(2026, 10, 19, 20, tzinfo=timezone.utc)
+        # Missing previous session, reopening and freshness-rank boundaries.
+        old_session = datetime(2026, 10, 16, 20, tzinfo=timezone.utc)
+        selected, _, previous = choose('sp500', old_session, observed)
+        assert selected['status'] == 'stale' and selected['value'] == previous['value']
+        now = datetime(2026, 10, 20, 14, tzinfo=timezone.utc)
+        selected, _, previous = choose('sp500', observed, observed + timedelta(seconds=1))
+        assert selected['status'] == 'stale' and selected['value'] == previous['value']
+        now = old_session + timedelta(hours=18, microseconds=1)
+        selected, item, _ = choose('sp500', old_session, old_session + timedelta(seconds=1))
+        assert selected['status'] == 'ok' and selected['value'] == item['price']
+        assert selected['freshnessRank'] == 2
+        # An existing stale verdict must never qualify for the close tie-break.
+        now = datetime(2026, 10, 20, 12, 15, tzinfo=timezone.utc)
+        for guard in ('active_market_stale_reason', 'hard_stale_reason'):
+            with patch.object(cache, guard, return_value='offline_guard_marks_stale'):
+                selected, _, previous = choose('sp500', observed, observed + timedelta(seconds=1))
+                assert selected['status'] == 'stale' and selected['value'] == previous['value']
+        # FX, rates and commodities do not inherit an equity-session exception.
+        now = datetime(2026, 10, 20, 12, 15, tzinfo=timezone.utc)
+        prices.update(usd_krw=1400, us10y=4.2, dxy=100, wti=75, gold=2500, kr_samsung=70000)
+        for key in ('usd_krw', 'us10y', 'dxy', 'wti', 'gold'):
+            selected, item, _ = choose(key, now - timedelta(hours=1), now - timedelta(minutes=30))
+            assert selected['status'] == 'ok' and selected['value'] == item['price']
+            assert 'sessionCloseReference' not in worker.sanitize_public_signal(selected, as_of=now)
+        # Samsung's separate last-close policy must not be changed implicitly.
+        selected, _, previous = choose('kr_samsung', now - timedelta(hours=1), now - timedelta(minutes=30))
+        assert selected['status'] == 'stale' and selected['value'] == previous['value']
+
+
 def check_seeded_last_good_public_metadata():
     now = datetime(2026, 10, 19, 1, tzinfo=timezone.utc)
 
@@ -316,6 +409,7 @@ def check_market_recovery():
     assert secret not in output.getvalue()
 
 def main():
+    check_same_session_current_quote_priority()
     check_seeded_last_good_public_metadata()
     check_freshness_failure_details()
     check_market_recovery()

@@ -1095,6 +1095,32 @@ def candidate_selection_key(candidate: dict[str, Any]) -> tuple[int, float, int]
     return int(candidate.get('freshnessRank') or 0), age_score, int(candidate.get('qualityRank') or 0)
 
 
+def current_quote_matches_retained_close(key: str, candidate: dict[str, Any], retained: dict[str, Any]) -> bool:
+    """Do not downgrade a current same-session quote for timestamp rounding.
+
+    Only validated ok/suspect quotes from the same last-completed equity
+    session qualify. A one-minute tolerance covers source timestamp precision,
+    not intraday freshness or an entire trading day. Original timestamps,
+    confidence labels and the ordinary recency order remain unchanged.
+    """
+    if candidate.get('quality') not in {'ok', 'suspect'}:
+        return False
+    current = candidate['signal']
+    now = datetime.now(timezone.utc)
+    current_reference = session_close_reference(key, current, now)
+    retained_reference = session_close_reference(key, retained, now)
+    if not current_reference or not retained_reference:
+        return False
+    if (current_reference['market'], current_reference['completedSessionDate']) != (
+        retained_reference['market'], retained_reference['completedSessionDate']
+    ):
+        return False
+    current_at = last_close_time(current, now)
+    retained_at = last_close_time(retained, now)
+    return (current_at is not None and retained_at is not None
+            and abs((current_at - retained_at).total_seconds()) <= 60)
+
+
 def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, Any]]], last_good: dict[str, Any]) -> dict[str, Any]:
     key = signal['key']
     failures: list[dict[str, Any]] = []
@@ -1162,7 +1188,8 @@ def choose_signal(signal: dict[str, Any], providers: dict[str, list[dict[str, An
 
     if key == 'kr_samsung' or session_close_reference(key, last_good.get(key) or {}):
         retained = stale_from_last_good(signal, last_good, 'retained_last_close')
-        if retained:
+        if retained and not any(current_quote_matches_retained_close(key, candidate, retained)
+                                for candidate in candidates):
             retained_item = {'asOf': retained.get('dataAsOf')}
             candidates.append({'signal': retained, 'quality': 'stale', 'qualityRank': 1,
                                'freshnessRank': candidate_freshness_rank(retained_item),

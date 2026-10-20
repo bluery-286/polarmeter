@@ -22,6 +22,38 @@ from polarmeter_free_provider_probe import yahoo_chart_change_fields
 from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
 
+def check_consistent_quote_change_basis() -> None:
+    # Mixed provider fields must never publish a fall alongside a positive rate.
+    # Recompute both fields from the same chosen previous close, for all symbols.
+    cases = (
+        ({'regularMarketPrice': 100.78, 'regularMarketPreviousClose': 103.66,
+          'regularMarketChangePercent': 2.274}, [], 103.66),
+        ({'regularMarketPrice': 1327.56, 'regularMarketPreviousClose': 1333.43,
+          'regularMarketChange': -5.87, 'regularMarketChangePercent': -0.3969}, [], 1333.43),
+        ({'regularMarketPrice': 105, 'regularMarketPreviousClose': 100,
+          'regularMarketChange': -2, 'regularMarketChangePercent': -2}, [], 100),
+        ({'regularMarketPrice': 100, 'regularMarketPreviousClose': 100,
+          'regularMarketChange': 5, 'regularMarketChangePercent': 5}, [], 100),
+        ({'regularMarketPrice': 101, 'chartPreviousClose': 50,
+          'regularMarketChange': -1, 'regularMarketChangePercent': -1}, [50, 100, 101], 100),
+        ({'regularMarketPrice': 101, 'chartPreviousClose': 100,
+          'regularMarketChangePercent': -1}, [], 100),
+    )
+    for meta, closes, expected_previous in cases:
+        original = dict(meta)
+        price, change, pct, previous, source = yahoo_chart_change_fields(
+            meta, closes, prefer_daily_series_previous=True)
+        assert meta == original and previous == expected_previous
+        assert abs(change - (price - previous)) < 1e-10
+        assert abs(pct - change / previous * 100) < 1e-10
+        assert change * pct >= 0
+        assert source != 'meta_change'
+    # With no previous-close evidence, preserve the provider's direct pair.
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        {'regularMarketPrice': 101, 'regularMarketChange': 1, 'regularMarketChangePercent': 1}, [])
+    assert (price, change, pct, previous, source) == (101, 1, 1, None, 'meta_change')
+
+
 def check_vix_stress_preservation() -> None:
     now = datetime.now(timezone.utc)
     observed_at = now.isoformat().replace('+00:00', 'Z')
@@ -91,6 +123,7 @@ def check_vix_stress_preservation() -> None:
 
 
 def main() -> int:
+    check_consistent_quote_change_basis()
     check_daily_close_reference()
     check_session_close_reference()
     check_vix_stress_preservation()
