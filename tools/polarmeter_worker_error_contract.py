@@ -12,7 +12,95 @@ import polarmeter_free_cache_worker as worker
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_prepare as prepare
 import polarmeter_data_freshness_audit as freshness
+import polarmeter_last_close_policy as close_policy
 from polarmeter_market_source_diagnostics import summarize_market_sources, summarize_market_freshness_failure
+
+
+def check_seeded_last_good_public_metadata():
+    now = datetime(2026, 10, 19, 1, tzinfo=timezone.utc)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+
+    prices = {'us10y': 4.2, 'dxy': 100, 'soxx': 300, 'smh': 250,
+              'kospi': 7000, 'kosdaq': 1000, 'kr_samsung': 70000}
+    quotes = {}
+    for spec in prepare.REQUIRED_SIGNALS:
+        key = spec['key']
+        observed = (datetime(2026, 10, 16, 20, tzinfo=timezone.utc) if key == 'sp500'
+                    else datetime(2026, 10, 16, 6, 30, tzinfo=timezone.utc) if key == 'kr_samsung'
+                    else now - timedelta(hours=2))
+        quotes[key] = {'key': key, 'value': prices.get(key, 100), 'changePct': 0,
+                       'dataAsOf': observed.isoformat(), 'status': 'ok', 'valuePolicy': 'show',
+                       'provider': 'data-go-kr-free' if key == 'kr_samsung' else 'public-chart-delayed',
+                       'freshnessRank': 999, 'dataAgeHours': -999}
+    with patch.object(cache, 'datetime', Frozen), patch.object(prepare, 'datetime', Frozen), patch.object(close_policy, 'datetime', Frozen):
+        with TemporaryDirectory(prefix='polarmeter-lkg-public-contract-') as folder:
+            site, target = Path(folder) / 'site', Path(folder) / 'last-good.json'
+            prepare.copy_site(prepare.DEFAULT_SITE, site)
+            snapshot = {'status': 'partial', 'generatedAt': now.isoformat(),
+                        'paidProviderEnabled': False, 'clientDirectProviderCalls': False,
+                        'signals': quotes}
+            snapshot_path = site / 'market-snapshot-latest.json'
+            snapshot_path.write_text(json.dumps(snapshot), encoding='utf-8')
+            assert prepare.seed_last_known_good_from_site(site, target)
+            seed = json.loads(target.read_text())['signals']
+            assert set(seed) == set(quotes)
+            assert all('freshnessRank' not in quote and 'dataAgeHours' not in quote for quote in seed.values())
+            recovered = {spec['key']: cache.choose_signal(spec, {}, seed) for spec in prepare.REQUIRED_SIGNALS}
+            public = {key: worker.sanitize_public_signal(quote, as_of=now) for key, quote in recovered.items()}
+            snapshot.update(signals=public, dataQuality={'coreCoverageRatio': 1.0, 'displayMode': 'normal'},
+                            news={'items': [{} for _ in range(10)], 'ttlMinutes': 30, 'nextRefreshAt': now.isoformat()},
+                            temperatureHistory={'version': 'temperature-history-v1', 'retentionDays': 7,
+                                                'items': [], 'dailyDelta': {'status': 'ready'}},
+                            costGuardrails=worker.public_cost_guardrails())
+            snapshot_path.write_text(json.dumps(snapshot), encoding='utf-8')
+            manifest = worker.public_manifest(snapshot, snapshot_path.name)
+            (site / 'market-snapshot-manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+            (site / 'health.json').write_text(json.dumps(worker.public_health(manifest)), encoding='utf-8')
+            # Exercise the exact final publication gate that failed in CI.
+            prepare.assert_pages_contract(site, {'snapshotStatus': 'partial', 'freshnessAudit': 'passed'})
+            assert freshness.audit(snapshot, {}) == []
+            for key, quote in recovered.items():
+                observed = quotes[key]['dataAsOf']
+                assert quote['status'] == 'stale' and quote['valuePolicy'] == 'show'
+                assert quote['value'] == quotes[key]['value'] and quote['dataAsOf'] == observed
+                assert quote['freshnessRank'] == cache.candidate_freshness_rank({'asOf': observed})
+                assert quote['dataAgeHours'] >= 0 and quote['history']['points'] == []
+                assert quote['reliability']['confidencePolicy'].startswith('low_')
+                assert worker.snapshot_score_point(public[key], key, as_of=now)['close'] == quote['value']
+            # The gate itself must remain strict: deleting the field still fails.
+            for key in ('sp500', 'kr_samsung'):
+                broken = deepcopy(snapshot)
+                broken['signals'][key].pop('freshnessRank')
+                snapshot_path.write_text(json.dumps(broken), encoding='utf-8')
+                try:
+                    prepare.assert_pages_contract(site, {'snapshotStatus': 'partial', 'freshnessAudit': 'passed'})
+                except AssertionError as error:
+                    assert str(error) == f'public snapshot showable signal missing freshnessRank: {key}'
+                else:
+                    raise AssertionError('missing freshness metadata must still block publication')
+
+        spec = next(item for item in prepare.REQUIRED_SIGNALS if item['key'] == 'kr_samsung')
+        for hours, rank in ((2, 3), (18, 3), (18 + 1 / 3600, 2), (84, 2),
+                            (84 + 1 / 3600, 1), (168, 1), (168 + 1 / 3600, 0)):
+            quote = {**quotes['kr_samsung'], 'dataAsOf': (now - timedelta(hours=hours)).isoformat()}
+            before = deepcopy(quote)
+            result = cache.stale_from_last_good(spec, {'kr_samsung': quote}, 'offline_failure')
+            assert result is not None and result['freshnessRank'] == rank
+            assert quote == before and result['dataAsOf'] == quote['dataAsOf']
+        for observed in (None, '', 'bad-date', (now + timedelta(hours=1)).isoformat()):
+            quote = {**quotes['us10y'], 'dataAsOf': observed, 'fetchedAt': now.isoformat(), 'lastSuccessfulAt': now.isoformat()}
+            rate_spec = next(item for item in prepare.REQUIRED_SIGNALS if item['key'] == 'us10y')
+            assert cache.stale_from_last_good(rate_spec, {'us10y': quote}, 'offline_failure') is None
+        index_spec = next(item for item in prepare.REQUIRED_SIGNALS if item['key'] == 'sp500')
+        unobserved = {**quotes['sp500'], 'dataAsOf': None, 'fetchedAt': now.isoformat(),
+                      'lastSuccessfulAt': now.isoformat()}
+        result = cache.stale_from_last_good(index_spec, {'sp500': unobserved}, 'offline_failure')
+        assert result is not None and result['freshnessRank'] == 0 and result['dataAsOf'] is None
+        assert worker.snapshot_score_point(result, 'sp500', as_of=now)['close'] is None
 
 
 def check_freshness_failure_details():
@@ -228,6 +316,7 @@ def check_market_recovery():
     assert secret not in output.getvalue()
 
 def main():
+    check_seeded_last_good_public_metadata()
     check_freshness_failure_details()
     check_market_recovery()
     secret = 'SENSITIVE_TEST_CREDENTIAL'

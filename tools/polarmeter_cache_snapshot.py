@@ -1048,6 +1048,11 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
     })
     if previous_quality == 'invalid':
         return None
+    # Public seeds omit derived metadata. Rebuild the rank from the original
+    # observation, never a stored rank or a later fetch/success timestamp.
+    observed_at = last_close_time({'dataAsOf': previous.get('dataAsOf')}, datetime.now(timezone.utc))
+    freshness_rank = (candidate_freshness_rank({'asOf': observed_at.isoformat()})
+                      if observed_at is not None and observed_at <= datetime.now(timezone.utc) else 0)
     out = dict(previous)
     out.update({
         'status': 'stale',
@@ -1059,6 +1064,7 @@ def stale_from_last_good(signal: dict[str, Any], last_good: dict[str, Any], reas
         'reliability': signal_reliability(key, previous.get('provider') or 'free-cache', 'stale', reason),
         'staleSource': 'last_known_good',
         'dataAgeHours': round(stale_signal_age_hours(previous), 2) if stale_signal_age_hours(previous) is not None else None,
+        'freshnessRank': freshness_rank,
         'staleAgeHours': stale_signal_age_hours(previous),
         'maxStaleAgeHours': MAX_STALE_SIGNAL_AGE_HOURS.get(key),
         'fetchedAt': utc_now(),
