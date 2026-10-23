@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 from polarmeter_news_fact_semantics import mask_negated_moves, has_supply_recovery_fact, has_divergent_index_moves, inflation_release, factual_market_tone, inflation_surprise_why
+from polarmeter_macro_preview_policy import expired_us_cpi_preview
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = WORKSPACE / 'testflight/news-rss-probe-latest.json'
@@ -32,13 +33,6 @@ USER_AGENT = 'PolarMeter-B1-NewsCache/0.1 (+https://bluery-286.github.io/polarme
 MAX_NEWS_AGE_HOURS = 24
 DEFAULT_NEWS_TTL_MINUTES = 30
 NEWS_RECOMMENDED_SCHEDULE = '30min_weekdays_60min_weekends_public_headline_cache'
-MACRO_PREVIEW_RELEASE_GRACE = timedelta(hours=2)
-LATEST_COMPLETED_MACRO_RELEASES = {
-    'cpi': datetime(2026, 7, 14, 12, 30, tzinfo=timezone.utc),
-}
-NEXT_SCHEDULED_MACRO_RELEASES = {
-    'cpi': datetime(2026, 8, 12, 12, 30, tzinfo=timezone.utc),
-}
 
 CRITICAL_NEWS_KEYWORDS = [
     # 지정학 완화/악화 — 시장 위험선호와 유가·변동성에 직접 연결되는 이벤트
@@ -1569,19 +1563,7 @@ def parse_utc(value: str | None) -> datetime | None:
 
 
 def expired_macro_event_preview(headline: str, published_at: str | None, now: datetime | None = None) -> bool:
-    text = str(headline or '').lower()
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    release_at = LATEST_COMPLETED_MACRO_RELEASES['cpi']
-    next_release_at = NEXT_SCHEDULED_MACRO_RELEASES['cpi']
-    if current < release_at + MACRO_PREVIEW_RELEASE_GRACE or current >= next_release_at - timedelta(days=3):
-        return False
-    published = parse_utc(published_at)
-    completed_period = re.search(r'\b(?:june|jun\.?)\s+(?:cpi|inflation|consumer\s+price)|6월\s*(?:cpi|소비자\s*물가|물가)', text, re.I)
-    if published and published > release_at + MACRO_PREVIEW_RELEASE_GRACE and not completed_period:
-        return False
-    has_cpi = re.search(r'\bcpi\b|소비자\s*물가|inflation\s+(?:data|report|release)', text, re.I)
-    is_preview = re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview|앞두|대기|예고|발표\s*전', text, re.I)
-    return bool(has_cpi and is_preview)
+    return expired_us_cpi_preview(headline, published_at, now or datetime.now(timezone.utc))
 
 
 def mixed_major_index_signal(text: str) -> bool:

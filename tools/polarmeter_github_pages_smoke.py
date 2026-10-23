@@ -37,6 +37,7 @@ from polarmeter_cache_snapshot import (  # noqa: E402
     MACRO_OFFICIAL_FETCH_DELAY,
     SCHEDULED_MACRO_EVENTS,
 )
+from polarmeter_macro_preview_policy import expired_us_cpi_preview  # noqa: E402
 
 
 def parse_utc(value: object) -> datetime | None:
@@ -46,14 +47,8 @@ def parse_utc(value: object) -> datetime | None:
         return None
 
 
-def is_expired_cpi_preview(headline_bundle: str, generated_at: object, scheduled_at: object) -> bool:
-    if not re.search(r'\bcpi\b', headline_bundle, re.I):
-        return False
-    if not re.search(r'brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview', headline_bundle, re.I):
-        return False
-    generated = parse_utc(generated_at)
-    scheduled = parse_utc(scheduled_at)
-    return generated is not None and scheduled is not None and generated >= scheduled
+def is_expired_cpi_preview(headline_bundle: str, generated_at: object, published_at: object) -> bool:
+    return expired_us_cpi_preview(headline_bundle, published_at, parse_utc_required(generated_at))
 
 
 def parse_utc_required(value: object) -> datetime:
@@ -169,9 +164,6 @@ def validate_payload(out: Path) -> dict:
         if signal.get('status') in {'suspect', 'stale'}:
             if not signal.get('publicReasonCode') or not signal.get('publicReasonLabel'):
                 raise AssertionError(f'pages snapshot non-ok signal missing public reason: {key}')
-    macro_events = snapshot.get('macroEvents') or {}
-    cpi = macro_events.get('us_cpi') or {}
-    cpi_next = cpi.get('nextRelease') or {}
     validate_cpi_rollover(snapshot)
     news = snapshot.get('news') or {}
     if news.get('paidProviderEnabled') is not False or news.get('clientDirectProviderCalls') is not False:
@@ -196,7 +188,7 @@ def validate_payload(out: Path) -> dict:
         if tone == 'negative' and re.search(r'(걱정|부담|압박).{0,18}(줄|낮아|완화|덜)', why):
             raise AssertionError(f'negative news must not carry a relief explanation: {item.get("displayHeadline") or item.get("headline")}')
         headline_bundle = ' '.join(str(item.get(key) or '') for key in ('headline', 'displayHeadline', 'originalHeadline'))
-        if is_expired_cpi_preview(headline_bundle, snapshot.get('generatedAt'), cpi_next.get('scheduledAt')):
+        if is_expired_cpi_preview(headline_bundle, snapshot.get('generatedAt'), item.get('publishedAt')):
             raise AssertionError(f'pages snapshot must not keep an expired CPI preview: {item.get("headline")}')
     if manifest.get('okNewsCount', 0) < 10:
         raise AssertionError('manifest must expose cached news count')

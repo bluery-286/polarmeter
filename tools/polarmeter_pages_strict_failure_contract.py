@@ -156,17 +156,17 @@ def main() -> None:
     assert not pages_smoke.is_expired_cpi_preview(
         cpi_preview,
         '2026-08-10T10:18:00Z',
-        '2026-08-12T12:30:00Z',
+        '2026-08-10T09:18:00Z',
     )
     assert pages_smoke.is_expired_cpi_preview(
         cpi_preview,
         '2026-08-12T12:31:00Z',
-        '2026-08-12T12:30:00Z',
+        '2026-08-12T12:00:00Z',
     )
     assert not pages_smoke.is_expired_cpi_preview(
         'Nasdaq 100 rises as chip stocks rebound',
         '2026-08-12T12:31:00Z',
-        '2026-08-12T12:30:00Z',
+        '2026-08-12T12:00:00Z',
     )
 
     now = datetime(2026, 9, 26, 0, 0, tzinfo=timezone.utc)
