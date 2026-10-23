@@ -152,7 +152,8 @@ def main() -> None:
     assert not freshness.tolerated_us_session_gap('sp500', older_us_session, christmas_weekend, 72.0)
     assert freshness.hard_stale_ok_error('sp500', older_us_session, christmas_weekend, 72.0)
 
-    cpi_preview = 'Nasdaq 100: Tech Stocks Lead Monday’s Pre-Market Bid Ahead of CPI'
+    # Only an identified US CPI event inherits the US release calendar.
+    cpi_preview = 'Nasdaq 100: Tech Stocks Lead Monday’s Pre-Market Bid Ahead of US CPI'
     assert not pages_smoke.is_expired_cpi_preview(
         cpi_preview,
         '2026-08-10T10:18:00Z',
@@ -160,6 +161,11 @@ def main() -> None:
     )
     assert pages_smoke.is_expired_cpi_preview(
         cpi_preview,
+        '2026-08-12T12:31:00Z',
+        '2026-08-12T12:00:00Z',
+    )
+    assert not pages_smoke.is_expired_cpi_preview(
+        'Nasdaq 100: Tech Stocks Lead Monday’s Pre-Market Bid Ahead of CPI',
         '2026-08-12T12:31:00Z',
         '2026-08-12T12:00:00Z',
     )

@@ -18,9 +18,9 @@ FAILED_TITLE = 'US CPI Preview: Follow the Fed and Look Past the Hot Headline'
 
 def public_fixture(current: datetime, headline: str, published: str, status: str) -> tuple[dict, dict, dict]:
     due = [(parse_timestamp(at), label) for at, label in cache.SCHEDULED_MACRO_EVENTS['us_cpi'] if parse_timestamp(at) <= current - cache.MACRO_OFFICIAL_FETCH_DELAY]
-    upcoming = next((parse_timestamp(at), label) for at, label in cache.SCHEDULED_MACRO_EVENTS['us_cpi'] if parse_timestamp(at) > current)
+    upcoming = next(((parse_timestamp(at), label) for at, label in cache.SCHEDULED_MACRO_EVENTS['us_cpi'] if parse_timestamp(at) > current), None)
     last = due[-1] if status == 'ok' else due[-2]
-    next_release = upcoming if status == 'ok' else due[-1]
+    next_release = upcoming if status == 'ok' and upcoming else due[-1]
     generated = current.isoformat()
     item = {
         'headline': headline, 'displayHeadline': headline, 'originalHeadline': headline,
@@ -126,6 +126,43 @@ def main() -> None:
         check(FAILED_TITLE, invalid, november, True)
     for title in ('US CPI comes in below expectations', '미국 CPI 예상 하회…금리 부담 완화', 'Nasdaq rises as chip stocks rebound', 'UK CPI preview', '중국 소비자물가 발표 앞두고 증시 대기'):
         check(title, '2026-10-22T10:05:42Z', october, False)
+
+    # Review regressions: comparisons, possessives, other countries/metrics,
+    # factual results before a different event, and the calendar horizon.
+    regressions = [
+        ('US October CPI Preview: What September CPI means for markets', published, november, False),
+        ("US September's CPI preview", published, november, True),
+        ('US September’s CPI preview', published, november, True),
+        ("US October's CPI preview", published, november, False),
+        ('US October’s CPI preview', published, november, False),
+        ('US October 2025 CPI Preview: What September CPI means', published, november, True),
+    ]
+    for country in ('India', 'Brazil', 'France', 'Mexico', 'South Africa'):
+        regressions.extend([
+            (f'{country} CPI preview ahead of release', '2026-10-22T10:05:42Z', october, False),
+            (f'US markets await {country} CPI release', '2026-10-22T10:05:42Z', october, False),
+        ])
+    for title in (
+        'US PCE inflation report preview ahead of Friday release',
+        'US PPI inflation data preview', '미국 생산자물가 발표 앞두고 증시 대기',
+        'US CPI cools to 2.5% ahead of the Fed meeting',
+        'US CPI beats estimates before Fed decision',
+        '미국 CPI 2.5% 발표…연준 회의 앞두고 금리 하락',
+        'US markets brace for India CPI release', 'Inflation report preview',
+    ):
+        regressions.append((title, '2026-10-22T10:05:42Z', october, False))
+    for title in ('US markets await US CPI release', 'US markets brace for upcoming US CPI release',
+                  'US markets ahead of the US CPI report', '미국 CPI 발표 앞두고 관망'):
+        regressions.append((title, '2026-10-22T10:05:42Z', october, True))
+    for current in (datetime(2026, 12, 11, tzinfo=timezone.utc), datetime(2027, 1, 10, tzinfo=timezone.utc)):
+        for title in (FAILED_TITLE, 'US December 2026 CPI preview', 'US January 2027 CPI preview'):
+            regressions.append((title, (current - timedelta(hours=1)).isoformat(), current, False))
+        regressions.append((FAILED_TITLE, '2026-12-10T12:00:00Z', current, True))
+    for title, stamp, current, expired in regressions:
+        check(title, stamp, current, expired)
+        for status in ('ok', 'awaiting_official'):
+            check_payload(current, title, stamp, status, expired)
+            checks += 1
 
     # Metadata delayed at BLS must not move the news boundary backward.
     for status in ('ok', 'awaiting_official'):

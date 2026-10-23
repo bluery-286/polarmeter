@@ -5,15 +5,36 @@ import re
 from datetime import datetime, timedelta, timezone
 
 CPI_PREVIEW_WINDOW = timedelta(days=3)
-CPI_PATTERN = re.compile(r'\bcpi\b|소비자\s*물가|inflation\s+(?:data|report|release)', re.I)
-PREVIEW_PATTERN = re.compile(
-    r'\b(?:brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before|preview)\b'
-    r'|앞두|대기|예고|발표\s*전', re.I,
-)
+CPI_TOKEN = r'(?:\bcpi\b|consumer\s+price(?:\s+index)?|소비자\s*물가(?:지수)?)'
+CPI_PATTERN = re.compile(CPI_TOKEN, re.I)
 MONTH_NAMES = (
     'january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december',
 )
+
+
+def is_us_cpi_preview(headline: str) -> bool:
+    """Require an identified US CPI event and a preview of that event.
+
+    A US-market story about another country's CPI is not a US CPI event.
+    Likewise, CPI results 'ahead of the Fed meeting' remain factual results.
+    Unidentified inflation/PCE/PPI stories must not inherit a CPI calendar.
+    """
+    month = '|'.join(name + '|' + name[:3] + r'\.?' for name in MONTH_NAMES)
+    period = rf'(?:\d{{4}}(?:년)?|\d{{1,2}}월|{month})(?:[’\']s)?'
+    country = r'(?:미국|\bu\.?s\.?(?:a\.?)?\b|\bamerican\b)'
+    prefix = rf'{country}\s*(?:(?:{period})\s*){{0,3}}{CPI_TOKEN}'
+    suffix = rf'{CPI_TOKEN}\s+(?:in|for|of)\s+(?:the\s+)?{country}'
+    if not re.search(rf'{prefix}|{suffix}', headline, re.I):
+        return False
+    # Explicit previews can name a comparison period as well as the target.
+    if re.search(rf'{CPI_TOKEN}[^:;.!?]{{0,45}}\bpreview\b|\bpreview\b[^:;.!?]{{0,45}}{CPI_TOKEN}', headline, re.I):
+        return True
+    event = rf'(?:upcoming\s+)?(?:{period}\s*)?{CPI_TOKEN}(?:\s+(?:data|report|release|print))?'
+    return bool(re.search(
+        rf'\b(?:brace(?:s|d|ing)?\s+for|ahead\s+of|await(?:s|ed|ing)?|before)\s+(?:the\s+)?(?:upcoming\s+)?(?:{country}\s*)?{event}'
+        rf'|{CPI_TOKEN}\s*(?:발표\s*)?(?:앞두|대기|예고|발표\s*전)', headline, re.I,
+    ))
 
 
 def parse_timestamp(value: object) -> datetime | None:
@@ -33,7 +54,7 @@ def cpi_reference_periods(headline: str) -> set[tuple[int | None, int]]:
     for number, name in enumerate(MONTH_NAMES, 1):
         month = name + '|' + name[:3] + r'\.?'
         for pattern in (
-            rf'(?:(\d{{4}})\s+)?\b(?:{month})\s+(?:(\d{{4}})\s+)?(?:cpi|inflation|consumer\s+price)\b',
+            rf'(?:(\d{{4}})\s+)?\b(?:{month})(?:[’\']s)?\s+(?:(\d{{4}})\s+)?(?:cpi|inflation|consumer\s+price)\b',
             rf'\bcpi\s+(?:preview\s+)?for\s+(?:(\d{{4}})\s+)?(?:{month})\b(?:\s+(\d{{4}}))?',
         ):
             for match in re.finditer(pattern, headline, re.I):
@@ -54,12 +75,7 @@ def expired_us_cpi_preview(headline: str, published_at: object, now: datetime) -
     not become timely merely because their RSS publication timestamp is new.
     """
     text = str(headline or '')
-    if not CPI_PATTERN.search(text) or not PREVIEW_PATTERN.search(text):
-        return False
-    # Do not apply the US release calendar to clearly foreign-only reports.
-    foreign = re.search(r'한국|국내|중국|일본|영국|유로존|독일|캐나다|호주|\b(?:korea|china|japan|uk|britain|eurozone|germany|canada|australia)\b', text, re.I)
-    us = re.search(r'미국|\bu\.?s\.?\b|\bamerican\b', text, re.I)
-    if foreign and not us:
+    if not is_us_cpi_preview(text):
         return False
 
     # This is the canonical rolling calendar already used for official results.
@@ -73,17 +89,22 @@ def expired_us_cpi_preview(headline: str, published_at: object, now: datetime) -
         if (release := parse_timestamp(timestamp)) is not None
     )
     upcoming = next((item for item in schedule if item[0] > current), None)
-    if upcoming is None or upcoming[0] - current > CPI_PREVIEW_WINDOW:
-        return True
     published = parse_timestamp(published_at)
     if published is None or published > current:
         return True
     completed = [release for release, _ in schedule if release <= current]
     if completed and published <= completed[-1]:
         return True
+    # An exhausted official calendar is UNKNOWN, not proof that every future
+    # preview expired. Do not invent a release date or permanently ban previews.
+    if upcoming is None:
+        return False
+    if upcoming[0] - current > CPI_PREVIEW_WINDOW:
+        return True
     expected_month = int(re.match(r'(\d+)월', upcoming[1]).group(1))
     expected_year = upcoming[0].year - int(expected_month > upcoming[0].month)
-    return any(
-        month != expected_month or (year is not None and year != expected_year)
-        for year, month in cpi_reference_periods(text)
+    periods = cpi_reference_periods(text)
+    return bool(periods) and not any(
+        month == expected_month and (year is None or year == expected_year)
+        for year, month in periods
     )
