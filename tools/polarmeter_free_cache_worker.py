@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from urllib.request import urlopen
 from polarmeter_market_calendar import KST_ZONE, kr_market_closed_reason, market_session_context
 from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
 from polarmeter_market_source_diagnostics import emit_market_source_diagnostics, emit_market_freshness_failure
+from polarmeter_news_rss_probe import safe_public_news_url
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -1047,6 +1049,7 @@ def sanitize_public_news(news: dict[str, Any]) -> dict[str, Any]:
         'relatedFactors', 'whyImportant', 'scoreAnchor', 'qualityScore', 'priorityTier',
         'critical', 'criticalReason', 'marketImpactScore', 'issueClusterKey',
         'sourceId', 'region', 'provider', 'licenseNote',
+        'relatedReports', 'relatedReportCount', 'issueGrouping',
     }
     out = {key: value for key, value in news.items() if key in allowed_news and key != 'items'}
     out['paidProviderEnabled'] = False
@@ -1061,6 +1064,48 @@ def sanitize_public_news(news: dict[str, Any]) -> dict[str, Any]:
         for title_key in ('headline', 'displayHeadline'):
             if public_item.get(title_key):
                 public_item[title_key] = sanitize_public_news_title(public_item[title_key])
+        related_reports = []
+        source_reports = item.get('relatedReports')
+        if isinstance(source_reports, list):
+            for report in source_reports[:30]:
+                if not isinstance(report, dict):
+                    continue
+                raw_url = report.get('url')
+                if not isinstance(raw_url, str):
+                    continue
+                safe_url = safe_public_news_url(raw_url)
+                if not safe_url or len(safe_url) > 2048 or urllib.parse.urlparse(safe_url).fragment or any(
+                    re.search(r'(?:api[_-]?key|access[_-]?token|auth(?:orization)?|token|secret|password|passwd|signature|credential|(?:^|[_-])key(?:$|[_-])|(?:^|[_-])sig(?:$|[_-]))', key, re.I)
+                    for key, _ in urllib.parse.parse_qsl(urllib.parse.urlparse(safe_url).query, keep_blank_values=True)
+                ):
+                    continue
+                raw_headline = report.get('headline')
+                if not isinstance(raw_headline, str) or not raw_headline.strip() or len(raw_headline) > 600:
+                    continue
+                if any(ord(char) < 32 or ord(char) == 127 for char in raw_headline):
+                    continue
+                public_report = {
+                    'headline': sanitize_public_news_title(raw_headline),
+                    'url': safe_url,
+                }
+                for field, limit in (('originalHeadline', 600), ('sourceName', 160), ('publishedAt', 80)):
+                    value = report.get(field)
+                    if isinstance(value, str) and value.strip() and len(value) <= limit and not any(
+                        ord(char) < 32 or ord(char) == 127 for char in value
+                    ):
+                        public_report[field] = sanitize_public_news_title(value) if field == 'originalHeadline' else re.sub(r'\s+', ' ', value).strip()
+                related_reports.append(public_report)
+        if related_reports:
+            public_item['relatedReports'] = related_reports
+            public_item['relatedReportCount'] = len(related_reports)
+            if item.get('issueGrouping') == 'related_topic_not_confirmed_same_event':
+                public_item['issueGrouping'] = 'related_topic_not_confirmed_same_event'
+            else:
+                public_item.pop('issueGrouping', None)
+        else:
+            public_item.pop('relatedReports', None)
+            public_item.pop('relatedReportCount', None)
+            public_item.pop('issueGrouping', None)
         out['items'].append(public_item)
     return out
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import email.utils
+import hashlib
 import ipaddress
 import json
 import re
@@ -2753,6 +2754,13 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
             return 'issue:related:hormuz_tanker_attack:rolling_24h'
         if re.search(r'후티|\bhouthi\w*\b', source, re.I) and re.search(r'사우디|\bsaudi\b', source, re.I) and re.search(r'공항|정유시설|airports?|refiner', source, re.I):
             return 'issue:related:houthi_saudi_infrastructure:rolling_24h'
+    ceasefire_key = russia_ukraine_ceasefire_issue_key(item)
+    if ceasefire_key:
+        return ceasefire_key
+    if ru_ua_ceasefire_context(item):
+        title = re.sub(r'\s+', ' ', str(item.get('originalHeadline') or item.get('headline') or '')).strip().casefold()
+        digest = hashlib.sha256(title.encode('utf-8')).hexdigest()
+        return f'issue:related:ru_ua_ceasefire:update:{digest}'
     release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
     if release and release['country'] and release['month']:
         return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{release['month']}:{str(item.get('publishedAt') or '')[:10]}:{'denied' if release['deniedComparison'] else release['surprise']}"
@@ -2769,6 +2777,22 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
     stop_words = {'기사', '뉴스', '오늘', '관련', '소개한', '집중조명'}
     tokens = [token for token in text.split() if len(token) >= 2 and token not in stop_words]
     return 'issue:' + '|'.join(tokens[:5])
+
+
+def ru_ua_ceasefire_context(item: dict[str, Any]) -> bool:
+    """Recognize RU-UA ceasefire coverage that must not fall into broad topic caps."""
+    headline = ' '.join(str(item.get(field) or '') for field in (
+        'originalHeadline', 'headline', 'displayHeadline',
+    ))
+    abbreviated_parties = bool(re.search(r'(?<![가-힣])러\s*[·/\-]\s*우(?![가-힣])', headline))
+    has_russia = abbreviated_parties or bool(re.search(
+        r'(러시아|러시아군|\brussia(?:n)?\b|\bmoscow\b)', headline, re.I,
+    ))
+    has_ukraine = abbreviated_parties or bool(re.search(
+        r'(우크라이나|우크라이나군|키이우|\bukrain(?:e|ian)\b|\bkyiv\b)', headline, re.I,
+    ))
+    has_ceasefire = bool(re.search(r'(휴전|정전|\bcease[- ]?fire\b|\btruce\b|\barmistice\b)', headline, re.I))
+    return has_russia and has_ukraine and has_ceasefire
 
 
 def news_dedupe_key(item: dict[str, Any]) -> str:
@@ -2793,6 +2817,90 @@ def news_dedupe_key(item: dict[str, Any]) -> str:
     return 'topic:' + '|'.join(tokens[:8])
 
 
+def russia_ukraine_ceasefire_issue_key(item: dict[str, Any]) -> str | None:
+    """Group only clearly confirmed RU-UA ceasefire agreements with matching places."""
+    headline = ' '.join(str(item.get(field) or '') for field in (
+        'originalHeadline', 'headline', 'displayHeadline',
+    ))
+    if re.search(r'(가자|이스라엘|하마스|레바논|이란|시리아|예멘|\bgaza\b|\bisrael\b|\bhamas\b|\blebanon\b|\biran\b|\bsyria\b|\byemen\b)', headline, re.I):
+        return None
+
+    abbreviated_parties = bool(re.search(r'(?<![가-힣])러\s*[·/\-]\s*우(?![가-힣])', headline))
+    has_russia = abbreviated_parties or bool(re.search(
+        r'(러시아|러시아군|\brussia(?:n)?\b|\bmoscow\b)', headline, re.I,
+    ))
+    has_ukraine = abbreviated_parties or bool(re.search(
+        r'(우크라이나|우크라이나군|키이우|\bukrain(?:e|ian)\b|\bkyiv\b)', headline, re.I,
+    ))
+    if not (has_russia and has_ukraine):
+        return None
+
+    # Any denial, proposal, negotiation, implementation detail, fighting, or
+    # humanitarian development is a distinct fact; keep its full-title key.
+    material_or_uncertain = re.search(
+        r'(?<![가-힣])(?:부인|부정|거절|거부|미합의|불발|결렬|무산|제안|제의|초안|별도|추가|협상|회담|대화|일정|시점|발효|시행|날짜|구호|대피|피난|인도주의|민간인\s*통로|공격|교전|포격|폭격|위반|파기|붕괴|깨졌|사상|피해|가능성|기대|전망|예상|관측|희망|모색|검토|촉구)|'
+        r'(?:합의|동의).{0,12}(?:하지\s*않|못|않았|없|불가능|가능성|기대|전망|할까|할지|할\s*수)|휴전.{0,18}(?:아니|불가|거부|없|불투명|가능성|기대|전망|예상|관측|할까|할지)|'
+        r'\b(?:den(?:y|ied|ial)|reject(?:ed|ion)?|refus(?:e|ed|al)|propos(?:e|ed|al)|offer(?:ed)?|draft|separate|another|new|negotiat\w*|talks?|meeting|schedule|timing|effective|humanitarian|aid|relief|convoy|evacuat\w*|corridor|take\s+effect|takes\s+effect|after\s+\w+\s+hours?|attack|shelling|violat\w*|breakdown|casualt\w*|injur\w*|possible|possibility|hope(?:s|d)?|expect(?:s|ed)?|likely|potential|prospect|seek(?:s|ing)?|plan(?:s|ned)?|aim(?:s|ed)?)\b|'
+        r'\b(?:not|no)\b.{0,32}\b(?:agree|agreement|deal|cease[- ]?fire|truce)\b|'
+        r'\b(?:agreement|deal|cease[- ]?fire|truce)\b.{0,24}\b(?:not|never)\s+(?:yet\s+)?(?:reached|achieved|concluded|secured|agreed)\b|'
+        r'\b(?:may|might|could|reportedly|allegedly|unconfirmed|rumou?r)\b',
+        headline, re.I,
+    )
+    if material_or_uncertain:
+        return None
+    if re.search(r'[0-9０-９]|(?:\d+\s*일|(?:1[0-2]|[1-9])\s*월|(?:월요일|화요일|수요일|목요일|금요일|토요일|일요일|오늘|내일|어제|모레|이번\s*주|다음\s*주)|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}|\b(?:mon(?:day)?|tues(?:day)?|wed(?:nesday)?|thurs(?:day)?|fri(?:day)?|satur(?:day)?|sun(?:day)?|today|tomorrow|yesterday|this week|next week)\b)', headline, re.I):
+        return None
+    if not re.search(
+        r'(?:휴전|정전).{0,18}(?:합의|확인|타결|성사)|(?:합의|확인|타결|성사).{0,18}(?:휴전|정전)|'
+        r'(?:cease[- ]?fire|truce|armistice).{0,32}(?:agreement|agreed|confirmed|deal|reached)|'
+        r'(?:agree(?:d|ment)?|confirm(?:ed|ation)?|deal|reached).{0,32}(?:cease[- ]?fire|truce|armistice)',
+        headline, re.I,
+    ):
+        return None
+
+    # Absence of a known warning word is not proof of equivalent facts.
+    # Only complete, simple confirmation sentences may share a slot. Any
+    # additional clause (including a market reaction) keeps its own card.
+    title = re.sub(r'\s+', ' ', str(item.get('originalHeadline') or item.get('headline') or '')).strip().rstrip('.!。')
+    korean_place = r'(?:올레시키|올레슈키|올레슈카|헤르손주?|자포리자|도네츠크|루한스크|크림반도|키이우|하르키우|하르키프|오데사|리비우)'
+    korean_confirmation = (
+        r'(?:러시아와\s*우크라이나(?:는)?|러\s*[·/\-]\s*우)\s*[,，]?\s*'
+        r'(?:(?:멜라니아\s*트럼프\s*미국\s*영부인이\s*시작한|멜라니아\s*트럼프\s*여사\s*덕분에)\s*|'
+        + korean_place + r'에서\s*)?'
+        r'(?:(?:부분|국지적|국지)\s*)?휴전(?:을)?\s*'
+        r'(?:합의(?:\s*확인)?|확인했습니다|확인|타결|성사)'
+    )
+    english_confirmation = (
+        r'Russia\s+and\s+Ukraine\s+confirm(?:ed)?\s+'
+        r'(?:(?:local|localized|partial)\s+)?cease[- ]?fire\s+agreement'
+        r'(?:\s+in\s+(?:Oleshky|Oleshki|Kherson|Zaporizhzhia|Zaporizhia|Donetsk|Luhansk|Crimea|Kyiv|Kharkiv|Kharkov|Odesa|Odessa|Lviv))?'
+    )
+    if not (re.fullmatch(korean_confirmation, title, re.I) or re.fullmatch(english_confirmation, title, re.I)):
+        return None
+
+    locations = {
+        'oleshky_front': r'(올레시키|올레슈키|올레슈카|олешки|олешky|\boleshky\b|\boleshki\b)',
+        'kherson_front': r'(헤르손주|헤르손|\bkherson\b)',
+        'zaporizhzhia_front': r'(자포리자|\bzaporizhzhia\b|\bzaporizhia\b)',
+        'donetsk_front': r'(도네츠크|\bdonetsk\b)',
+        'luhansk_front': r'(루한스크|\bluhansk\b)',
+        'crimea_front': r'(크림반도|\bcrimea\b)',
+        'kyiv': r'(키이우|\bkyiv\b)',
+        'moscow': r'(\bmoscow\b)',
+        'kharkiv': r'(하르키우|하르키프|\bkharkiv\b|\bkharkov\b)',
+        'odesa': r'(오데사|\bodesa\b|\bodessa\b)',
+        'lviv': r'(리비우|\blviv\b)',
+        'saint_petersburg': r'(상트페테르부르크|\bst\.?\s*petersburg\b)',
+    }
+    named_places = [key for key, pattern in locations.items() if re.search(pattern, headline, re.I)]
+    if len(named_places) > 1:
+        return None
+    # Do not merge an explicitly located report into a location-free topic.
+    place = named_places[0] if named_places else 'unspecified_place'
+    qualifier = 'limited' if re.search(r'(부분|국지적|국지|partial|localized|local)', headline, re.I) else 'general'
+    return f'issue:related:ru_ua_ceasefire:{place}:{qualifier}:rolling_24h'
+
+
 def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in items:
@@ -2801,11 +2909,29 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
         groups.setdefault(key, []).append(item)
     selected_ids: set[int] = set()
     for group in groups.values():
-        selected = group[:max(0, per_issue_limit)]
+        group_key = str(group[0].get('issueClusterKey', ''))
+        is_ru_ua_ceasefire = group_key.startswith('issue:related:ru_ua_ceasefire:')
+        group_limit = max(0, per_issue_limit)
+        if is_ru_ua_ceasefire:
+            selected = []
+            if group_limit:
+                representative = max(
+                    group,
+                    key=lambda item: (
+                        item.get('critical') is True,
+                        parse_utc(item.get('publishedAt')) or datetime.min.replace(tzinfo=timezone.utc),
+                        float(item.get('marketImpactScore') or 0),
+                        float(item.get('qualityScore') or 0),
+                    ),
+                )
+                selected = [representative]
+        else:
+            selected = group[:group_limit]
         if selected:
-            latest = max(group, key=lambda item: item.get('publishedAt') or '')
-            if not any(item is latest for item in selected):
-                selected[-1] = latest
+            if not is_ru_ua_ceasefire:
+                latest = max(group, key=lambda item: item.get('publishedAt') or '')
+                if not any(item is latest for item in selected):
+                    selected[-1] = latest
             if len(group) > len(selected) and str(group[0].get('issueClusterKey', '')).startswith('issue:related:'):
                 # Reduction of repetitive slots must not erase new facts.
                 # Publish every source headline and URL separately; do not

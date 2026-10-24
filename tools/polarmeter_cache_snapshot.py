@@ -14,6 +14,7 @@ import math
 import re
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, time, timedelta, timezone
 from html.parser import HTMLParser
@@ -24,6 +25,7 @@ from polarmeter_market_calendar import is_kr_market_active, is_us_market_active
 from polarmeter_last_close_policy import (
     MAX_STALE_SIGNAL_AGE_HOURS, last_close_time, valid_last_close, session_close_reference,
 )
+from polarmeter_news_rss_probe import safe_public_news_url
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -1332,6 +1334,36 @@ def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
             'imageScrapingEnabled': False,
         }
     items = news_probe.get('items') if isinstance(news_probe.get('items'), list) else []
+
+    def cached_related_reports(value: Any) -> list[dict[str, str]]:
+        if not isinstance(value, list):
+            return []
+        reports: list[dict[str, str]] = []
+        for report in value[:NEWS_SNAPSHOT_MAX_ITEMS]:
+            if not isinstance(report, dict):
+                continue
+            headline = report.get('headline')
+            source_url = report.get('url')
+            safe_url = safe_public_news_url(source_url) if isinstance(source_url, str) else None
+            if safe_url and (len(safe_url) > 2048 or urllib.parse.urlparse(safe_url).fragment or any(
+                re.search(r'(?:api[_-]?key|access[_-]?token|auth(?:orization)?|token|secret|password|passwd|signature|credential|(?:^|[_-])key(?:$|[_-])|(?:^|[_-])sig(?:$|[_-]))', key, re.I)
+                for key, _ in urllib.parse.parse_qsl(urllib.parse.urlparse(safe_url).query, keep_blank_values=True)
+            )):
+                safe_url = None
+            if not isinstance(headline, str) or not headline.strip() or len(headline) > 600 or not safe_url:
+                continue
+            if any(ord(char) < 32 or ord(char) == 127 for char in headline):
+                continue
+            public_report = {'headline': headline.strip(), 'url': safe_url}
+            for field, limit in (('originalHeadline', 600), ('sourceName', 160), ('publishedAt', 80)):
+                value = report.get(field)
+                if isinstance(value, str) and value.strip() and len(value) <= limit and not any(
+                    ord(char) < 32 or ord(char) == 127 for char in value
+                ):
+                    public_report[field] = value.strip()
+            reports.append(public_report)
+        return reports
+
     return {
         'status': news_probe.get('status') or ('ok' if items else 'unavailable'),
         'generatedAt': news_probe.get('generatedAt'),
@@ -1367,6 +1399,11 @@ def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
                 'criticalReason': item.get('criticalReason'),
                 'marketImpactScore': item.get('marketImpactScore'),
                 'issueClusterKey': item.get('issueClusterKey'),
+                **({
+                    'relatedReports': related_reports,
+                    'relatedReportCount': len(related_reports),
+                    'issueGrouping': 'related_topic_not_confirmed_same_event',
+                } if (related_reports := cached_related_reports(item.get('relatedReports'))) else {}),
                 'sourceId': item.get('sourceId'),
                 'region': item.get('region'),
                 'provider': item.get('provider') or 'public-rss',
