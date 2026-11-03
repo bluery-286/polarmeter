@@ -103,31 +103,54 @@ def us_market_closed_reason(now: datetime) -> str | None:
     return None
 
 
+# 2027 rows follow the 2027 public-holiday calendar (월력요항, published 2026-06-29)
+# including substitute holidays; weekend-only holidays are omitted. KRX usually
+# confirms its next-year closures in December: re-check 5/3, 7/19, 12/27, 12/31.
+KR_MARKET_HOLIDAYS = {
+    date(2026, 1, 1): '한국장 휴장(신정)',
+    date(2026, 2, 16): '한국장 휴장(설 연휴)',
+    date(2026, 2, 17): '한국장 휴장(설날)',
+    date(2026, 2, 18): '한국장 휴장(설 연휴)',
+    date(2026, 3, 2): '한국장 휴장(삼일절 대체공휴일)',
+    date(2026, 5, 1): '한국장 휴장(근로자의날)',
+    date(2026, 5, 5): '한국장 휴장(어린이날)',
+    date(2026, 5, 25): '한국장 휴장(부처님오신날)',
+    date(2026, 6, 3): '한국장 휴장(전국동시지방선거)',
+    date(2026, 7, 17): '한국장 휴장(제헌절)',
+    date(2026, 8, 17): '한국장 휴장(광복절 대체공휴일)',
+    date(2026, 9, 24): '한국장 휴장(추석 연휴)',
+    date(2026, 9, 25): '한국장 휴장(추석)',
+    date(2026, 10, 5): '한국장 휴장(개천절 대체공휴일)',
+    date(2026, 10, 9): '한국장 휴장(한글날)',
+    date(2026, 12, 25): '한국장 휴장(성탄절)',
+    date(2026, 12, 31): '한국장 휴장(연말 휴장)',
+    date(2027, 1, 1): '한국장 휴장(신정)',
+    date(2027, 2, 8): '한국장 휴장(설 연휴)',
+    date(2027, 2, 9): '한국장 휴장(설날 대체공휴일)',
+    date(2027, 3, 1): '한국장 휴장(삼일절)',
+    date(2027, 5, 3): '한국장 휴장(노동절 대체공휴일)',
+    date(2027, 5, 5): '한국장 휴장(어린이날)',
+    date(2027, 5, 13): '한국장 휴장(부처님오신날)',
+    date(2027, 7, 19): '한국장 휴장(제헌절 대체공휴일)',
+    date(2027, 8, 16): '한국장 휴장(광복절 대체공휴일)',
+    date(2027, 9, 14): '한국장 휴장(추석 연휴)',
+    date(2027, 9, 15): '한국장 휴장(추석)',
+    date(2027, 9, 16): '한국장 휴장(추석 연휴)',
+    date(2027, 10, 4): '한국장 휴장(개천절 대체공휴일)',
+    date(2027, 10, 11): '한국장 휴장(한글날 대체공휴일)',
+    date(2027, 12, 27): '한국장 휴장(성탄절 대체공휴일)',
+    date(2027, 12, 31): '한국장 휴장(연말 휴장)',
+}
+KR_CALENDAR_YEARS = frozenset(day.year for day in KR_MARKET_HOLIDAYS)
+
+
 def kr_market_closed_reason(now: datetime) -> str | None:
     day = now.astimezone(KST_ZONE).date()
     if day.weekday() >= 5:
         return '한국장 주말 휴장'
-    # 2026 KRX holiday set needed by current beta/RC operations. Keep this
-    # explicit until an official KRX calendar provider is wired into the cache.
-    special_2026 = {
-        date(2026, 1, 1): '한국장 휴장(신정)',
-        date(2026, 2, 16): '한국장 휴장(설 연휴)',
-        date(2026, 2, 17): '한국장 휴장(설날)',
-        date(2026, 2, 18): '한국장 휴장(설 연휴)',
-        date(2026, 3, 2): '한국장 휴장(삼일절 대체공휴일)',
-        date(2026, 5, 1): '한국장 휴장(근로자의날)',
-        date(2026, 5, 5): '한국장 휴장(어린이날)',
-        date(2026, 5, 25): '한국장 휴장(부처님오신날)',
-        date(2026, 6, 3): '한국장 휴장(전국동시지방선거)',
-        date(2026, 8, 17): '한국장 휴장(광복절 대체공휴일)',
-        date(2026, 9, 24): '한국장 휴장(추석 연휴)',
-        date(2026, 9, 25): '한국장 휴장(추석)',
-        date(2026, 10, 5): '한국장 휴장(개천절 대체공휴일)',
-        date(2026, 10, 9): '한국장 휴장(한글날)',
-        date(2026, 12, 25): '한국장 휴장(성탄절)',
-        date(2026, 12, 31): '한국장 휴장(연말 휴장)',
-    }
-    return special_2026.get(day)
+    # Explicit KRX holiday set until an official KRX calendar provider is wired
+    # into the cache. Years outside KR_CALENDAR_YEARS stay unsupported.
+    return KR_MARKET_HOLIDAYS.get(day)
 
 
 def in_market_window(now: datetime, zone: ZoneInfo, start: time, end: time) -> bool:
@@ -143,7 +166,7 @@ def last_completed_session_date(now: datetime, market: str) -> date | None:
     zone = KST_ZONE if market == 'KR' else NY_ZONE
     closed = kr_market_closed_reason if market == 'KR' else us_market_closed_reason
     local = now.astimezone(zone)
-    if market == 'KR' and local.year != 2026:
+    if market == 'KR' and local.year not in KR_CALENDAR_YEARS:
         return None
     candidate = local.date()
     # Preserve the existing KR delayed-feed boundary. US feeds retain their
@@ -155,7 +178,7 @@ def last_completed_session_date(now: datetime, market: str) -> date | None:
         return candidate
     for _ in range(32):
         candidate -= timedelta(days=1)
-        if market == 'KR' and candidate.year != 2026:
+        if market == 'KR' and candidate.year not in KR_CALENDAR_YEARS:
             return None
         if closed(datetime.combine(candidate, time(12), tzinfo=zone)) is None:
             return candidate
@@ -168,7 +191,7 @@ def market_session_context(now: datetime, market: str) -> dict | None:
         return None
     zone = KST_ZONE if market == 'KR' else NY_ZONE
     local = now.astimezone(zone)
-    if market == 'KR' and local.year != 2026:
+    if market == 'KR' and local.year not in KR_CALENDAR_YEARS:
         return None
     reason = (kr_market_closed_reason if market == 'KR' else us_market_closed_reason)(now)
     minutes = local.hour * 60 + local.minute

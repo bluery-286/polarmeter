@@ -52,10 +52,13 @@ def check_daily_close_reference() -> None:
         assert daily_close_reference(signal, datetime.fromisoformat(when))['expectedUpdateAt'] == reference['expectedUpdateAt']
     holiday = daily_close_reference({**signal, 'dataAsOf': '20261007'}, now)
     assert holiday['expectedUpdateAt'] == '2026-10-12T04:00:00Z'
-    for observed in ('20261230', '20270104'):
-        no_calendar = daily_close_reference({**signal, 'dataAsOf': observed}, datetime.fromisoformat('2027-01-05T12:00:00+09:00'))
+    for observed in ('20271230', '20280104'):
+        no_calendar = daily_close_reference({**signal, 'dataAsOf': observed}, datetime.fromisoformat('2028-01-05T12:00:00+09:00'))
         assert no_calendar['expectedUpdateAt'] is None
         assert no_calendar['scheduleStatus'] == 'calendar_unavailable'
+    # 2027 is covered: Seollal and its substitute holiday move the window.
+    seollal = daily_close_reference({**signal, 'dataAsOf': '20270205'}, datetime.fromisoformat('2027-02-08T12:00:00+09:00'))
+    assert seollal['expectedUpdateAt'] == '2027-02-11T04:00:00Z', seollal
     for observed in (None, '', '20260230', '20261020', True, 'provider://untrusted'):
         invalid = daily_close_reference({**signal, 'dataAsOf': observed}, now)
         assert invalid['observedDate'] is None and invalid['expectedUpdateAt'] is None

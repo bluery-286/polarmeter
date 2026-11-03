@@ -87,7 +87,10 @@ def main():
     }], 20)
     assert report['filteredReasons'].get('DUPLICATE_DISPLAY_HEADLINE') == 2, report
     assert len(items) == 1 + len(distinct_active_events), (items, report)
-    assert all(item['impactTone'] == 'negative' and item['critical'] for item in items), items
+    assert all(item['impactTone'] == 'negative' for item in items), items
+    # Distinct events all stay listed; only the "critical" badge is capped.
+    from polarmeter_news_rss_probe import CRITICAL_ITEM_LIMIT
+    assert sum(1 for item in items if item['critical']) == min(len(items), CRITICAL_ITEM_LIMIT), items
     assert {item['headline'] for item in items} == {active_headline, *distinct_active_events}, items
     expected_recovery = '사우디 송유관 복구 기대에 국제유가 이틀째 하락…WTI 102달러선'
     items, report = normalize_items([{
