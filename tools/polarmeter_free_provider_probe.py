@@ -434,19 +434,36 @@ def normalized_as_of_time(value: Any) -> str | None:
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+INTRADAY_RECOVERY_INTERVAL_SECONDS = 30 * 60
+
+
+def session_closing_bar_close(result: dict[str, Any], session_timestamp: Any, zone: ZoneInfo) -> float | None:
+    """Close of the bar that ends the session; an earlier bar is not a session close."""
+    day = datetime.fromtimestamp(float(session_timestamp), zone).date()
+    ends = [period.get('end') for row in ((result.get('meta') or {}).get('tradingPeriods') or [])
+            for period in (row if isinstance(row, list) else [row])
+            if isinstance(period, dict) and isinstance(period.get('end'), (int, float))
+            and isinstance(period.get('start'), (int, float))
+            and datetime.fromtimestamp(period['start'], zone).date() == day]
+    if not ends:
+        return None
+    end = max(ends)
+    closes = ((result.get('indicators', {}).get('quote') or [{}])[0]).get('close') or []
+    for ts, close in zip(result.get('timestamp') or [], closes):
+        if end - INTRADAY_RECOVERY_INTERVAL_SECONDS <= float(ts) < end:
+            return as_float(close)
+    return None
+
+
 def yahoo_intraday_session_close(symbol: str, session_timestamp: Any, meta: dict[str, Any]) -> float | None:
-    """Last 30-minute close of a session whose daily bar came back without a close."""
+    """Closing 30-minute bar of a session whose daily bar came back without a close."""
     try:
         zone = ZoneInfo(str(meta.get('exchangeTimezoneName')))
-        day = datetime.fromtimestamp(float(session_timestamp), zone).date()
         url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=5d&interval=30m'
         result = (fetch_json(url).get('chart', {}).get('result') or [{}])[0]
-        closes = ((result.get('indicators', {}).get('quote') or [{}])[0]).get('close') or []
-        same_day = [as_float(close) for ts, close in zip(result.get('timestamp') or [], closes)
-                    if datetime.fromtimestamp(float(ts), zone).date() == day and as_float(close) is not None]
+        return session_closing_bar_close(result, session_timestamp, zone)
     except Exception:  # pragma: no cover - network diagnostic; caller leaves the change unknown
         return None
-    return same_day[-1] if same_day else None
 
 
 def yahoo_chart_probe() -> dict[str, Any]:

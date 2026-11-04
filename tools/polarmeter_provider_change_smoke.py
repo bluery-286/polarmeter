@@ -19,7 +19,7 @@ from polarmeter_cache_snapshot import (
     stale_signal_is_too_old,
     validate_candidate,
 )
-from polarmeter_free_provider_probe import yahoo_chart_change_fields
+from polarmeter_free_provider_probe import session_closing_bar_close, yahoo_chart_change_fields
 from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
 
@@ -86,6 +86,17 @@ def check_missing_previous_session_bar() -> None:
     price, change, pct, previous, source = yahoo_chart_change_fields(
         meta, [5730.74, 5859.08, 5648.79], prefer_daily_series_previous=True, timestamps=stamps[:3])
     assert previous == 5648.79 and source == 'daily_series_previous_close'
+    # Recovery takes only the bar that ends the session (Yahoo KR period 09:00-15:00).
+    start, end = stamps[2], stamps[2] + 6 * 3600
+    bars = [start + 1800 * index for index in range(12)]
+
+    def intraday(closes):
+        return {'meta': {'tradingPeriods': [[{'start': start, 'end': end}]]}, 'timestamp': bars,
+                'indicators': {'quote': [{'close': closes}]}}
+    full = [5700.0 + index for index in range(11)] + [5649.43]
+    assert session_closing_bar_close(intraday(full), stamps[2], seoul) == 5649.43
+    assert session_closing_bar_close(intraday([5700.0] + [None] * 11), stamps[2], seoul) is None
+    assert session_closing_bar_close({**intraday(full), 'meta': {}}, stamps[2], seoul) is None
 
 
 def check_vix_stress_preservation() -> None:
