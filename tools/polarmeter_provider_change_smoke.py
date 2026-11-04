@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import polarmeter_cache_snapshot as cache
 import polarmeter_data_freshness_audit as freshness
@@ -18,7 +19,7 @@ from polarmeter_cache_snapshot import (
     stale_signal_is_too_old,
     validate_candidate,
 )
-from polarmeter_free_provider_probe import yahoo_chart_change_fields
+from polarmeter_free_provider_probe import session_closing_bar_close, yahoo_chart_change_fields
 from polarmeter_news_rss_probe import cause_aware_display_headline, classify_relevance, english_market_context_translation, koreanize_english_headline, market_burden_tone, normalize_items
 
 
@@ -52,6 +53,50 @@ def check_consistent_quote_change_basis() -> None:
     price, change, pct, previous, source = yahoo_chart_change_fields(
         {'regularMarketPrice': 101, 'regularMarketChange': 1, 'regularMarketChangePercent': 1}, [])
     assert (price, change, pct, previous, source) == (101, 1, 1, None, 'meta_change')
+
+
+def check_missing_previous_session_bar() -> None:
+    # 2026-11-04 live: Yahoo's ^KS11 daily bar for 11/03 had a null close, so the
+    # 11/02 close was used and a flat open published as KOSPI -3.54%.
+    seoul = ZoneInfo('Asia/Seoul')
+    days = ('2026-10-30', '2026-11-02', '2026-11-03', '2026-11-04')
+    stamps = [int(datetime.fromisoformat(f'{day}T09:00:00').replace(tzinfo=seoul).timestamp()) for day in days]
+    meta = {'regularMarketPrice': 5651.85, 'exchangeTimezoneName': 'Asia/Seoul',
+            'chartPreviousClose': 6012.44, 'regularMarketTime': stamps[-1] + 3600}
+    gap = [5730.74, 5859.08, None, 5651.85]
+    recovered_for = []
+
+    def recover(timestamp):
+        recovered_for.append(datetime.fromtimestamp(timestamp, seoul).date().isoformat())
+        return 5649.43
+
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        meta, gap, prefer_daily_series_previous=True, timestamps=stamps, recover_session_close=recover)
+    assert recovered_for == ['2026-11-03'] and previous == 5649.43
+    assert source == 'intraday_previous_close_recovered' and abs(pct - (5651.85 / 5649.43 - 1) * 100) < 1e-9
+    # Without a recovered close the move is unknown, never measured from 11/02 or the range start.
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        meta, gap, prefer_daily_series_previous=True, timestamps=stamps, recover_session_close=lambda _: None)
+    assert (price, change, pct, previous, source) == (5651.85, None, None, None, 'previous_session_bar_missing')
+    assert validate_candidate('kospi', {'status': 'ok', 'price': price, 'changePct': pct})[0] == 'partial'
+    # Complete bars: the previous session's bar, also before today's bar exists.
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        meta, [5730.74, 5859.08, 5648.79, 5651.85], prefer_daily_series_previous=True, timestamps=stamps)
+    assert previous == 5648.79 and source == 'daily_series_previous_close'
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        meta, [5730.74, 5859.08, 5648.79], prefer_daily_series_previous=True, timestamps=stamps[:3])
+    assert previous == 5648.79 and source == 'daily_series_previous_close'
+    # Recovery takes only the bar that ends the session (Yahoo KR period 09:00-15:00).
+    start, end = stamps[2], stamps[2] + 6 * 3600
+    bars = [start + 1800 * index for index in range(12)]
+
+    def intraday(closes):
+        return {'meta': {'tradingPeriods': [[{'start': start, 'end': end}]]}, 'timestamp': bars,
+                'indicators': {'quote': [{'close': closes}]}}
+    full = [5700.0 + index for index in range(11)] + [5649.43]
+    assert session_closing_bar_close(intraday(full), stamps[2], seoul) == 5649.43
+    assert session_closing_bar_close(intraday([5700.0] + [None] * 11), stamps[2], seoul) is None
+    assert session_closing_bar_close({**intraday(full), 'meta': {}}, stamps[2], seoul) is None
 
 
 def check_vix_stress_preservation() -> None:
@@ -124,6 +169,7 @@ def check_vix_stress_preservation() -> None:
 
 def main() -> int:
     check_consistent_quote_change_basis()
+    check_missing_previous_session_bar()
     check_daily_close_reference()
     check_session_close_reference()
     check_vix_stress_preservation()
