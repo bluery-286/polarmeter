@@ -2590,12 +2590,31 @@ def headline_tokens(item: dict[str, Any]) -> set[str]:
     return tokens - {'속보', '단독', '종합', '뉴스', 'news', '관련', '대한', '위한', '이후', '오늘', '내일', 'with', 'from', 'after', 'over'}
 
 
+HEADLINE_STATE_MARKERS = {
+    'up': re.compile(r'상승|급등|오름|오른|반등|강세|\b(?:rise[sn]?|rising|rall(?:y|ies)|gains?|jumps?|surges?|climbs?|higher)\b', re.I),
+    'down': re.compile(r'하락|급락|내림|내린|약세|떨어|\b(?:falls?|fell|drops?|slides?|slumps?|tumbles?|lower|plunges?)\b', re.I),
+    'open': re.compile(r'출발|개장|장초반|\bopens?\b', re.I),
+    'midday': re.compile(r'장중|오전장|오후장|\bmidday\b', re.I),
+    'close': re.compile(r'마감|\b(?:close[sd]?|ends?|ended)\b', re.I),
+    'hike': re.compile(r'인상|\bhikes?\b', re.I),
+    'cut': re.compile(r'인하|\bcuts?\b', re.I),
+    'hold': re.compile(r'동결|\b(?:holds?|unchanged)\b', re.I),
+}
+
+
+def headline_state(item: dict[str, Any]) -> frozenset[str]:
+    """Direction and trading-stage markers; reports that differ here are different updates."""
+    text = f"{item.get('displayHeadline') or ''} {item.get('headline') or ''} {item.get('originalHeadline') or ''}"
+    return frozenset(name for name, pattern in HEADLINE_STATE_MARKERS.items() if pattern.search(text))
+
+
 def collapse_near_duplicate_headlines(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     """Keep one card per reported event: same-day reports sharing most salient words."""
     kept: list[tuple[dict[str, Any], set[str]]] = []
     dropped = 0
     for item in items:
         tokens = headline_tokens(item)
+        state = headline_state(item)
         headline = str(item.get('originalHeadline') or item.get('headline') or '')
         # Energy incidents and grouped related reports have their own event
         # identity rules (count, vessel, date, state); never merge them here.
@@ -2614,6 +2633,8 @@ def collapse_near_duplicate_headlines(items: list[dict[str, Any]]) -> tuple[list
             other_numbers = {token for token in other_tokens if token[0].isdigit()}
             if numbers != other_numbers:
                 continue  # different counts, rates or dates are different updates
+            if state != headline_state(other):
+                continue  # e.g. 상승 출발 vs 하락 마감: an opening and a closing observation
             shared = tokens & other_tokens
             smaller = min(len(tokens), len(other_tokens)) or 1
             if len(shared) >= 5 and len(shared) / smaller >= 0.7:

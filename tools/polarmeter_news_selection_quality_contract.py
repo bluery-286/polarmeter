@@ -55,6 +55,14 @@ def main() -> None:
     ]
     kept, dropped = collapse_near_duplicate_headlines(reports)
     assert dropped == 1 and len(kept) == 2 and kept[0]['relatedReportCount'] == 2, kept
+    # Opposite direction or a different trading stage is a new update, not a corroborating report.
+    stages = [
+        {**same, 'headline': '코스피 상승 출발 외국인 수급 반도체 중심 증시 흐름 주목', 'sourceName': 'A'},
+        {**same, 'headline': '코스피 하락 마감 외국인 수급 반도체 중심 증시 흐름 주목', 'sourceName': 'B'},
+        {**same, 'headline': '코스피 상승 마감 외국인 수급 반도체 중심 증시 흐름 주목', 'sourceName': 'C'},
+    ]
+    kept, dropped = collapse_near_duplicate_headlines(stages)
+    assert dropped == 0 and len(kept) == 3, kept
     print('PASS news selection quality: source-faithful translations, rare critical badge, one card per report')
 
 
