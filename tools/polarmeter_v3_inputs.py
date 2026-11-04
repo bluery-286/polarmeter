@@ -191,8 +191,12 @@ def _pct_text(value: float | None) -> str:
     return '확인 중' if value is None else f'{value:+.1f}%'
 
 
-def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]], kr_day: str | None) -> list[dict[str, Any]]:
-    """Four numbers that carry the US session into the KR session, each with a plain reading."""
+def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]], kr_day: str | None,
+                 fx_signal: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Four numbers that carry the US session into the KR session, each with a plain reading.
+
+    The won uses the published usd_krw quote when it is usable, so every screen shows one rate.
+    """
     if not kr_day:
         return []
     rows: list[dict[str, Any]] = []
@@ -207,6 +211,10 @@ def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]],
         return s.dates[i], s.closes[i], s.ret(i)
 
     fx_day, fx_value, fx_pct = last('KRW=X')
+    if fx_signal and fx_signal.get('status') in {'ok', 'suspect'} and number(fx_signal.get('value')) is not None:
+        fx_value, fx_pct = number(fx_signal.get('value')), number(fx_signal.get('changePct'))
+        observed = str(fx_signal.get('dataAsOf') or '')
+        fx_day = observed[:10] or fx_day
     if fx_value is not None:
         tone = 'minus' if (fx_pct or 0) >= 0.4 else 'plus' if (fx_pct or 0) <= -0.4 else 'neutral'
         read = {'minus': ('원화 약세: 외국인 자금에 부담', 'Weaker won: a headwind for foreign money'),
@@ -244,11 +252,12 @@ def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]],
     if soxx_pct is not None and kr_semi_pct is not None and kr_semi_day == kr_day:
         same = (soxx_pct >= 0) == (kr_semi_pct >= 0)
         tone = ('plus' if kr_semi_pct >= 0 else 'minus') if same else 'neutral'
-        read = ('미국·한국 반도체가 같은 방향' if same else '미국 반도체 흐름이 한국으로 이어지지 않음',
-                'US and Korean chips moved together' if same else 'US chip move did not carry into Korea')
+        read = ('같은 방향으로 움직임' if same else '한국으로 이어지지 않음',
+                'moved the same way' if same else 'did not carry into Korea')
         rows.append({'key': 'semis_link', 'nameKo': '반도체 미국 → 한국', 'nameEn': 'Chips: US → Korea',
-                     'value': f'미국 {_pct_text(soxx_pct)} · 한국 {_pct_text(kr_semi_pct)}', 'changePct': kr_semi_pct,
-                     'tone': tone, 'readKo': read[0], 'readEn': read[1], 'asOf': kr_day})
+                     'value': f'한국 {_pct_text(kr_semi_pct)}', 'changePct': kr_semi_pct, 'usChangePct': soxx_pct,
+                     'tone': tone, 'readKo': f'미국 {_pct_text(soxx_pct)} 뒤 · {read[0]}',
+                     'readEn': f'After US {_pct_text(soxx_pct)} · {read[1]}', 'asOf': kr_day})
     return rows
 
 
@@ -270,7 +279,7 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
         core['missingInputs'] = failed
         snapshot['scoreCoreV3'] = core
         snapshot['investorFlows'] = ledger
-        snapshot['linkSignals'] = link_signals(series, flows, kr_sessions[-1] if kr_sessions else None)
+        snapshot['linkSignals'] = link_signals(series, flows, kr_sessions[-1] if kr_sessions else None, signals.get('usd_krw'))
     except Exception as error:  # pragma: no cover - keep v2 publishing
         snapshot['scoreCoreV3'] = {'schemaVersion': v3.SCHEMA_VERSION, 'formulaVersion': v3.FORMULA_VERSION,
                                    'generatedAt': snapshot.get('generatedAt'), 'status': 'unavailable',
