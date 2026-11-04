@@ -488,17 +488,29 @@ def merge_settled_history_entry(
     for market in ('us', 'kr'):
         if entry.get(f'{market}Settled', True):
             continue
+        # Judge a carried value by when it was recorded, not by its flag:
+        # entries written before this rule (or carried from them) have no
+        # trustworthy flag and may hold opening-minutes quotes.
         carried = next(
             (item for item in (same_date, prior)
-             if isinstance(item, dict) and isinstance(item.get(f'{market}Score'), (int, float))),
+             if isinstance(item, dict) and isinstance(item.get(f'{market}Score'), (int, float))
+             and recorded_outside_session(item.get(f'{market}AsOf') or item.get('asOf'), market)),
             None,
         )
         if carried is None:
             continue
         for field in ('Score', 'Label', 'AsOf'):
             merged[f'{market}{field}'] = carried.get(f'{market}{field}', carried.get('asOf') if field == 'AsOf' else None)
-        merged[f'{market}Settled'] = bool(carried.get(f'{market}Settled', True))
+        merged[f'{market}Settled'] = True
     return merged
+
+
+def recorded_outside_session(value: Any, market: str) -> bool:
+    parsed = parse_utc_datetime(value)
+    if parsed is None:
+        return False
+    context = market_session_context(parsed, market.upper())
+    return context is None or context.get('phase') != 'open'
 
 
 def load_previous_public_snapshot(path: Path | None, public_dir: Path | None, snapshot_name: str, previous_url: str | None) -> dict[str, Any]:
