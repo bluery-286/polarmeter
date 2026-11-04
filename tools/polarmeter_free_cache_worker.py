@@ -131,6 +131,7 @@ BETA_MONTHLY_COST_WARNING_USD = 20
 
 sys.path.insert(0, str(TOOLS))
 from polarmeter_score_core import KST, build_scores, detect_session, snapshot_from_points  # noqa: E402
+from polarmeter_v3_inputs import apply_v3_layers, cross_check_kr_previous_close  # noqa: E402
 
 COST_GUARDRAILS = {
     'estimatedMonthlyCost': {
@@ -1278,6 +1279,9 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'nextRefreshAt': iso_add_minutes(snapshot.get('generatedAt'), int(market_ttl_minutes)),
         'dataQuality': sanitize_public_data_quality(snapshot.get('dataQuality') or {}),
         'scoreCore': public_temperature_score_core(snapshot),
+        'scoreCoreV3': snapshot.get('scoreCoreV3'),
+        'investorFlows': snapshot.get('investorFlows'),
+        'linkSignals': snapshot.get('linkSignals') or [],
         'temperatureHistory': snapshot.get('temperatureHistory') or {
             'version': 'temperature-history-v1',
             'basis': 'kst_calendar_day_latest_settled_market_session',
@@ -1390,7 +1394,14 @@ def main() -> int:
     previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
     temperature_history_seed = load_temperature_history_seed(args.temperature_history_seed)
     snapshot_for_history = load_json(args.snapshot)
+    try:
+        # Before history: the ledger and v2 score must use the official KR base.
+        corrected = cross_check_kr_previous_close(snapshot_for_history.get('signals') or {}, datetime.now(timezone.utc))
+    except Exception:  # pragma: no cover - the cross-check never blocks a publish
+        corrected = []
+    snapshot_for_history['previousCloseChecks'] = corrected
     apply_temperature_history(snapshot_for_history, previous_public_snapshot, temperature_history_seed)
+    apply_v3_layers(snapshot_for_history, previous_public_snapshot)
     atomic_write_json(args.snapshot, snapshot_for_history)
     run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:
