@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from polarmeter_free_cache_worker import (
+    apply_temperature_history,
     assert_public_payload_safe,
     public_temperature_score_core,
     sanitize_public_snapshot,
@@ -65,6 +66,65 @@ def assert_same_score(snapshot_value: dict, expected_session: str) -> tuple[dict
     return core, history
 
 
+def with_history(item: dict, closes: list[tuple[str, float]]) -> dict:
+    return {**item, 'history': {'points': [{'timestamp': f'{day}T00:00:00Z', 'value': value} for day, value in closes]}}
+
+
+def check_kr_session_consistency() -> None:
+    # 2026-11-03 23:41 KST: KR closed after a broad sell-off, US open 11 minutes.
+    base = snapshot(generated_at='2026-11-03T14:41:05Z')
+    base['signals']['kospi'] = signal(5648.79, -3.59)
+    base['signals']['kosdaq'] = signal(704.39, -4.08)
+    base['signals']['usd_krw'] = signal(1343.28, 1.34)
+    base['signals']['kr_samsung'] = {**signal(229000, 1.78), 'dataAsOf': '20261102'}
+    base['signals'].pop('kr_hynix')
+    base['signals']['soxx'] = with_history(signal(467.98, 3.16), [('2026-10-30', 471.51), ('2026-11-02', 453.65), ('2026-11-03', 467.98)])
+    base['signals']['smh'] = with_history(signal(521.47, 2.59), [('2026-10-30', 522.49), ('2026-11-02', 508.31), ('2026-11-03', 521.47)])
+    for item in base['signals'].values():
+        item.setdefault('dataAsOf', '2026-11-03T14:40:00Z')
+        if item['dataAsOf'].startswith('2026-09'):
+            item['dataAsOf'] = item['fetchedAt'] = '2026-11-03T14:40:00Z'
+    core = public_temperature_score_core(base)
+    kr = core['kr']
+    # Tonight's US semis rally is not today's KR industry input.
+    assert kr['components']['industry'] < 50, kr
+    # A shared KOSPI/KOSDAQ sell-off is never shown as neutral.
+    assert kr['score'] <= 35 and kr['label'].startswith('냉각'), kr
+    assert kr['rawScore'] >= kr['score'], kr
+    # US keeps its own live session inputs.
+    assert core['us']['components']['sector'] > 50, core['us']
+
+    rally = deepcopy(base)
+    rally['signals']['kospi'] = signal(5900, 3.2)
+    rally['signals']['kosdaq'] = signal(760, 3.4)
+    for key in ('kospi', 'kosdaq'):
+        rally['signals'][key]['dataAsOf'] = rally['signals'][key]['fetchedAt'] = '2026-11-03T14:40:00Z'
+    assert public_temperature_score_core(rally)['kr']['score'] >= 65
+
+
+def check_settled_history() -> None:
+    def entry(generated_at: str, kospi_pct: float) -> dict:
+        value = snapshot(generated_at=generated_at)
+        for item in value['signals'].values():
+            item['dataAsOf'] = item['fetchedAt'] = generated_at
+        value['signals']['kospi'] = {**signal(2750, kospi_pct), 'dataAsOf': generated_at, 'fetchedAt': generated_at}
+        value['signals']['kosdaq'] = {**signal(850, kospi_pct), 'dataAsOf': generated_at, 'fetchedAt': generated_at}
+        return value
+
+    settled = entry('2026-11-04T07:00:00Z', -2.0)   # 16:00 KST: KR closed, US pre-open
+    intraday = entry('2026-11-05T01:00:00Z', 2.5)   # 10:00 KST next day: KR open
+    first = apply_temperature_history(deepcopy(settled), {})
+    history = apply_temperature_history(deepcopy(intraday), first)['temperatureHistory']
+    by_date = {item['dateKst']: item for item in history['items']}
+    # The open KR session carries the last settled close into today's row.
+    assert by_date['2026-11-05']['krScore'] == by_date['2026-11-04']['krScore'], by_date
+    assert by_date['2026-11-05']['usSettled'] is True
+    # The live delta still compares the live temperature with the settled day.
+    live_kr = public_temperature_score_core(intraday)['kr']['score']
+    assert history['dailyDelta']['kr']['currentScore'] == live_kr
+    assert history['dailyDelta']['kr']['previousScore'] == by_date['2026-11-04']['krScore']
+
+
 def main() -> None:
     current = snapshot()
     current_core, current_history = assert_same_score(current, 'normal')
@@ -111,6 +171,8 @@ def main() -> None:
         future_core, _ = assert_same_score(future, 'normal')
         assert future_core['kr']['components'] == absent_core['kr']['components']
 
+    check_kr_session_consistency()
+    check_settled_history()
     print('PolarMeter temperature score contract: PASS')
 
 

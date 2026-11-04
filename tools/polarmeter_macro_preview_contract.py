@@ -154,10 +154,14 @@ def main() -> None:
     for title in ('US markets await US CPI release', 'US markets brace for upcoming US CPI release',
                   'US markets ahead of the US CPI report', '미국 CPI 발표 앞두고 관망'):
         regressions.append((title, '2026-10-22T10:05:42Z', october, True))
-    for current in (datetime(2026, 12, 11, tzinfo=timezone.utc), datetime(2027, 1, 10, tzinfo=timezone.utc)):
-        for title in (FAILED_TITLE, 'US December 2026 CPI preview', 'US January 2027 CPI preview'):
+    # Exhausted official calendar (the registry runs through the 2027 BLS schedule).
+    for current in (datetime(2027, 12, 11, tzinfo=timezone.utc), datetime(2028, 1, 10, tzinfo=timezone.utc)):
+        for title in (FAILED_TITLE, 'US December 2027 CPI preview', 'US January 2028 CPI preview'):
             regressions.append((title, (current - timedelta(hours=1)).isoformat(), current, False))
-        regressions.append((FAILED_TITLE, '2026-12-10T12:00:00Z', current, True))
+        regressions.append((FAILED_TITLE, '2027-12-10T12:00:00Z', current, True))
+    # With the 2027 calendar known, a generic preview between releases expires.
+    regressions.append((FAILED_TITLE, '2026-12-10T23:00:00Z', datetime(2026, 12, 11, tzinfo=timezone.utc), True))
+    regressions.append((FAILED_TITLE, '2027-01-11T12:00:00Z', datetime(2027, 1, 12, tzinfo=timezone.utc), False))
     for title, stamp, current, expired in regressions:
         check(title, stamp, current, expired)
         for status in ('ok', 'awaiting_official'):

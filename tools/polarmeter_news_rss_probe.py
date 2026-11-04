@@ -722,7 +722,35 @@ def source_index_direction(text: str) -> str | None:
     return None
 
 
-def translation_preserves_source_facts(source: str, translated: str) -> bool:
+OIL_DOWN_SOURCE = re.compile(
+    r'\b(?:soft\w*|lower|weak\w*|cheap\w*|falling|declining)\s+(?:(?:brent|wti|global|world|crude)\s+)?(?:oil|crude)\b|'
+    r'\b(?:oil|crude)\s+(?:prices?\s+)?(?:fall\w*|fell|drop\w*|eas\w+|slid\w*|slide\w*|declin\w*|slump\w*|retreat\w*|tumbl\w*|plung\w*|sink\w*|sank|lower|soft\w*)\b',
+    re.I,
+)
+OIL_UP_SOURCE = re.compile(
+    r'\b(?:higher|rising|surging|soaring|elevated)\s+(?:(?:brent|wti|global|world|crude)\s+)?(?:oil|crude)\b|'
+    r'\b(?:oil|crude)\s+(?:prices?\s+)?(?:rise\w*|rose|jump\w*|surg\w*|climb\w*|gain\w*|spik\w*|soar\w*|rall\w*|higher)\b',
+    re.I,
+)
+NEGATED_ATTACK_SOURCE = re.compile(r'\b(?:foil\w*|thwart\w*|avert\w*|prevent\w*|intercept\w*|den(?:y|ies|ied)|false\s+reports?|no\s+attack)\b', re.I)
+EARNINGS_SOURCE = re.compile(r'\b(?:profits?|earnings|revenue|net\s+income|quarterly\s+results?)\b', re.I)
+INFLATION_SOURCE = re.compile(r'\b(?:inflation|cpi|pce|prices?|costs?|deflation)\b', re.I)
+US_SOURCE = re.compile(r'\b(?:u\.?s\.?|us|usa|america\w*|fed|federal\s+reserve|wall\s+street|dow|nasdaq|s&p|treasur\w*|washington)\b', re.I)
+NON_US_PLACE = re.compile(
+    r'\b(?:india\w*|vietnam\w*|china|chinese|japan\w*|indonesia\w*|philippin\w*|thai\w*|malaysia\w*|pakistan\w*|'
+    r'bangladesh\w*|turk\w*|egypt\w*|nigeria\w*|kenya\w*|south\s+africa\w*|brazil\w*|mexic\w*|argentin\w*|'
+    r'canad\w*|austral\w*|britain|british|uk|euro\w*|german\w*|france|french|korea\w*|sri\s+lanka\w*)\b',
+    re.I,
+)
+BYLINE_PROMO_SOURCE = re.compile(
+    r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}:\s+(?:The\s+)?(?:[A-Z][\w&.-]*\s+){1,3}(?:Institute|Foundation|Academy|Group|Capital|Advisors?|Wealth)\b'
+)
+
+
+def translation_preserves_source_facts(source: str, translated: str, source_name: str = '') -> bool:
+    """A generated Korean line may summarize, never reverse or relocate, the source."""
+    if not translation_keeps_direction_place_and_event(source, translated, source_name):
+        return False
     source_direction = source_index_direction(source)
     translated_direction = source_index_direction(translated)
     if source_direction and translated_direction != source_direction:
@@ -746,6 +774,29 @@ def translation_preserves_source_facts(source: str, translated: str) -> bool:
         if not re.search(r'(유조선|선박).{0,24}(통행|운항).{0,24}(감소|하락|줄)|(통행|운항).{0,24}(감소|하락|줄)', translated, re.I):
             return False
     return True
+
+def translation_keeps_direction_place_and_event(source: str, translated: str, source_name: str = '') -> bool:
+    if BYLINE_PROMO_SOURCE.search(source or ''):
+        # "Name Surname: The X Institute on ..." is a column or promotion, not a market event.
+        return False
+    oil_down = bool(OIL_DOWN_SOURCE.search(source)) and not OIL_UP_SOURCE.search(source)
+    oil_up = bool(OIL_UP_SOURCE.search(source)) and not OIL_DOWN_SOURCE.search(source)
+    if oil_down and re.search(r'유가.{0,6}(상승|급등|올라|오름)|유가도\s*올', translated):
+        return False
+    if oil_up and re.search(r'유가.{0,6}(하락|급락|내려|완화)', translated):
+        return False
+    if NEGATED_ATTACK_SOURCE.search(source) and re.search(r'공격\s*소식|피격|공격.{0,4}발생', translated):
+        return False
+    if EARNINGS_SOURCE.search(source) and re.search(r'공격\s*소식|공급\s*차질', translated) and not re.search(r'이익|실적|순익|매출', translated):
+        return False
+    # Oil and fuel moves may be summarized as a cost/inflation burden; anything else needs a price source.
+    if '물가' in translated and not INFLATION_SOURCE.search(source) and not re.search(r'\b(?:oil|crude|fuel|gasoline|diesel|energy|opec)\b', source, re.I):
+        return False
+    if '미국' in translated and not US_SOURCE.search(source):
+        if NON_US_PLACE.search(source) or NON_US_PLACE.search(source_name or '') or re.search(r'\.(?:vn|in|pk|ph|bd|ng|ke|tr)\b', source_name or '', re.I):
+            return False
+    return True
+
 
 MARKET_RELEVANCE_RULES = [
     {
@@ -2487,6 +2538,138 @@ def categorize(headline: str) -> tuple[str, str, list[str]]:
     return target, tone, tags or ['뉴스']
 
 
+CRITICAL_ITEM_LIMIT = 5
+# Machine-translated aggregators and non-market outlets stay eligible but never
+# lead as "critical" market news.
+LOW_TRUST_NEWS_SOURCES = re.compile(r'vietnam\.vn|위키리크스한국|토큰포스트|tokenpost|fakti\.bg', re.I)
+PROMOTIONAL_HEADLINE = re.compile(r'(?:이|이런)\s*(?:AI\s*)?(?:전략|종목)들?은\s*\+?\d|지금\s*사야|추천\s*종목|수익률\s*\+?\d+%\s*달성', re.I)
+MARKET_LINK_TERMS = re.compile(
+    r'유가|원유|석유|정유|해협|유조선|송유관|가스|LNG|공급망|증시|주가|코스피|코스닥|나스닥|다우|S&P|지수|환율|달러|원화|'
+    r'금리|국채|물가|CPI|연준|FOMC|한은|관세|수출|반도체|휴전|제재|봉쇄|'
+    r'\b(?:oil|crude|refiner\w*|pipelines?|tankers?|hormuz|strait|lng|stocks?|shares|index|yields?|rates?|'
+    r'inflation|tariffs?|exports?|semiconductors?|chips?|dollar|currency|treasur\w*|fed|ceasefire|sanctions?|blockade)\b',
+    re.I,
+)
+HEADLINE_SECTION_TAIL = re.compile(r'\s*[:|]\s*(?:국제|경제|정치|사회|산업|증권|금융|세계|월드|IT|오피니언)\s*$')
+
+
+def strip_headline_tail(headline: str, source_name: str) -> str:
+    text = HEADLINE_SECTION_TAIL.sub('', headline or '').strip()
+    if source_name:
+        text = re.sub(rf'\s*[-–|]\s*{re.escape(source_name)}\s*$', '', text).strip()
+    return text or headline
+
+
+def refine_selection_quality(item: dict[str, Any]) -> dict[str, Any]:
+    item = dict(item)
+    source_name = str(item.get('sourceName') or '')
+    for field in ('headline', 'displayHeadline'):
+        if isinstance(item.get(field), str):
+            item[field] = strip_headline_tail(item[field], source_name)
+    text = f"{item.get('originalHeadline') or ''} {item.get('headline') or ''} {item.get('displayHeadline') or ''}"
+    demote = None
+    if LOW_TRUST_NEWS_SOURCES.search(source_name):
+        demote = 'low_trust_source'
+    elif PROMOTIONAL_HEADLINE.search(text):
+        demote = 'promotional_headline'
+    elif item.get('critical') and not MARKET_LINK_TERMS.search(text):
+        demote = 'no_market_link'
+    if demote:
+        item['qualityScore'] = round(max(0.0, float(item.get('qualityScore') or 0) - 0.15), 3)
+        if item.get('critical'):
+            item['critical'] = False
+            item['priorityTier'] = 'STANDARD'
+            item['criticalReason'] = None
+        item['selectionNote'] = demote
+    return item
+
+
+def headline_tokens(item: dict[str, Any]) -> set[str]:
+    text = f"{item.get('displayHeadline') or item.get('headline') or ''} {item.get('originalHeadline') or ''}".lower()
+    tokens = set(re.findall(r'[가-힣]{2,}|[a-z][a-z0-9&-]{3,}|\d+(?:\.\d+)?%?', text))
+    return tokens - {'속보', '단독', '종합', '뉴스', 'news', '관련', '대한', '위한', '이후', '오늘', '내일', 'with', 'from', 'after', 'over'}
+
+
+HEADLINE_STATE_MARKERS = {
+    'up': re.compile(r'상승|급등|오름|오른|반등|강세|\b(?:rise[sn]?|rising|rall(?:y|ies)|gains?|jumps?|surges?|climbs?|higher)\b', re.I),
+    'down': re.compile(r'하락|급락|내림|내린|약세|떨어|\b(?:falls?|fell|drops?|slides?|slumps?|tumbles?|lower|plunges?)\b', re.I),
+    'open': re.compile(r'출발|개장|장초반|\bopens?\b', re.I),
+    'midday': re.compile(r'장중|오전장|오후장|\bmidday\b', re.I),
+    'close': re.compile(r'마감|\b(?:close[sd]?|ends?|ended)\b', re.I),
+    'hike': re.compile(r'인상|\bhikes?\b', re.I),
+    'cut': re.compile(r'인하|\bcuts?\b', re.I),
+    'hold': re.compile(r'동결|\b(?:holds?|unchanged)\b', re.I),
+}
+
+
+def headline_state(item: dict[str, Any]) -> frozenset[str]:
+    """Direction and trading-stage markers; reports that differ here are different updates."""
+    text = f"{item.get('displayHeadline') or ''} {item.get('headline') or ''} {item.get('originalHeadline') or ''}"
+    return frozenset(name for name, pattern in HEADLINE_STATE_MARKERS.items() if pattern.search(text))
+
+
+def collapse_near_duplicate_headlines(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Keep one card per reported event: same-day reports sharing most salient words."""
+    kept: list[tuple[dict[str, Any], set[str]]] = []
+    dropped = 0
+    for item in items:
+        tokens = headline_tokens(item)
+        state = headline_state(item)
+        headline = str(item.get('originalHeadline') or item.get('headline') or '')
+        # Energy incidents and grouped related reports have their own event
+        # identity rules (count, vessel, date, state); never merge them here.
+        if is_energy_supply_headline(headline) or tanker_incident_key(headline, item.get('publishedAt')) \
+                or str(item.get('issueClusterKey') or '').startswith('issue:related:'):
+            kept.append((item, set()))
+            continue
+        day = str(item.get('publishedAt') or '')[:10]
+        duplicate = False
+        for other, other_tokens in kept:
+            if abs((parse_news_day(day) - parse_news_day(str(other.get('publishedAt') or '')[:10])).days) > 1:
+                continue
+            if not other_tokens:
+                continue
+            numbers = {token for token in tokens if token[0].isdigit()}
+            other_numbers = {token for token in other_tokens if token[0].isdigit()}
+            if numbers != other_numbers:
+                continue  # different counts, rates or dates are different updates
+            if state != headline_state(other):
+                continue  # e.g. 상승 출발 vs 하락 마감: an opening and a closing observation
+            shared = tokens & other_tokens
+            smaller = min(len(tokens), len(other_tokens)) or 1
+            if len(shared) >= 5 and len(shared) / smaller >= 0.7:
+                duplicate = True
+                other['relatedReportCount'] = int(other.get('relatedReportCount') or 1) + 1
+                break
+        if duplicate:
+            dropped += 1
+            continue
+        kept.append((item, tokens))
+    return [item for item, _ in kept], dropped
+
+
+def parse_news_day(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return datetime(1970, 1, 1)
+
+
+def cap_critical_items(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """A "critical" badge means something only when it stays rare."""
+    kept = 0
+    out = []
+    for item in items:
+        if item.get('critical'):
+            if kept >= limit:
+                item = {**item, 'critical': False, 'priorityTier': 'STANDARD', 'criticalReason': None,
+                        'selectionNote': item.get('selectionNote') or 'critical_cap'}
+            else:
+                kept += 1
+        out.append(item)
+    return out
+
+
 def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -2509,6 +2692,11 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons[reason] = filtered_reasons.get(reason, 0) + 1
                 continue
             translated_headline = koreanize_english_headline(headline)
+            if translated_headline and not has_korean(headline) and not translation_keeps_direction_place_and_event(
+                headline, translated_headline, item.get('sourceName') or result.get('label') or ''
+            ):
+                filtered_reasons['TRANSLATION_CONTRADICTS_SOURCE'] = filtered_reasons.get('TRANSLATION_CONTRADICTS_SOURCE', 0) + 1
+                continue
             if has_divergent_index_moves(headline) and not has_korean(headline):
                 translated_headline = '주요 지수 등락 엇갈림…지수별 가격 흐름 확인'
             release = inflation_release(headline)
@@ -2631,8 +2819,13 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     def sort_key(item: dict[str, Any]) -> tuple[int, float, float, int]:
         return (1 if item.get('critical') else 0, float(item.get('marketImpactScore') or 0), float(item.get('qualityScore') or 0), 1 if item.get('category') in {'market_event', 'macro', 'central_bank'} else 0)
 
+    out = [refine_selection_quality(item) for item in out]
     out = sorted(out, key=sort_key, reverse=True)
     out = issue_capped_items(out, per_issue_limit=3)
+    out, near_duplicates = collapse_near_duplicate_headlines(out)
+    if near_duplicates:
+        filtered_reasons['NEAR_DUPLICATE_HEADLINE'] = filtered_reasons.get('NEAR_DUPLICATE_HEADLINE', 0) + near_duplicates
+    out = sorted(cap_critical_items(out, CRITICAL_ITEM_LIMIT), key=sort_key, reverse=True)
     overseas_items = [item for item in out if item.get('region') == 'US']
     us_items = [item for item in out if item.get('region') == 'US' or item.get('impactTarget') == 'us']
     kr_items = [item for item in out if item.get('region') == 'KR' or item.get('impactTarget') == 'kr']

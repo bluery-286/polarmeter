@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
-from polarmeter_market_calendar import KST_ZONE, kr_market_closed_reason, market_session_context
+from polarmeter_market_calendar import KR_CALENDAR_YEARS, KST_ZONE, kr_market_closed_reason, market_session_context
 from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
 from polarmeter_market_source_diagnostics import emit_market_source_diagnostics, emit_market_freshness_failure
 from polarmeter_news_rss_probe import safe_public_news_url
@@ -345,6 +345,55 @@ def snapshot_score_point(signal: dict[str, Any] | None, key: str | None = None, 
     }
 
 
+def _history_close_on(signal: dict[str, Any] | None, day: str) -> tuple[float | None, float | None]:
+    """Close on a session date and the close before it, from the daily history."""
+    points = ((signal or {}).get('history') or {}).get('points') or []
+    closes: list[tuple[str, float]] = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        value = point.get('value')
+        stamp = str(point.get('timestamp') or '')[:10]
+        if isinstance(value, (int, float)) and math.isfinite(value) and stamp:
+            closes.append((stamp, float(value)))
+    closes.sort()
+    for index, (stamp, value) in enumerate(closes):
+        if stamp == day:
+            return value, (closes[index - 1][1] if index > 0 else None)
+    return None, None
+
+
+def kr_industry_session_overrides(
+    signals: dict[str, Any],
+    items: dict[str, dict[str, Any]],
+    generated_at: datetime | None,
+) -> dict[str, float | None]:
+    """Keep the KR industry input on one session.
+
+    After the KR close the US session that opens later the same evening is
+    tomorrow's information for Korea, so US semis use the session completed
+    before it. A Samsung daily close older than the completed KR session is a
+    different session and leaves the KR industry input (it stays disclosed).
+    """
+    if generated_at is None:
+        return {}
+    overrides: dict[str, float | None] = {}
+    kr = market_session_context(generated_at, 'KR') or {}
+    us = market_session_context(generated_at, 'US') or {}
+    if us.get('phase') == 'open' and us.get('completedSessionDate'):
+        for label, key in (('SOXX', 'soxx'), ('SMH', 'smh')):
+            if items.get(label, {}).get('pct') is None:
+                continue
+            close, prior = _history_close_on(signals.get(key), us['completedSessionDate'])
+            overrides[label] = ((close / prior - 1) * 100) if close and prior else None
+    completed_kr = kr.get('completedSessionDate')
+    samsung = signals.get('kr_samsung') or {}
+    observed = re.sub(r'[^0-9]', '', str(samsung.get('dataAsOf') or ''))[:8]
+    if completed_kr and observed and observed < completed_kr.replace('-', ''):
+        overrides['삼성전자'] = None
+    return overrides
+
+
 def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     signals = snapshot.get('signals') or {}
     if not isinstance(signals, dict) or not signals:
@@ -356,7 +405,11 @@ def temperature_scores_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]
              'SK하이닉스': 'kr_hynix', 'SOXX': 'soxx', 'SMH': 'smh'}
     items = {name: snapshot_score_point(signals.get(key), key, as_of=generated_at) for name, key in names.items()}
     session_type = detect_session(snapshot, now=generated_at.astimezone(KST) if generated_at else None)
-    scores = build_scores(snapshot_from_points(items, session_type=session_type), session_type='normal')
+    scores = build_scores(
+        snapshot_from_points(items, session_type=session_type),
+        session_type='normal',
+        kr_industry_overrides=kr_industry_session_overrides(signals, items, generated_at),
+    )
     if isinstance(scores.get('market_context'), dict):
         # Observation session is separate from the stable calculation profile.
         # Do not silently change historical temperatures at market-open boundaries.
@@ -403,6 +456,9 @@ def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None
     kr_score = kr.get('score')
     if not isinstance(us_score, (int, float)) or not isinstance(kr_score, (int, float)):
         return None
+    parsed = parse_utc_datetime(generated_at)
+    phases = {market: ((market_session_context(parsed, market.upper()) or {}).get('phase') if parsed else None)
+              for market in ('us', 'kr')}
     return {
         'dateKst': date_kst,
         'asOf': generated_at,
@@ -411,9 +467,38 @@ def temperature_history_entry(snapshot: dict[str, Any]) -> dict[str, Any] | None
         'krScore': int(round(kr_score)),
         'usLabel': us.get('label'),
         'krLabel': kr.get('label'),
+        # A market's daily value is recorded only outside its trading hours,
+        # so a day keeps the last settled session instead of opening minutes.
+        'usSettled': phases['us'] != 'open',
+        'krSettled': phases['kr'] != 'open',
+        'usAsOf': generated_at,
+        'krAsOf': generated_at,
         'source': 'score_core_v2_normal_freshness',
         'inputPolicyVersion': 'last-close-session-v1',
     }
+
+
+def merge_settled_history_entry(
+    entry: dict[str, Any],
+    same_date: dict[str, Any] | None,
+    prior: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Keep an open market's last settled value; settled markets take the new value."""
+    merged = dict(entry)
+    for market in ('us', 'kr'):
+        if entry.get(f'{market}Settled', True):
+            continue
+        carried = next(
+            (item for item in (same_date, prior)
+             if isinstance(item, dict) and isinstance(item.get(f'{market}Score'), (int, float))),
+            None,
+        )
+        if carried is None:
+            continue
+        for field in ('Score', 'Label', 'AsOf'):
+            merged[f'{market}{field}'] = carried.get(f'{market}{field}', carried.get('asOf') if field == 'AsOf' else None)
+        merged[f'{market}Settled'] = bool(carried.get(f'{market}Settled', True))
+    return merged
 
 
 def load_previous_public_snapshot(path: Path | None, public_dir: Path | None, snapshot_name: str, previous_url: str | None) -> dict[str, Any]:
@@ -469,7 +554,7 @@ def apply_temperature_history(
     if not current:
         snapshot['temperatureHistory'] = {
             'version': 'temperature-history-v1',
-            'basis': 'kst_calendar_day_latest_successful_snapshot',
+            'basis': 'kst_calendar_day_latest_settled_market_session',
             'anchorTimeKst': '00:00',
             'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
             'updatedAt': snapshot.get('generatedAt'),
@@ -490,14 +575,23 @@ def apply_temperature_history(
     for item in [*seed_items, *existing_items]:
         if isinstance(item, dict) and isinstance(item.get('dateKst'), str):
             items_by_date[item['dateKst']] = item
-    items = list(items_by_date.values())
+    def upsert(entry: dict[str, Any]) -> dict[str, Any]:
+        date_key = entry['dateKst']
+        prior_dates = [key for key in items_by_date if key < date_key]
+        merged = merge_settled_history_entry(
+            entry,
+            items_by_date.get(date_key),
+            items_by_date[max(prior_dates)] if prior_dates else None,
+        )
+        items_by_date[date_key] = merged
+        return merged
+
     previous_entry = temperature_history_entry(previous_public_snapshot)
     if previous_entry:
-        items = [item for item in items if item.get('dateKst') != previous_entry['dateKst']]
-        items.append(previous_entry)
-
-    items = [item for item in items if item.get('dateKst') != current['dateKst']]
-    items.append(current)
+        upsert(previous_entry)
+    live = current
+    current = upsert(current)
+    items = list(items_by_date.values())
     items = sorted(items, key=lambda item: str(item.get('dateKst')))[-TEMPERATURE_HISTORY_RETENTION_DAYS:]
     try:
         previous_date_kst = (datetime.fromisoformat(current['dateKst']).date() - timedelta(days=1)).isoformat()
@@ -512,7 +606,8 @@ def apply_temperature_history(
         if not comparison:
             return None
         current_key = f'{market}Score'
-        current_score = current.get(current_key)
+        # The delta compares the live temperature with the previous settled day.
+        current_score = live.get(current_key)
         previous_score = comparison.get(current_key)
         if not isinstance(current_score, (int, float)) or not isinstance(previous_score, (int, float)):
             return None
@@ -529,7 +624,7 @@ def apply_temperature_history(
     kr_delta = delta_for('kr')
     snapshot['temperatureHistory'] = {
         'version': 'temperature-history-v1',
-        'basis': 'kst_calendar_day_latest_successful_snapshot',
+        'basis': 'kst_calendar_day_latest_settled_market_session',
         'anchorTimeKst': '00:00',
         'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
         'updatedAt': snapshot.get('generatedAt'),
@@ -798,15 +893,15 @@ def daily_close_reference(signal: dict[str, Any], as_of: datetime | None = None)
         'updateLabel': '다음 갱신 시각 확인 필요',
         'scheduleStatus': 'calendar_unavailable' if observed else 'date_unavailable',
     }
-    if observed is not None and observed.year == current.year == 2026:
+    if observed is not None and observed.year in KR_CALENDAR_YEARS and current.year in KR_CALENDAR_YEARS:
         candidate = observed
         for _ in range(2):
             candidate += timedelta(days=1)
-            while candidate.year == 2026 and kr_market_closed_reason(
+            while candidate.year in KR_CALENDAR_YEARS and kr_market_closed_reason(
                 datetime(candidate.year, candidate.month, candidate.day, 13, tzinfo=KST_ZONE)
             ):
                 candidate += timedelta(days=1)
-        if candidate.year == 2026:
+        if candidate.year in KR_CALENDAR_YEARS:
             expected = datetime(candidate.year, candidate.month, candidate.day, 13, tzinfo=KST_ZONE)
             out['expectedUpdateAt'] = expected.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
             out['scheduleStatus'] = 'awaiting_window' if current < expected else 'check_provider_update'
@@ -1173,7 +1268,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'scoreCore': public_temperature_score_core(snapshot),
         'temperatureHistory': snapshot.get('temperatureHistory') or {
             'version': 'temperature-history-v1',
-            'basis': 'kst_calendar_day_latest_successful_snapshot',
+            'basis': 'kst_calendar_day_latest_settled_market_session',
             'anchorTimeKst': '00:00',
             'retentionDays': TEMPERATURE_HISTORY_RETENTION_DAYS,
             'updatedAt': snapshot.get('generatedAt'),

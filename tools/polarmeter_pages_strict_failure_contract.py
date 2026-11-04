@@ -72,7 +72,12 @@ def main() -> None:
     assert market_calendar.kr_market_closed_reason(datetime(2026, 9, 28, 12, tzinfo=market_calendar.KST_ZONE)) is None
     assert '근로자의날' in market_calendar.kr_market_closed_reason(datetime(2026, 5, 1, 12, tzinfo=market_calendar.KST_ZONE))
     assert '전국동시지방선거' in market_calendar.kr_market_closed_reason(datetime(2026, 6, 3, 12, tzinfo=market_calendar.KST_ZONE))
-    assert market_calendar.kr_market_closed_reason(datetime(2026, 7, 17, 12, tzinfo=market_calendar.KST_ZONE)) is None
+    # KRX was closed on 2026-07-17 (제헌절; no KOSPI daily close that date).
+    assert '제헌절' in market_calendar.kr_market_closed_reason(datetime(2026, 7, 17, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2026, 7, 16, 12, tzinfo=market_calendar.KST_ZONE)) is None
+    assert '설날' in market_calendar.kr_market_closed_reason(datetime(2027, 2, 9, 12, tzinfo=market_calendar.KST_ZONE))
+    assert market_calendar.kr_market_closed_reason(datetime(2027, 2, 10, 12, tzinfo=market_calendar.KST_ZONE)) is None
+    assert market_calendar.market_session_context(datetime(2027, 3, 2, 10, tzinfo=market_calendar.KST_ZONE), 'KR')['phase'] == 'open'
     assert freshness.last_completed_kr_trading_date(holiday_close) == last_trade.date()
     for key in ('kospi', 'kosdaq'):
         assert freshness.tolerated_kr_session_gap(key, holiday_signal, holiday_close, 96.0)

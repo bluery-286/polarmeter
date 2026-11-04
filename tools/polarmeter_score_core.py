@@ -123,6 +123,15 @@ def weighted_average(components: dict[str, float], weights: dict[str, float], co
     return total / total_weight
 
 
+KR_BROAD_DOWN_THRESHOLD_PCT = -1.5
+KR_BROAD_DOWN_CAP = 45.0
+KR_BROAD_SELLOFF_THRESHOLD_PCT = -3.0
+KR_BROAD_SELLOFF_CAP = 35.0
+KR_BROAD_UP_THRESHOLD_PCT = 1.5
+KR_BROAD_UP_FLOOR = 55.0
+KR_BROAD_RALLY_THRESHOLD_PCT = 3.0
+KR_BROAD_RALLY_FLOOR = 65.0
+
 US_BROAD_ALL_DOWN_CAP = 54.0
 US_NASDAQ_STRESS_CAP = 49.0
 US_NASDAQ_STRESS_THRESHOLD_PCT = -1.5
@@ -160,6 +169,43 @@ def us_broad_market_guardrail(raw_score: float, sp500_pct: float | None, nasdaq_
             'all_down': US_BROAD_ALL_DOWN_CAP,
             'nasdaq_stress': US_NASDAQ_STRESS_CAP,
             'nasdaq_stress_threshold_pct': US_NASDAQ_STRESS_THRESHOLD_PCT,
+        },
+    }
+
+
+def kr_broad_market_guardrail(raw_score: float, kospi_pct: float | None, kosdaq_pct: float | None) -> tuple[float, dict[str, Any]]:
+    """Keep the KR temperature in line with a broad KOSPI/KOSDAQ move.
+
+    Neutral placeholder components and US-linked industry inputs can hold the
+    weighted score near 50 on a broad domestic sell-off or rally. Only a move
+    shared by both indices moves the displayed score; components stay intact.
+    """
+    both = kospi_pct is not None and kosdaq_pct is not None
+    avg_pct = (kospi_pct + kosdaq_pct) / 2 if both else None
+    score = raw_score
+    applied: list[str] = []
+    if both and kospi_pct < 0 and kosdaq_pct < 0:
+        if avg_pct <= KR_BROAD_SELLOFF_THRESHOLD_PCT:
+            score = min(score, KR_BROAD_SELLOFF_CAP)
+            applied.append('broad_selloff_cap')
+        elif avg_pct <= KR_BROAD_DOWN_THRESHOLD_PCT:
+            score = min(score, KR_BROAD_DOWN_CAP)
+            applied.append('broad_down_cap')
+    if both and kospi_pct > 0 and kosdaq_pct > 0:
+        if avg_pct >= KR_BROAD_RALLY_THRESHOLD_PCT:
+            score = max(score, KR_BROAD_RALLY_FLOOR)
+            applied.append('broad_rally_floor')
+        elif avg_pct >= KR_BROAD_UP_THRESHOLD_PCT:
+            score = max(score, KR_BROAD_UP_FLOOR)
+            applied.append('broad_up_floor')
+    return score, {
+        'applied': applied,
+        'inputs': {'kospi_pct': kospi_pct, 'kosdaq_pct': kosdaq_pct, 'average_pct': avg_pct},
+        'caps': {
+            'broad_down': [KR_BROAD_DOWN_THRESHOLD_PCT, KR_BROAD_DOWN_CAP],
+            'broad_selloff': [KR_BROAD_SELLOFF_THRESHOLD_PCT, KR_BROAD_SELLOFF_CAP],
+            'broad_up': [KR_BROAD_UP_THRESHOLD_PCT, KR_BROAD_UP_FLOOR],
+            'broad_rally': [KR_BROAD_RALLY_THRESHOLD_PCT, KR_BROAD_RALLY_FLOOR],
         },
     }
 
@@ -627,7 +673,9 @@ def snapshot_from_points(items: dict[str, Any], *, session_type: str | None = No
     return data
 
 
-def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
+def build_scores(snapshot: dict, session_type: str | None = None, kr_industry_overrides: dict[str, float | None] | None = None) -> dict:
+    """kr_industry_overrides replaces per-label percent inputs for the KR industry
+    component only (e.g. US semis from the session completed before the KR close)."""
     session_type = detect_session(snapshot, session_type)
     profile = WEIGHT_PROFILES[session_type]
     rows = {item['label']: item for item in snapshot['items']}
@@ -685,7 +733,12 @@ def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
         currency -= max(0, usdkrw_level - 1400) / 10
     currency = clamp(currency)
 
-    domestic_semi_pct = avg([pct(rows, '삼성전자'), pct(rows, 'SK하이닉스'), pct(rows, 'SOXX'), pct(rows, 'SMH')])
+    kr_industry_overrides = kr_industry_overrides or {}
+
+    def kr_industry_pct(key: str) -> float | None:
+        return kr_industry_overrides[key] if key in kr_industry_overrides else pct(rows, key)
+
+    domestic_semi_pct = avg([kr_industry_pct(key) for key in ('삼성전자', 'SK하이닉스', 'SOXX', 'SMH')])
     industry = component_from_pct(domestic_semi_pct, 5)
     domestic_news = 50  # B1 placeholder until source is decided
 
@@ -696,7 +749,8 @@ def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
         'industry': industry,
         'domestic_news_placeholder': domestic_news,
     }
-    kr_score = weighted_average(kr_components, profile['kr'], {'industry': KR_INDUSTRY_DELTA_CAP})
+    kr_raw_score = weighted_average(kr_components, profile['kr'], {'industry': KR_INDUSTRY_DELTA_CAP})
+    kr_score, kr_guardrail = kr_broad_market_guardrail(kr_raw_score, pct(rows, 'KOSPI'), pct(rows, 'KOSDAQ'))
 
     signal_freshness = {
         'us_price_momentum': freshness_for_status(rows.get('S&P500', {}).get('status'), session_type),
@@ -763,6 +817,8 @@ def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
                 'component_scores_preserved': True,
                 'placeholders': ['sentiment_placeholder', 'supply_placeholder', 'domestic_news_placeholder'],
                 'us_broad_market_guardrail': us_guardrail,
+                'kr_broad_market_guardrail': kr_guardrail,
+                'kr_industry_overrides': sorted(kr_industry_overrides),
                 'short_pressure': {
                     'separate_from_temperatures': True,
                     'horizon': '1-3d',
@@ -781,6 +837,7 @@ def build_scores(snapshot: dict, session_type: str | None = None) -> dict:
         },
         'kr_temperature': {
             'score': round(kr_score),
+            'rawScore': round(kr_raw_score, 1),
             'label': label(kr_score),
             'sessionBadge': session_badge(session_type),
             'scoreConfidence': score_confidence,
