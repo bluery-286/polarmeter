@@ -124,6 +124,21 @@ def check_settled_history() -> None:
     assert history['dailyDelta']['kr']['currentScore'] == live_kr
     assert history['dailyDelta']['kr']['previousScore'] == by_date['2026-11-04']['krScore']
 
+    # 2026-11-04 rollout: today's row was written during KR hours, first by the
+    # old worker (no flags) and then carried as if settled. Neither may stand in
+    # for a settled value; the last close-time row is carried instead.
+    close_row = {'dateKst': '2026-11-04', 'asOf': '2026-11-04T14:41:00Z', 'usScore': 53, 'krScore': 44}
+    for polluted in (
+        {'dateKst': '2026-11-05', 'asOf': '2026-11-05T00:30:00Z', 'usScore': 53, 'krScore': 48},
+        {'dateKst': '2026-11-05', 'asOf': '2026-11-05T00:30:00Z', 'usScore': 53, 'krScore': 48,
+         'krSettled': True, 'krAsOf': '2026-11-05T00:30:00Z'},
+    ):
+        previous = {'temperatureHistory': {'items': [close_row, polluted]}}
+        rows = {item['dateKst']: item for item in
+                apply_temperature_history(deepcopy(intraday), previous)['temperatureHistory']['items']}
+        assert rows['2026-11-05']['krScore'] == 44, rows['2026-11-05']
+        assert rows['2026-11-05']['krAsOf'] == '2026-11-04T14:41:00Z'
+
 
 def main() -> None:
     current = snapshot()
