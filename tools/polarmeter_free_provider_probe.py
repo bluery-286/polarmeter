@@ -15,7 +15,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 SECRETS_DIR = Path.home() / '.openclaw/secrets'
 
@@ -85,13 +86,38 @@ def as_float(value: Any) -> float | None:
         return None
 
 
+def previous_session_slot(meta: dict[str, Any], timestamps: list[Any] | None, size: int) -> int | None:
+    """Index of the last daily bar dated before the quote's session, in exchange time."""
+    zone_name = meta.get('exchangeTimezoneName')
+    quote_time = meta.get('regularMarketTime')
+    if not timestamps or not zone_name or not isinstance(quote_time, (int, float)) or isinstance(quote_time, bool):
+        return None
+    try:
+        zone = ZoneInfo(str(zone_name))
+        quote_day = datetime.fromtimestamp(quote_time, zone).date()
+        for index in range(min(len(timestamps), size) - 1, -1, -1):
+            if datetime.fromtimestamp(float(timestamps[index]), zone).date() < quote_day:
+                return index
+    except (TypeError, ValueError, OverflowError, KeyError):
+        return None
+    return None
+
+
 def yahoo_chart_change_fields(
     meta: dict[str, Any],
     closes: list[Any],
     *,
     prefer_daily_series_previous: bool = False,
+    timestamps: list[Any] | None = None,
+    recover_session_close: Callable[[Any], float | None] | None = None,
 ) -> tuple[float | None, float | None, float | None, float | None, str]:
-    """Calculate chart price/change without shifting previous close across null slots."""
+    """Calculate chart price/change without shifting previous close across null slots.
+
+    With bar timestamps, the previous close is the bar of the previous session
+    date. A null close there (seen for KOSPI/KOSDAQ on 2026-11-03) is recovered
+    from that session's intraday bars, or the change is left unknown: comparing
+    with an older session would publish a two-day move as today's.
+    """
     raw_closes = [as_float(item) for item in closes]
     numeric_closes = [value for value in raw_closes if value is not None]
     meta_price = as_float(meta.get('regularMarketPrice'))
@@ -101,6 +127,15 @@ def yahoo_chart_change_fields(
     change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
     source = ('meta_previous_close' if previous not in (None, 0)
               else 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close')
+    slot = previous_session_slot(meta, timestamps, len(raw_closes)) if prefer_daily_series_previous else None
+    if previous in (None, 0) and slot is not None:
+        previous = raw_closes[slot]
+        source = 'daily_series_previous_close'
+        if previous in (None, 0):
+            previous = recover_session_close(timestamps[slot]) if recover_session_close else None
+            source = 'intraday_previous_close_recovered'
+        if previous in (None, 0):
+            return price, None, None, None, 'previous_session_bar_missing'
     if previous in (None, 0) and prefer_daily_series_previous and numeric_closes:
         last_close = numeric_closes[-1]
         if price is not None and abs(last_close - price) <= max(0.01, abs(price) * 0.000001) and len(numeric_closes) >= 2:
@@ -399,6 +434,21 @@ def normalized_as_of_time(value: Any) -> str | None:
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+def yahoo_intraday_session_close(symbol: str, session_timestamp: Any, meta: dict[str, Any]) -> float | None:
+    """Last 30-minute close of a session whose daily bar came back without a close."""
+    try:
+        zone = ZoneInfo(str(meta.get('exchangeTimezoneName')))
+        day = datetime.fromtimestamp(float(session_timestamp), zone).date()
+        url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=5d&interval=30m'
+        result = (fetch_json(url).get('chart', {}).get('result') or [{}])[0]
+        closes = ((result.get('indicators', {}).get('quote') or [{}])[0]).get('close') or []
+        same_day = [as_float(close) for ts, close in zip(result.get('timestamp') or [], closes)
+                    if datetime.fromtimestamp(float(ts), zone).date() == day and as_float(close) is not None]
+    except Exception:  # pragma: no cover - network diagnostic; caller leaves the change unknown
+        return None
+    return same_day[-1] if same_day else None
+
+
 def yahoo_chart_probe() -> dict[str, Any]:
     """Worker-side public delayed Yahoo chart probe for non-keyed macro/index gaps.
 
@@ -429,6 +479,8 @@ def yahoo_chart_probe() -> dict[str, Any]:
                 meta,
                 closes,
                 prefer_daily_series_previous=True,
+                timestamps=timestamps,
+                recover_session_close=lambda ts, symbol=symbol, meta=meta: yahoo_intraday_session_close(symbol, ts, meta),
             )
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
