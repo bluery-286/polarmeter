@@ -11,6 +11,7 @@ from polarmeter_v3_inputs import (
     apply_v3_layers,
     cross_check_kr_previous_close,
     link_signals,
+    series_from_chart,
     update_investor_flows,
 )
 
@@ -155,6 +156,31 @@ def check_failure_keeps_v2_publishing() -> None:
     assert out['investorFlows']['status'] == 'unavailable' and out['linkSignals'] == []
 
 
+def check_review_fixes() -> None:
+    # QQQ is fetched, so history applies the same US guardrails as the live score.
+    assert 'QQQ' in v3.SYMBOLS
+    # A 30% oil move cannot push the component below zero.
+    shock = synthetic_series(overrides={'CL=F': [30.0]})
+    node = v3.market_score('us', shock, {}, DAYS[-1])
+    assert 0 <= node['components']['dollar_commodity'] <= 100 and 0 <= node['score'] <= 100
+    # A failed session calendar keeps the flow ledger instead of wiping it.
+    previous = {'status': 'ok', 'items': [{'date': d, 'settled': True, 'kospi': {'foreign': -1.0}} for d in DAYS[-30:]]}
+    kept = update_investor_flows(previous, [], datetime(2026, 11, 4, 2, tzinfo=timezone.utc), lambda url: {}, pause=0)
+    assert kept['status'] == 'unavailable' and len(kept['items']) == 30
+    # The latest quote updates its own session even when the daily bar lags; earlier bars stay.
+    def chart(closes, quote_ts, price):
+        return {'chart': {'result': [{'meta': {'exchangeTimezoneName': 'America/New_York', 'regularMarketPrice': price,
+                                               'regularMarketTime': quote_ts},
+                                      'timestamp': [1762180200, 1762266600],  # 11/03, 11/04 09:30 ET
+                                      'indicators': {'quote': [{'close': closes}]}}]}}
+    stale = series_from_chart(chart([100.0, 101.0], 1762290000, 110.0))  # 11/04 16:00 ET quote
+    assert stale.dates[-1] == '2025-11-04' and stale.closes[-1] == 110.0 and stale.closes[-2] == 100.0
+    missing = series_from_chart(chart([100.0, 101.0], 1762376400, 112.0))  # next day, bar absent
+    assert missing.dates[-1] == '2025-11-05' and missing.closes[-1] == 112.0 and missing.closes[-2] == 101.0
+    old_quote = series_from_chart(chart([100.0, 101.0], 1762200000, 99.0))  # quote older than last bar
+    assert old_quote.closes == [100.0, 101.0]
+
+
 def main() -> None:
     check_series_never_bridges_gaps()
     check_core_shape()
@@ -165,6 +191,7 @@ def main() -> None:
     check_previous_close_cross_check()
     check_link_signals()
     check_failure_keeps_v2_publishing()
+    check_review_fixes()
     print('PASS temperature v3: measured-only, broad, gap-safe, flows ledger, cross-check, link signals')
 
 

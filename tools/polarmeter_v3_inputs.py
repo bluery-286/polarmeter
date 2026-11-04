@@ -67,7 +67,8 @@ def series_from_chart(payload: dict[str, Any]) -> v3.Series | None:
     price, quote_time = number(meta.get('regularMarketPrice')), meta.get('regularMarketTime')
     if price is not None and isinstance(quote_time, (int, float)):
         quote_day = datetime.fromtimestamp(float(quote_time), zone).date().isoformat()
-        if quote_day in points and points[quote_day] is None:
+        # Only the latest session: a quote never rewrites an earlier settled bar.
+        if not points or quote_day >= max(points):
             points[quote_day] = price
     return v3.Series(points.items()) if points else None
 
@@ -114,6 +115,12 @@ def update_investor_flows(previous: dict[str, Any] | None, kr_sessions: list[str
     """Keep a per-session ledger; refetch only today and rows stored before their close."""
     items = {item['date']: item for item in ((previous or {}).get('items') or [])
              if isinstance(item, dict) and isinstance(item.get('date'), str)}
+    if not kr_sessions:
+        # No session calendar (index fetch failed) is not a retention decision: keep every row.
+        kept = [items[d] for d in sorted(items)]
+        return {**(previous or {}), 'version': 'investor-flows-v1', 'sourceId': FLOW_SOURCE_ID,
+                'sourceLabel': '네이버 증권 (지연)', 'unit': 'KRW_100M',
+                'status': 'unavailable', 'reason': 'session_calendar_unavailable', 'items': kept}
     wanted = kr_sessions[-FLOW_RETENTION_SESSIONS:]
     today = wanted[-1] if wanted else None
     stale = [d for d in wanted if d not in items or not items[d].get('settled')]

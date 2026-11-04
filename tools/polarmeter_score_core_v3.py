@@ -42,8 +42,9 @@ US_DEFENSIVE = ('XLP', 'XLU', 'XLV')
 KR_SECTORS = ('091160.KS', '091170.KS', '091180.KS', '117700.KS', '117680.KS', '102970.KS',
               '244580.KS', '305720.KS', '266410.KS')
 KR_LEADERS = ('005930.KS', '000660.KS', '005380.KS', '373220.KS', '207940.KS', '105560.KS')
+# QQQ feeds only the US guardrails; history needs it as much as the live score does.
 OTHER_SYMBOLS = ('^VIX', '^VIX3M', '^TNX', 'HYG', 'IEF', 'DX-Y.NYB', 'CL=F', 'GLD', 'EWY', 'SOXX',
-                 '^KS11', '^KQ11', 'KRW=X')
+                 '^KS11', '^KQ11', 'KRW=X', 'QQQ')
 SYMBOLS = tuple(dict.fromkeys(US_TREND + US_SECTORS + KR_SECTORS + KR_LEADERS + OTHER_SYMBOLS))
 
 COMPONENT_LABELS = {
@@ -210,7 +211,7 @@ def us_components(series: dict[str, Series], day: str) -> dict[str, float | None
     risk_appetite = score_from_signal(None if gap is None else gap / 0.6)
     oil = series.get('CL=F')
     oil_z = oil.z(oil.index_on_or_before(day), 1) if oil else None
-    oil_shock = None if oil_z is None else 50 - 12 * max(0.0, abs(oil_z) - 1.5)
+    oil_shock = None if oil_z is None else max(0.0, 50 - 12 * max(0.0, abs(oil_z) - 1.5))
     dollar_commodity = wavg([(score_from_signal(_signal(series, 'DX-Y.NYB', day), scale=10, invert=True), 0.5),
                              (oil_shock, 0.25), (score_from_signal(_signal(series, 'GLD', day), scale=8, invert=True), 0.25)])
     return {'trend': trend, 'breadth': breadth, 'volatility': volatility, 'credit_rates': credit_rates,
