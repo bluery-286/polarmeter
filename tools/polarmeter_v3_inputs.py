@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+import polarmeter_coach_brief as coach_brief
 import polarmeter_morning_forecast as morning_forecast
 import polarmeter_score_core_v3 as v3
 
@@ -328,7 +329,7 @@ def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]],
 
 def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | None, now: datetime | None = None,
                     fetch: Fetch = fetch_json, pause: float = 0.15) -> dict[str, Any]:
-    """Attach scoreCoreV3, investorFlows, linkSignals and morningForecast. Never raises."""
+    """Attach scoreCoreV3, investorFlows, linkSignals, morningForecast and coachBrief. Never raises."""
     now = now or datetime.now(timezone.utc)
     series: dict[str, v3.Series] = {}
     try:
@@ -354,4 +355,6 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
         snapshot.setdefault('linkSignals', [])
     # The morning forecast reuses the daily series above (Yahoo is not called twice) and never raises.
     morning_forecast.apply_morning_forecast(snapshot, previous_public, series, now, fetch)
+    # The coach brief reads everything attached above (forecast, scores, flows, links) and never raises.
+    coach_brief.apply_coach_brief(snapshot, now)
     return snapshot

@@ -546,9 +546,10 @@ def check_pause() -> None:
 # ---------------------------------------------------------------- copy rules (SPEC §6.5)
 
 KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '가능성도', '수 있어요', '다음 갱신')
-KO_ACTION = ('매수', '매도', '사세요', '파세요', '비중', '목표가', '손절', '추천')
+KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천')
+NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # SPEC §6.5 (2026-11-07): 순매수 / 순매도 are allowed
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung', 'SPY', 'SOXX', 'EWY')
-EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold)\b|keep an eye|recommend', re.I)
+EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold)\b|(?<!net )\b(buying|selling)\b|keep an eye|recommend', re.I)
 TITLE_KO = re.compile(r'^(오늘|[월화수목금토일]요일|\d+월 \d+일)'
                       r'( 한국장, (크게 밀려서 시작해요|내려서 시작할 가능성이 높아요|크게 올라서 시작해요|올라서 시작할 가능성이 높아요)'
                       r'|은 방향을 내지 않아요)$')
@@ -585,6 +586,7 @@ def check_copy_rules(copy: dict, label: str) -> None:
         if lang == 'ko':
             for word in KO_BANNED + KO_ACTION + NAMES:
                 assert word not in text, f'banned {word}: {where}'
+            assert not NAKED_TRADE.search(text), f'banned 매수/매도 without 순: {where}'
             assert '가능성이' not in text or path == '.title', f'가능성이 only in the title: {where}'
         else:
             assert not EN_BANNED.search(text), f'banned English: {where}'
@@ -675,6 +677,29 @@ def check_case11_copy() -> None:
     assert say(h7)['ko'] == '오늘은 예보대로였어요. 시가 −2.2%, 예상 범위 안이에요.'
     h6 = synthetic_row('down', 'strong', 'closed_scored', open_pct=0.4, close_pct=0.2, intraday=-0.2)
     assert say(h6)['id'] == 'H6' and '+0.4%' in say(h6)['ko']
+    # H6 and H7 name the day like the title does (1-C follow-up): not "오늘" when the target day is not today.
+    def say_on(row: dict, target: str, on: date) -> dict:
+        row['targetSession'] = target
+        return mf.build_copy(row, on, FULL_MODEL)['say']
+    h7_row = lambda: synthetic_row('down', 'strong', 'closed_scored', open_pct=-2.2, close_pct=-6.0, intraday=-3.9, in_band=True)
+    h6_row = lambda: synthetic_row('down', 'strong', 'closed_scored', open_pct=0.4, close_pct=0.2, intraday=-0.2)
+    saturday, sunday = date(2026, 11, 7), date(2026, 11, 8)
+    assert say_on(h7_row(), '2026-11-06', saturday)['ko'] == '11월 6일은 예보대로였어요. 시가 −2.2%, 예상 범위 안이에요.'  # Friday seen on Saturday
+    assert say_on(h7_row(), '2026-11-06', saturday)['en'] == 'Nov 6 went as forecast. The open was −2.2%, inside the expected range.'
+    assert say_on(h7_row(), '2026-11-06', date(2026, 11, 6))['ko'].startswith('오늘은 예보대로였어요.')
+    assert say_on(h7_row(), '2026-11-06', date(2026, 11, 6))['en'].startswith('Today went as forecast.')
+    assert say_on(h7_row(), '2026-11-09', sunday)['ko'].startswith('월요일은 예보대로였어요.')  # a later day: the weekday
+    assert say_on(h7_row(), '2026-11-09', sunday)['en'].startswith('Monday went as forecast.')
+    assert say_on(h6_row(), '2026-11-06', saturday)['ko'].startswith('11월 6일은 틀렸어요. 밤사이 신호와 반대로 시가 +0.4%로 시작했어요.')
+    assert say_on(h6_row(), '2026-11-06', saturday)['en'].startswith('I was wrong on Nov 6. The market opened +0.4%')
+    assert say_on(h6_row(), '2026-11-06', date(2026, 11, 6))['ko'].startswith('오늘은 틀렸어요.')
+    assert say_on(h6_row(), '2026-11-06', date(2026, 11, 6))['en'].startswith('I was wrong today.')
+    assert say_on(h6_row(), '2026-11-09', sunday)['ko'].startswith('월요일은 틀렸어요.')
+    assert say_on(h6_row(), '2026-11-09', sunday)['en'].startswith('I was wrong on Monday.')
+    for row_call, on_day in ((h7_row, saturday), (h6_row, saturday), (h7_row, sunday)):  # the new wording passes the copy rules
+        row = row_call()
+        row['targetSession'] = '2026-11-06'
+        check_copy_rules(mf.build_copy(row, on_day, FULL_MODEL), f'say_after on {on_day}')
     # Real model file: every number in H1-H4 and the past line is derived from it, none typed here.
     real = mf.load_model()
     rates = real['baseRates']
