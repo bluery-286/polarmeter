@@ -14,7 +14,8 @@ Nothing is listed while the forecast is paused or unavailable, for a day without
 a backfilled row, or on a weekend or KRX holiday. The list keeps only items that have not expired, at most four.
 
 Copy is SPEC §13.4, every number read from `morningForecast.current` (`copy`, `actual`, `result`) and
-`morningForecast.scorecard`. SPEC §6.5 is checked again here at run time (same word lists as the coach brief); a notification
+`morningForecast.scorecard`. The first sentence of a call-day body is the card title after its comma, word for word; the
+record piece counts real forecasts only (see `record_clause`). SPEC §6.5 is checked again here at run time (same word lists as the coach brief); a notification
 body may hold more than one sentence, so the digit rule applies to the body as a whole. Length limits are on the Korean text
 (title 20, body 60 characters); the English text has a looser, fixed ceiling because the SPEC's own English title is longer.
 """
@@ -54,14 +55,13 @@ TITLE_MORNING = {'ko': '꽁치 예보 · 오늘 한국장', 'en': 'Ggongchi fore
 TITLE_HIT = {'ko': '꽁치 예보 채점 · 적중', 'en': 'Ggongchi forecast result · Hit'}
 TITLE_MISS = {'ko': '꽁치 예보 채점 · 빗나감', 'en': 'Ggongchi forecast result · Miss'}
 
-# (call, strong?) -> lead sentence. The "likely" of the title table (§4.3, "가능성이 높아요") is the one phrase §6.5 lets
-# through, and only in that table; the moderate lead below says the same thing without the banned word.
-LEAD = {
-    ('down', True): {'ko': '크게 밀려서 시작해요', 'en': 'Set to open sharply lower'},
-    ('down', False): {'ko': '내려서 시작할 것 같아요', 'en': 'Likely to open lower'},
-    ('up', True): {'ko': '크게 올라서 시작해요', 'en': 'Set to open sharply higher'},
-    ('up', False): {'ko': '올라서 시작할 것 같아요', 'en': 'Likely to open higher'},
-}
+# The lead sentence of a call-day body is the forecast card's title after the comma, word for word (SPEC §13.4 supplement):
+# the card and the notification never say different things. "가능성이 높아요" is the one phrase §6.5 lets through, in the
+# title table and in this lead sentence.
+ALLOWED_PHRASE = '가능성이 높아요'
+KO_TITLE_SPLIT = '한국장, '
+EN_DAY_PREFIX = re.compile(r'^[A-Za-z]+: ')   # "Monday: Korea is set to..." when the card was made for a later day
+RECORD_MIN_LIVE_CALLS = 5   # the "so far" record needs at least this many real calls
 NO_CALL_LEAD = {'ko': '오늘은 방향을 내지 않아요', 'en': 'No call today'}
 
 KO_FORMAL_ENDING = re.compile(r'(습니다|입니다|이다|한다|된다|했다)(\.|\s|$)')   # 해요체 or a number phrase, never 합쇼체/반말
@@ -95,16 +95,44 @@ def target_day(current: Mapping[str, Any]) -> date | None:
         return None
 
 
+def counts(node: Any) -> tuple[int, int] | None:
+    """(calls, hits) when both are numbers that add up (0 <= hits <= calls)."""
+    if not isinstance(node, Mapping):
+        return None
+    calls, hits = cb.num(node.get('calls')), cb.num(node.get('openHits'))
+    if calls is None or hits is None or calls < 0 or hits < 0 or hits > calls:
+        return None
+    return int(calls), int(hits)
+
+
 def record_clause(scorecard: Any) -> tuple[str, str] | None:
-    """'최근 14번 중 13번 적중' from the recent window; None when there is no call in the window to count."""
-    recent = scorecard.get('recent') if isinstance(scorecard, Mapping) else None
-    if not isinstance(recent, Mapping):
+    """The record piece, from real forecasts only (SPEC §13.4 supplement); None leaves the piece out.
+
+    All of the recent 20 sessions are live forecasts (`liveSessions == sessions`): '최근 14번 중 13번 적중'.
+    Otherwise, at least 5 live calls so far: '지금까지 6번 중 5번 적중'. Fewer: nothing. Days recomputed from past
+    data (backfill) are never counted into a sentence that says 'recent'.
+    """
+    if not isinstance(scorecard, Mapping):
         return None
-    calls, hits = cb.num(recent.get('calls')), cb.num(recent.get('openHits'))
-    if calls is None or hits is None or calls < 1 or hits < 0 or hits > calls:
+    recent = scorecard.get('recent')
+    got = counts(recent)
+    sessions, live_sessions = cb.num((recent or {}).get('sessions')), cb.num((recent or {}).get('liveSessions'))
+    if got and got[0] >= 1 and sessions and live_sessions == sessions:
+        return f'최근 {got[0]}번 중 {got[1]}번 적중', f'{got[1]} of last {got[0]} calls right'
+    live = counts(scorecard.get('live'))
+    if live and live[0] >= RECORD_MIN_LIVE_CALLS:
+        return f'지금까지 {live[0]}번 중 {live[1]}번 적중', f'{live[1]} of {live[0]} calls right so far'
+    return None
+
+
+def lead_sentence(current: Mapping[str, Any]) -> tuple[str, str] | None:
+    """The card title after the comma (ko: after '한국장, '; en: without a 'Monday: ' day prefix)."""
+    title = text_pair((current.get('copy') or {}).get('title'))
+    if title is None or KO_TITLE_SPLIT not in title[0]:
         return None
-    calls, hits = int(calls), int(hits)
-    return f'최근 {calls}번 중 {hits}번 적중', f'{hits} of last {calls} calls right'
+    ko = title[0].split(KO_TITLE_SPLIT, 1)[1].strip()
+    en = EN_DAY_PREFIX.sub('', title[1]).strip()
+    return (ko, en) if ko and en else None
 
 
 def fit(texts: list[str], limit: int) -> str | None:
@@ -121,7 +149,10 @@ def morning_copy(current: Mapping[str, Any], scorecard: Any) -> tuple[dict[str, 
     call = pred.get('openCall')
     record = record_clause(scorecard)
     if call in ('down', 'up'):
-        lead = LEAD[(call, pred.get('strength') == 'strong')]
+        lead_pair = lead_sentence(current)
+        if lead_pair is None:
+            return None
+        lead = {'ko': lead_pair[0], 'en': lead_pair[1]}
         stat = text_pair(copy.get('openStat'))
         if stat is None:
             return None
@@ -257,7 +288,8 @@ def item_problems(item: Mapping[str, Any]) -> list[str]:
             if EMOJI_OR_BANG.search(text):
                 problems.append(f'exclamation or emoji {where}')
             if lang == 'ko':
-                problems += [f'banned {word} {where}' for word in cb.KO_BANNED + cb.KO_ACTION + cb.NAMES if word in text]
+                checked = text.replace(ALLOWED_PHRASE, '')   # the one §6.5 exception; "가능성도" and the like still fail
+                problems += [f'banned {word} {where}' for word in cb.KO_BANNED + cb.KO_ACTION + cb.NAMES if word in checked]
                 if cb.NAKED_TRADE.search(text):
                     problems.append(f'banned 매수/매도 without 순 {where}')
                 if KO_FORMAL_ENDING.search(text):

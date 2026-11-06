@@ -57,9 +57,14 @@ def current_row(call: str = 'down', *, target: str = '2026-11-06', state: str = 
     return row
 
 
-def scorecard(calls: int = 14, hits: int = 13) -> dict:
-    return {'recent': {'sessions': 20, 'calls': calls, 'openHits': hits, 'closeCalls': 0, 'closeHits': 0, 'liveSessions': 0,
-                       'marks': ['none'] * 20}}
+def scorecard(calls: int = 14, hits: int = 13, *, live_sessions: int = 20, live_calls: int | None = None,
+              live_hits: int | None = None) -> dict:
+    """By default all 20 recent sessions are live forecasts (the "최근" wording). `live_sessions` below 20 means part of
+    the window was recomputed from past data; `live_calls`/`live_hits` are then the running live totals."""
+    return {'recent': {'sessions': 20, 'calls': calls, 'openHits': hits, 'closeCalls': 0, 'closeHits': 0,
+                       'liveSessions': live_sessions, 'marks': ['none'] * 20},
+            'live': {'since': '2026-11-06', 'calls': calls if live_calls is None else live_calls,
+                     'openHits': hits if live_hits is None else live_hits}}
 
 
 def snapshot(current: dict | None, *, status: str = 'ok', card: dict | None = None) -> dict:
@@ -231,7 +236,7 @@ def check_copy_examples() -> None:
     item = only(build(snapshot(current_row('down'), card=scorecard(14, 13)), '2026-11-06T06:00:00', 'call, strong down'))
     assert item['title'] == {'ko': '꽁치 예보 · 오늘 한국장', 'en': 'Ggongchi forecast · Korea today'}, item['title']
     assert item['body']['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', item['body']['ko']
-    assert item['body']['en'] == 'Set to open sharply lower. KOSPI open around −3% · 13 of last 14 calls right', item['body']['en']
+    assert item['body']['en'] == 'Korea is set to open sharply lower. KOSPI open around −3% · 13 of last 14 calls right', item['body']['en']
     # 방향 없는 날
     item = only(build(snapshot(current_row('none', spy=0.21, soxx=-0.33)), '2026-11-06T06:00:00', 'no call'))
     assert item['body']['ko'] == '오늘은 방향을 내지 않아요. 밤사이 S&P500 +0.2%, 미국 반도체 −0.3%', item['body']
@@ -255,17 +260,18 @@ def check_copy_examples() -> None:
 
 
 def check_copy_variants() -> None:
-    # moderate calls never use the "가능성" phrase (SPEC §6.5 lets it through the title table only)
+    # a moderate call: the first sentence is the card title after its comma, word for word ("가능성이 높아요" included)
     down = only(build(snapshot(current_row('down', open_pct=-0.6)), '2026-11-06T06:00:00', 'moderate down'))
-    assert down['body']['ko'] == '내려서 시작할 것 같아요. 코스피 시가 −0.5% 안팎 · 최근 14번 중 13번 적중', down['body']['ko']
-    assert '가능성' not in down['body']['ko'] and down['body']['en'].startswith('Likely to open lower.'), down['body']
+    assert down['body']['ko'] == '내려서 시작할 가능성이 높아요. 코스피 시가 −0.5% 안팎 · 최근 14번 중 13번 적중', down['body']['ko']
+    assert down['body']['en'].startswith('Korea is likely to open lower. KOSPI open around −0.5%'), down['body']
     up = only(build(snapshot(current_row('up', open_pct=0.8)), '2026-11-06T06:00:00', 'moderate up'))
-    assert up['body']['ko'].startswith('올라서 시작할 것 같아요.') and up['body']['en'].startswith('Likely to open higher.'), up['body']
+    assert up['body']['ko'].startswith('올라서 시작할 가능성이 높아요.') and up['body']['en'].startswith('Korea is likely to open higher.'), up['body']
     big_up = only(build(snapshot(current_row('up', open_pct=2.4)), '2026-11-06T06:00:00', 'strong up'))
-    assert big_up['body']['ko'].startswith('크게 올라서 시작해요.') and big_up['body']['en'].startswith('Set to open sharply higher.')
-    # no record to count yet: the clause is left out, the rest stays
-    quiet = only(build(snapshot(current_row('down'), card=scorecard(0, 0)), '2026-11-06T06:00:00', 'no record'))
+    assert big_up['body']['ko'].startswith('크게 올라서 시작해요.') and big_up['body']['en'].startswith('Korea is set to open sharply higher.')
+    # no real forecast yet: the clause is left out, the rest stays
+    quiet = only(build(snapshot(current_row('down'), card=scorecard(0, 0, live_sessions=0)), '2026-11-06T06:00:00', 'no record'))
     assert quiet['body']['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎', quiet['body']['ko']
+    assert quiet['body']['en'] == 'Korea is set to open sharply lower. KOSPI open around −3%', quiet['body']['en']
     broken = only(build(snapshot(current_row('down'), card={'recent': {'calls': 3, 'openHits': 5}}), '2026-11-06T06:00:00', 'bad record'))
     assert '최근' not in broken['body']['ko'], 'a record that does not add up is not printed'
     gone = only(build(snapshot(current_row('down'), card=None), '2026-11-06T06:00:00', 'default card'))
@@ -277,6 +283,80 @@ def check_copy_variants() -> None:
     no_close = current_row('down', state='closed_scored', actual_open=-2.24, actual_close=None, hit=True)
     item = only(build(snapshot(no_close), '2026-11-06T15:50:00', 'result without close'))
     assert '종가' not in item['body']['ko'], item['body']
+
+
+def check_record_piece() -> None:
+    """SPEC §13.4 supplement: the record piece counts real forecasts only."""
+    down = current_row('down')
+    done = current_row('down', state='closed_scored', actual_open=-2.24, actual_close=-6.02, hit=True)
+    miss = current_row('down', state='closed_scored', actual_open=0.4, actual_close=-1.0, hit=False)
+    # 0 real forecasts (the recent window is all recomputed): no piece, no stray ' · ' or full stop
+    zero = scorecard(14, 13, live_sessions=0, live_calls=0, live_hits=0)
+    body = only(build(snapshot(down, card=zero), '2026-11-06T06:00:00', 'record: zero live'))['body']
+    assert body == {'ko': '크게 밀려서 시작해요. 코스피 시가 −3% 안팎', 'en': 'Korea is set to open sharply lower. KOSPI open around −3%'}, body
+    body = only(build(snapshot(done, card=zero), '2026-11-06T15:50:00', 'record: zero live, hit'))['body']
+    assert body == {'ko': '시가 −2.2%(예보 −3% 안팎), 종가 −6.0%', 'en': 'Open −2.2% (forecast around −3%), close −6.0%'}, body
+    body = only(build(snapshot(miss, card=zero), '2026-11-06T15:50:00', 'record: zero live, miss'))['body']
+    assert body == {'ko': '예보는 하락 출발, 실제 시가 +0.4%', 'en': 'Called a lower open; actual open +0.4%'}, body
+    # fewer than 5 live calls: still no piece, whatever the recomputed window says
+    four = scorecard(14, 13, live_sessions=4, live_calls=4, live_hits=4)
+    assert '적중' not in only(build(snapshot(down, card=four), '2026-11-06T06:00:00', 'record: 4 live'))['body']['ko']
+    # 5 or more live calls but the 20 days are not all live: "지금까지" (the recent window is NOT quoted)
+    some = scorecard(14, 13, live_sessions=9, live_calls=6, live_hits=5)
+    body = only(build(snapshot(down, card=some), '2026-11-06T06:00:00', 'record: so far'))['body']
+    assert body['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 지금까지 6번 중 5번 적중', body['ko']
+    assert body['en'] == 'Korea is set to open sharply lower. KOSPI open around −3% · 5 of 6 calls right so far', body['en']
+    body = only(build(snapshot(done, card=some), '2026-11-06T15:50:00', 'record: so far, hit'))['body']
+    assert body['ko'] == '시가 −2.2%(예보 −3% 안팎), 종가 −6.0%. 지금까지 6번 중 5번 적중', body['ko']
+    assert body['en'] == 'Open −2.2% (forecast around −3%), close −6.0%. 5 of 6 calls right so far', body['en']
+    body = only(build(snapshot(miss, card=some), '2026-11-06T15:50:00', 'record: so far, miss'))['body']
+    assert body['ko'] == '예보는 하락 출발, 실제 시가 +0.4%. 지금까지 6번 중 5번 적중', body['ko']
+    # exactly 5 is enough, a live total that does not add up is not printed
+    five = scorecard(14, 13, live_sessions=5, live_calls=5, live_hits=3)
+    assert '지금까지 5번 중 3번 적중' in only(build(snapshot(down, card=five), '2026-11-06T06:00:00', 'record: five'))['body']['ko']
+    odd = scorecard(14, 13, live_sessions=5, live_calls=5, live_hits=7)
+    assert '적중' not in only(build(snapshot(down, card=odd), '2026-11-06T06:00:00', 'record: odd'))['body']['ko']
+    # all 20 recent sessions are real forecasts: "최근" with the recent window's numbers (not the running totals)
+    full = scorecard(14, 13, live_sessions=20, live_calls=40, live_hits=35)
+    body = only(build(snapshot(down, card=full), '2026-11-06T06:00:00', 'record: recent'))['body']
+    assert body['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', body['ko']
+    assert body['en'].endswith('13 of last 14 calls right'), body['en']
+    # all live but nothing to count in the window (no call in 20 days): no piece
+    empty = scorecard(0, 0, live_sessions=20, live_calls=0, live_hits=0)
+    assert '적중' not in only(build(snapshot(down, card=empty), '2026-11-06T06:00:00', 'record: empty'))['body']['ko']
+    # a missing live block: only the recent window can speak, and only when it is all live
+    bare = {'recent': scorecard(14, 13, live_sessions=19)['recent']}
+    assert '적중' not in only(build(snapshot(down, card=bare), '2026-11-06T06:00:00', 'record: bare'))['body']['ko']
+
+
+def check_lead_is_the_card_title() -> None:
+    """The first sentence of a call-day body equals the card title after '한국장, ' (ko) and the title sentence (en)."""
+    for call, size in (('down', -3.22), ('down', -0.6), ('up', 0.8), ('up', 3.22)):
+        row = current_row(call, open_pct=size)
+        item = only(build(snapshot(row), '2026-11-06T06:00:00', f'lead {call} {size}'))
+        title = row['copy']['title']
+        assert item['body']['ko'].split('. ')[0] == title['ko'].split('한국장, ')[1], (item['body']['ko'], title)
+        assert item['body']['en'].split('. ')[0] == title['en'], (item['body']['en'], title)
+    # a card made for a later day (Saturday, for Monday) says "월요일 한국장, ..." / "Monday: ..."; the lead is the same sentence
+    monday = current_row('down', open_pct=-0.6, target='2026-11-09')
+    monday['copy']['title'] = {'ko': '월요일 한국장, 내려서 시작할 가능성이 높아요', 'en': 'Monday: Korea is likely to open lower'}
+    item = only(build(snapshot(monday), '2026-11-07T07:00:00', 'lead for monday'))
+    assert item['body']['ko'].startswith('내려서 시작할 가능성이 높아요. ') and item['body']['en'].startswith('Korea is likely to open lower. '), item['body']
+    # no title on the card: no alert (the lead is never invented)
+    broken = current_row('down')
+    broken['copy'].pop('title')
+    assert build(snapshot(broken), '2026-11-06T06:00:00') == []
+    # a no-call day keeps its fixed sentence
+    none = only(build(snapshot(current_row('none', spy=0.21, soxx=-0.33)), '2026-11-06T06:00:00', 'lead no call'))
+    assert none['body']['ko'].startswith('오늘은 방향을 내지 않아요. ') and none['body']['en'].startswith('No call today. ')
+    # the allowed phrase passes the copy check only as "가능성이 높아요"
+    ok = deepcopy(only(build(snapshot(current_row('down', open_pct=-0.6)), '2026-11-06T06:00:00')))
+    assert not po.item_problems(ok), po.item_problems(ok)
+    for text in ('내려서 시작할 가능성도 있어요. 코스피 시가 −0.5% 안팎', '내려서 시작할 가능성이 있어요. 코스피 시가 −0.5% 안팎'):
+        bad = deepcopy(ok)
+        bad['body']['ko'] = text
+        assert po.item_problems(bad), text
+    assert '것 같아요' not in ok['body']['ko']
 
 
 def check_copy_rules_all() -> None:
@@ -448,7 +528,8 @@ def check_wired_after_coach_brief() -> None:
 def write_samples(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     examples = {}
-    for name, label in (('call', 'call, strong down'), ('no_call', 'no call'), ('hit', 'result, hit'), ('miss', 'result, miss')):
+    for name, label in (('call', 'call, strong down'), ('no_call', 'no call'), ('hit', 'result, hit'), ('miss', 'result, miss'),
+                         ('call_moderate', 'moderate down'), ('call_so_far', 'record: so far'), ('call_no_record', 'record: zero live')):
         examples[name] = next(item for text, item in reversed(ALL_ITEMS) if text == label)
     (directory / 'push-outbox-examples.json').write_text(json.dumps(examples, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (directory / 'push-outbox-sample.json').write_text(json.dumps(sample_outbox(), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -469,6 +550,8 @@ def main() -> None:
     check_cap()
     check_copy_examples()
     check_copy_variants()
+    check_record_piece()
+    check_lead_is_the_card_title()
     check_copy_rules_negative()
     check_copy_rules_all()
     check_never_raises()
