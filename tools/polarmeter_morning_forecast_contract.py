@@ -13,6 +13,7 @@ import json
 import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import polarmeter_market_calendar as cal
@@ -797,7 +798,7 @@ def check_readers_and_entry_point() -> None:
     assert [r['open'] for r in yahoo.values()] == [100.0, None, 90.0] and all(r['source'] == 'yahoo_chart_daily' for r in yahoo.values())
 
     def only_yahoo(url: str):
-        if 'm.stock.naver.com' in url:
+        if urlparse(url).hostname == 'm.stock.naver.com':
             raise OSError('naver down')
         return payload
     assert inputs.fetch_kospi_daily(only_yahoo) == yahoo
@@ -811,7 +812,7 @@ def check_readers_and_entry_point() -> None:
 
     def fake(url: str):
         urls.append(url)
-        if 'm.stock.naver.com/api/index/KOSPI/price' in url:
+        if urlparse(url).hostname == 'm.stock.naver.com' and urlparse(url).path == '/api/index/KOSPI/price':
             return naver
         raise OSError('unexpected ' + url)
     snapshot = {'signals': {'kospi': {'value': 1}}}
