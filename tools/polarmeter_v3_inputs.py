@@ -17,12 +17,17 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+import polarmeter_morning_forecast as morning_forecast
 import polarmeter_score_core_v3 as v3
 
 KST = ZoneInfo('Asia/Seoul')
 YAHOO_DAILY_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d'
 NAVER_FLOW_URL = 'https://m.stock.naver.com/api/index/{market}/trend?bizdate={day}'
 NAVER_PRICE_URL = 'https://m.stock.naver.com/api/index/{market}/price?pageSize=2&page=1'
+NAVER_DAILY_PRICE_URL = 'https://m.stock.naver.com/api/index/{market}/price?pageSize={size}&page=1'
+NAVER_DAILY_PAGE_SIZE = 60  # the endpoint refuses 100
+NAVER_PRICE_SOURCE = 'naver_index_price'
+YAHOO_PRICE_SOURCE = 'yahoo_chart_daily'
 REQUEST_HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; PolarMeterCache/1.0)'}
 FLOW_RETENTION_SESSIONS = 80
 FLOW_BACKFILL_PER_RUN = 25
@@ -163,6 +168,59 @@ def naver_previous_close(market: str, session_day: str, fetch: Fetch = fetch_jso
     return number(rows[1].get('closePrice'))
 
 
+def naver_kospi_prices(rows: Any) -> dict[str, dict[str, Any]]:
+    """Naver daily index rows -> {day: {open, close, source}}. A zero or unreadable price is None."""
+    out: dict[str, dict[str, Any]] = {}
+    if not isinstance(rows, list):
+        return out
+    for row in rows:
+        day = row.get('localTradedAt') if isinstance(row, dict) else None
+        if not isinstance(day, str) or len(day) != 10:
+            continue
+        values = {key: number(row.get(field)) for key, field in (('open', 'openPrice'), ('close', 'closePrice'))}
+        out[day] = {key: (value if value and value > 0 else None) for key, value in values.items()}
+        out[day]['source'] = NAVER_PRICE_SOURCE
+    return out
+
+
+def yahoo_kospi_prices(payload: Any) -> dict[str, dict[str, Any]]:
+    """Fallback only: Yahoo ^KS11 daily open/close. An open equal to the previous close is a known bad value, so None."""
+    result = ((payload or {}).get('chart', {}).get('result') or [None])[0] if isinstance(payload, dict) else None
+    if not isinstance(result, dict):
+        return {}
+    zone = ZoneInfo(str((result.get('meta') or {}).get('exchangeTimezoneName') or 'Asia/Seoul'))
+    quote = ((result.get('indicators', {}).get('quote') or [{}])[0])
+    out: dict[str, dict[str, Any]] = {}
+    previous_close = None
+    for stamp, open_price, close_price in zip(result.get('timestamp') or [], quote.get('open') or [], quote.get('close') or []):
+        day = datetime.fromtimestamp(float(stamp), zone).date().isoformat()
+        o, c = number(open_price), number(close_price)
+        if o is not None and previous_close is not None and abs(o - previous_close) < 1e-9:
+            o = None
+        out[day] = {'open': o if o and o > 0 else None, 'close': c if c and c > 0 else None, 'source': YAHOO_PRICE_SOURCE}
+        if c:
+            previous_close = c
+    return out
+
+
+def fetch_kospi_daily(fetch: Fetch = fetch_json, market: str = 'KOSPI') -> dict[str, dict[str, Any]]:
+    """KOSPI official daily open/close by day for the morning forecast (inputs and scoring).
+
+    Naver first; Yahoo only when Naver returns nothing, and then each row says so in `source`. Never raises.
+    """
+    try:
+        rows = naver_kospi_prices(fetch(NAVER_DAILY_PRICE_URL.format(market=market, size=NAVER_DAILY_PAGE_SIZE)))
+    except Exception:  # pragma: no cover - network diagnostic
+        rows = {}
+    if rows:
+        return rows
+    try:
+        symbol = '^KS11' if market == 'KOSPI' else '^KQ11'
+        return yahoo_kospi_prices(fetch(YAHOO_DAILY_URL.format(symbol=urllib.parse.quote(symbol, safe=''))))
+    except Exception:  # pragma: no cover - network diagnostic
+        return {}
+
+
 def cross_check_kr_previous_close(signals: dict[str, Any], now: datetime, fetch: Fetch = fetch_json) -> list[dict[str, Any]]:
     """Recompute KOSPI/KOSDAQ change from the official previous close when the quote's base is off.
 
@@ -270,8 +328,9 @@ def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]],
 
 def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | None, now: datetime | None = None,
                     fetch: Fetch = fetch_json, pause: float = 0.15) -> dict[str, Any]:
-    """Attach scoreCoreV3, investorFlows and linkSignals. Never raises."""
+    """Attach scoreCoreV3, investorFlows, linkSignals and morningForecast. Never raises."""
     now = now or datetime.now(timezone.utc)
+    series: dict[str, v3.Series] = {}
     try:
         series, failed = fetch_daily_series(fetch=fetch, pause=pause)
         kr_sessions = v3.session_dates(series, '^KS11')
@@ -293,4 +352,6 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
                                    'reason': type(error).__name__}
         snapshot.setdefault('investorFlows', (previous_public or {}).get('investorFlows'))
         snapshot.setdefault('linkSignals', [])
+    # The morning forecast reuses the daily series above (Yahoo is not called twice) and never raises.
+    morning_forecast.apply_morning_forecast(snapshot, previous_public, series, now, fetch)
     return snapshot

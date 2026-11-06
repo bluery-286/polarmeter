@@ -38,6 +38,7 @@ from polarmeter_cache_snapshot import (  # noqa: E402
     SCHEDULED_MACRO_EVENTS,
 )
 from polarmeter_macro_preview_policy import expired_us_cpi_preview  # noqa: E402
+import polarmeter_morning_forecast as morning_forecast  # noqa: E402
 
 
 def parse_utc(value: object) -> datetime | None:
@@ -144,6 +145,7 @@ def validate_payload(out: Path) -> dict:
         raise AssertionError('pages snapshot temperatureHistory.items must be a <=7 item list')
     if (history.get('dailyDelta') or {}).get('status') != 'ready':
         raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready')
+    morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:

@@ -11,6 +11,7 @@ from unittest.mock import patch
 import polarmeter_free_cache_worker as worker
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_prepare as prepare
+import polarmeter_morning_forecast as forecast
 import polarmeter_data_freshness_audit as freshness
 import polarmeter_last_close_policy as close_policy
 from polarmeter_market_source_diagnostics import summarize_market_sources, summarize_market_freshness_failure
@@ -148,6 +149,7 @@ def check_seeded_last_good_public_metadata():
                             news={'items': [{} for _ in range(10)], 'ttlMinutes': 30, 'nextRefreshAt': now.isoformat()},
                             temperatureHistory={'version': 'temperature-history-v1', 'retentionDays': 7,
                                                 'items': [], 'dailyDelta': {'status': 'ready'}},
+                            morningForecast=forecast.unavailable_block(None, now, forecast.ForecastUnavailable('fixture')),
                             costGuardrails=worker.public_cost_guardrails())
             snapshot_path.write_text(json.dumps(snapshot), encoding='utf-8')
             manifest = worker.public_manifest(snapshot, snapshot_path.name)
@@ -155,6 +157,34 @@ def check_seeded_last_good_public_metadata():
             (site / 'health.json').write_text(json.dumps(worker.public_health(manifest)), encoding='utf-8')
             # Exercise the exact final publication gate that failed in CI.
             prepare.assert_pages_contract(site, {'snapshotStatus': 'partial', 'freshnessAudit': 'passed'})
+            # An old public payload from before the morning forecast (first deployment, rollback path) still publishes;
+            # a block that is present must still be well formed and match the manifest.
+            for label, edit_snapshot, edit_manifest in (
+                    ('absent', lambda x: x.pop('morningForecast'), lambda m: m.pop('morningForecastStatus')),
+                    ('null', lambda x: x.update(morningForecast=None), lambda m: m.update(morningForecastStatus='unavailable'))):
+                old_snapshot, old_manifest = deepcopy(snapshot), deepcopy(manifest)
+                edit_snapshot(old_snapshot)
+                edit_manifest(old_manifest)
+                snapshot_path.write_text(json.dumps(old_snapshot), encoding='utf-8')
+                (site / 'market-snapshot-manifest.json').write_text(json.dumps(old_manifest), encoding='utf-8')
+                (site / 'health.json').write_text(json.dumps(worker.public_health(old_manifest)), encoding='utf-8')
+                prepare.assert_pages_contract(site, {'snapshotStatus': 'partial', 'freshnessAudit': 'passed'})
+            for label, edit_snapshot in (('broken block', lambda x: x['morningForecast'].update(schemaVersion='x')),
+                                         ('status mismatch', lambda x: x['morningForecast'].update(status='ok', phase='off', scorecard=None))):
+                bad = deepcopy(snapshot)
+                edit_snapshot(bad)
+                snapshot_path.write_text(json.dumps(bad), encoding='utf-8')
+                (site / 'market-snapshot-manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+                (site / 'health.json').write_text(json.dumps(worker.public_health(manifest)), encoding='utf-8')
+                try:
+                    prepare.assert_pages_contract(site, {'snapshotStatus': 'partial', 'freshnessAudit': 'passed'})
+                except AssertionError:
+                    pass
+                else:
+                    raise AssertionError(f'a {label} must still be rejected')
+            snapshot_path.write_text(json.dumps(snapshot), encoding='utf-8')
+            (site / 'market-snapshot-manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+            (site / 'health.json').write_text(json.dumps(worker.public_health(manifest)), encoding='utf-8')
             assert freshness.audit(snapshot, {}) == []
             for key, quote in recovered.items():
                 observed = quotes[key]['dataAsOf']

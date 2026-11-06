@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_smoke as pages
+import polarmeter_morning_forecast as forecast
 import polarmeter_news_rss_probe as rss
 from polarmeter_macro_preview_policy import expired_us_cpi_preview, parse_timestamp
 
@@ -30,6 +31,7 @@ def public_fixture(current: datetime, headline: str, published: str, status: str
     snapshot = {
         'generatedAt': generated, 'paidProviderEnabled': False, 'clientDirectProviderCalls': False,
         'temperatureHistory': {'version': 'temperature-history-v1', 'retentionDays': 7, 'items': [], 'dailyDelta': {'status': 'ready'}},
+        'morningForecast': forecast.unavailable_block(None, current, forecast.ForecastUnavailable('fixture')),
         'dataQuality': {'coreCoverageRatio': 1.0, 'displayMode': 'normal'}, 'signals': {},
         'macroEvents': {'us_cpi': {
             'status': status, 'sourcePolicy': 'official_release_registry_with_expiry_gate',
@@ -57,14 +59,19 @@ def public_fixture(current: datetime, headline: str, published: str, status: str
         'estimatedMonthlyCost': {}, 'budgetLimit': {'monthlyLimit': 50, 'warningLimit': 20},
         'killSwitchStatus': {}, 'costGuardrails': {'commercialUseChecked': False},
         'budgetCapConfigured': True, 'commercialUseChecked': False, 'killSwitchActive': False,
-        'temperatureHistoryStatus': 'ready',
+        'temperatureHistoryStatus': 'ready', 'morningForecastStatus': 'unavailable',
     }
     health = dict(manifest)
     return snapshot, manifest, health
 
 
-def check_payload(current: datetime, headline: str, published: str, status: str, expired: bool) -> None:
+def check_payload(current: datetime, headline: str, published: str, status: str, expired: bool, forecast: str = 'stub') -> None:
     snapshot, manifest, health = public_fixture(current, headline, published, status)
+    if forecast == 'absent':  # an old public payload from before the morning forecast (first deployment, rollback path)
+        snapshot.pop('morningForecast')
+        manifest.pop('morningForecastStatus'), health.pop('morningForecastStatus')
+    elif forecast == 'none':  # what sanitize_public_snapshot writes when there is no block
+        snapshot['morningForecast'] = None
     with TemporaryDirectory(prefix='cpi-preview-contract-') as tmp:
         out = Path(tmp)
         for name in pages.REQUIRED_FILES:
@@ -175,6 +182,11 @@ def main() -> None:
         check_payload(november, 'US October CPI preview', published, status, False)
         check_payload(november, 'US September CPI preview', published, status, True)
         checks += 4
+        # An old public payload with no morningForecast (first deployment, rollback) must still pass the Pages smoke.
+        for forecast in ('absent', 'none'):
+            check_payload(november, 'US October CPI preview', published, status, False, forecast)
+            check_payload(october, FAILED_TITLE, '2026-10-22T10:05:42Z', status, True, forecast)
+            checks += 2
 
     # Exercise the actual ingress, not just the shared helper. No network calls.
     class FrozenDateTime(datetime):
