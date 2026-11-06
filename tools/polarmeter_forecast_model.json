@@ -1,0 +1,138 @@
+{
+  "modelVersion": "kospi-overnight-v1",
+  "trainedThrough": "2026-11-06",
+  "features": [
+    "ewyExcessPct",
+    "spyPct",
+    "soxxPct"
+  ],
+  "open": {
+    "intercept": 0.0937,
+    "coef": [
+      0.1955,
+      0.089,
+      0.1521
+    ],
+    "callThreshold": 0.2,
+    "strongThreshold": 1.0
+  },
+  "close": {
+    "intercept": 0.045,
+    "coef": [
+      0.2994,
+      -0.0628,
+      0.1908
+    ],
+    "callThreshold": 0.6
+  },
+  "openBands": [
+    {
+      "maxAbs": 0.2,
+      "p50AbsErr": 0.37,
+      "days": 212
+    },
+    {
+      "maxAbs": 1.0,
+      "p50AbsErr": 0.41,
+      "days": 366
+    },
+    {
+      "maxAbs": null,
+      "p50AbsErr": 1.0,
+      "days": 102
+    }
+  ],
+  "analogBuckets": [
+    {
+      "id": "open_le_-1.0",
+      "lo": null,
+      "hi": -1.0,
+      "days": 43,
+      "openDown": 40,
+      "closeDown": 32
+    },
+    {
+      "id": "open_-1.0_-0.6",
+      "lo": -1.0,
+      "hi": -0.6,
+      "days": 42,
+      "openDown": 37,
+      "closeDown": 32
+    },
+    {
+      "id": "open_-0.6_-0.2",
+      "lo": -0.6,
+      "hi": -0.2,
+      "days": 99,
+      "openDown": 70,
+      "closeDown": 56
+    },
+    {
+      "id": "open_0.2_0.6",
+      "lo": 0.2,
+      "hi": 0.6,
+      "days": 161,
+      "openUp": 132,
+      "closeUp": 109
+    },
+    {
+      "id": "open_0.6_1.0",
+      "lo": 0.6,
+      "hi": 1.0,
+      "days": 64,
+      "openUp": 60,
+      "closeUp": 48
+    },
+    {
+      "id": "open_ge_1.0",
+      "lo": 1.0,
+      "hi": null,
+      "days": 59,
+      "openUp": 55,
+      "closeUp": 51
+    }
+  ],
+  "baseRates": {
+    "gapDownIntradayRebound": {
+      "gapAtMost": -1.5,
+      "days": 64,
+      "rebounded": 29
+    },
+    "gapUpIntradayExtend": {
+      "gapAtLeast": 1.5,
+      "days": 75,
+      "extended": 39
+    },
+    "moderateOpenHitPct": 82,
+    "moderateCloseHitPct": 67,
+    "strongOpenHitPct": 93,
+    "strongCloseHitPct": 81,
+    "weakCloseHitPct": 52,
+    "intradayHitPct": 48,
+    "definitions": {
+      "moderateCloseHitPct": "moderate days: close-to-previous-close sign equals the open call",
+      "weakCloseHitPct": "weak days: close-to-previous-close sign equals the sign of the close forecast",
+      "intradayHitPct": "call days: open-to-close sign equals the open call"
+    }
+  },
+  "walkForward": {
+    "from": "2023-12-15",
+    "to": "2026-11-06",
+    "days": 680,
+    "calls": 468,
+    "openHits": 394,
+    "noCallDays": 212,
+    "closeCalls": 208,
+    "closeHits": 161,
+    "minTrainDays": 500
+  },
+  "trainingSamples": {
+    "from": "2021-11-10",
+    "to": "2026-11-06",
+    "days": 1180
+  },
+  "dataSources": {
+    "krIndex": "naver_index_price",
+    "us": "yahoo_chart_daily"
+  }
+}
