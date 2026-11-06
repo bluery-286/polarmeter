@@ -52,6 +52,7 @@ CLOSE_TARGET_HIT = 75.0
 STRONG_THRESHOLD = 1.0
 STOP_OVERALL_OPEN_HIT = 78.0
 STOP_YEAR_OPEN_HIT = 70.0
+MIN_YEAR_CALLS = 30  # a year with fewer open calls is reported, not judged (SPEC §6.2, revised 2026-11-06)
 GAP_BIG = 1.5
 SUSPECT_INPUT_ABS = 15.0
 PRELIM = {'open': {'intercept': 0.067, 'coef': [0.180, 0.199, 0.077]},
@@ -169,7 +170,9 @@ def build_samples(data: dict[str, Any], check: dict[str, Any]) -> tuple[list[dic
             skipped[fi['reason']] += 1
             skipped_days[fi['reason']].append(T)
             continue
-        used_kr = [T, P] + ([PP] if fi['inputs']['kospiPrevPct'] is not None else [])
+        kr_in = fi['krSessionsInEwy']
+        first_kr = days.index(kr_in[0]) - 1 if kr_in else days.index(P)
+        used_kr = [T] + days[first_kr:days.index(P) + 1]
         bad = [d for d in used_kr if d in check['bad']]
         if bad:
             skipped['kr_price_mismatch'] += 1
@@ -180,14 +183,16 @@ def build_samples(data: dict[str, Any], check: dict[str, Any]) -> tuple[list[dic
             skipped['kr_open_missing'] += 1
             skipped_days['kr_open_missing'].append(T)
             continue
-        kr_between = [d for d in days if fi['usBaseSession'] < d <= P]
-        subtracted = 1 if fi['inputs']['kospiPrevPct'] is not None else 0
+        # The first design (before 2026-11-06) subtracted only P's own move, and only when P was a US session.
+        p_in = P in fi['usSessions']
+        old_prev = round((naver[P]['close'] / naver[PP]['close'] - 1) * 100, mf.INPUT_DECIMALS) if p_in else 0.0
         samples.append({
             'T': T, 'P': P, 'year': T[:4], 'usSessions': fi['usSessions'], 'usBase': fi['usBaseSession'],
-            'inputs': fi['inputs'], 'gap': (o / pc - 1) * 100, 'c2c': (c / pc - 1) * 100,
+            'krInEwy': kr_in, 'inputs': fi['inputs'], 'gap': (o / pc - 1) * 100, 'c2c': (c / pc - 1) * 100,
             'o2c': (c / o - 1) * 100, 'openEqPrev': abs(o / pc - 1) < 0.0001,
             'krHolidayGap': business_days_between(P, T) > 0,
-            'staleKospiSessions': len(kr_between) - subtracted,
+            'oldEwyExcessPct': round(fi['inputs']['ewyPct'] - old_prev, mf.INPUT_DECIMALS),
+            'oldRuleDiffers': len(kr_in) != (1 if p_in else 0),
         })
     return samples, skipped, skipped_days
 
@@ -297,15 +302,25 @@ def threshold_table(wf: list[dict]) -> list[dict]:
         c = [r for r in wf if abs(r['pred']['closePct']) >= thr and r['pred']['closePct'] != 0]
         oh = sum(same_dir(sign_call(r['pred']['openPct']), r['gap']) for r in o)
         ch = sum(same_dir(sign_call(r['pred']['closePct']), r['c2c']) for r in c)
+        years: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for r in o:
+            years[r['year']][0] += same_dir(sign_call(r['pred']['openPct']), r['gap'])
+            years[r['year']][1] += 1
         table.append({'thr': thr, 'openDays': len(o), 'openHits': oh, 'openHitPct': pct(oh, len(o)),
+                      'openYears': {y: tuple(v) for y, v in sorted(years.items())},
                       'closeDays': len(c), 'closeHits': ch, 'closeHitPct': pct(ch, len(c))})
     return table
 
 
-def pick_threshold(table: list[dict], key: str, target: float) -> float | None:
+def pick_threshold(table: list[dict], key: str, target: float, by_year: bool = False) -> float | None:
+    """Smallest threshold (0.1 steps) whose hit rate reaches target; with by_year, also every
+    year with at least MIN_YEAR_CALLS calls (SPEC §6.2, revised 2026-11-06)."""
     for row in table:
-        if row['thr'] >= 0.1 and row[key] is not None and row[key] >= target:
-            return row['thr']
+        if row['thr'] < 0.1 or row[key] is None or row[key] < target:
+            continue
+        if by_year and any(n >= MIN_YEAR_CALLS and 100 * h / n < target for h, n in row['openYears'].values()):
+            continue
+        return row['thr']
     return None
 
 
@@ -427,12 +442,13 @@ def hand_inputs(T: str, P: str, data: dict[str, Any]) -> dict[str, float | None]
     for key, s in (('spyPct', 'SPY'), ('soxxPct', 'SOXX'), ('ewyPct', 'EWY')):
         out[key] = (raw[s][sess[-1]][1] / raw[s][base][1] - 1) * 100
     naver_days = sorted(data['naver'])
-    if P in sess:
-        pp = naver_days[naver_days.index(P) - 1]
-        out['kospiPrevPct'] = (data['naver'][P]['close'] / data['naver'][pp]['close'] - 1) * 100
-        out['ewyExcessPct'] = out['ewyPct'] - out['kospiPrevPct']
+    inside = [d for d in naver_days if base < d <= P]
+    if inside:
+        before = naver_days[naver_days.index(inside[0]) - 1]
+        out['kospiPrevPct'] = (data['naver'][P]['close'] / data['naver'][before]['close'] - 1) * 100
     else:
-        out['ewyExcessPct'] = out['ewyPct']
+        out['kospiPrevPct'] = 0.0
+    out['ewyExcessPct'] = out['ewyPct'] - out['kospiPrevPct']
     out['usSessions'] = sess
     return out
 
@@ -479,16 +495,17 @@ def self_checks(samples: list[dict], wf: list[dict], data: dict[str, Any]) -> li
             worst = max(worst, max(abs(a - b) for a, b in zip(direct, inc)))
     record('누적 합 학습 = 처음부터 다시 푼 학습(표본 8일)', worst < 1e-8, f'최대 차이 {worst:.2e}')
     # 6. inputs equal an independent recomputation from raw bars, for random days and the 11-06 case
-    picks = rng.sample(samples, 12) + [r for r in samples if r['T'] == CASE_20261106['T']]
+    picks = (rng.sample(samples, 12) + rng.sample([r for r in samples if r['oldRuleDiffers']], 4)
+             + [r for r in samples if r['T'] == CASE_20261106['T']])
     worst, mism = 0.0, []
     for r in picks:
         h = hand_inputs(r['T'], r['P'], data)
         if h.get('usSessions') != r['usSessions']:
             mism.append(r['T'])
             continue
-        for key in ('spyPct', 'soxxPct', 'ewyPct', 'ewyExcessPct'):
+        for key in ('spyPct', 'soxxPct', 'ewyPct', 'kospiPrevPct', 'ewyExcessPct'):
             worst = max(worst, abs(h[key] - r['inputs'][key]))
-    record('입력 손계산 대조(표본 13일)', not mism and worst <= 0.011,
+    record(f'입력 손계산 대조(표본 {len(picks)}일, 미국만 쉰 날 다음 4일 포함)', not mism and worst <= 0.011,
            f'최대 차이 {worst:.4f}%p (반올림 0.01 이내), 세션 어긋남 {mism}')
     # 7. 2026-11-06 reference case
     case = next((r for r in samples if r['T'] == CASE_20261106['T']), None)
@@ -637,11 +654,15 @@ def write_report(path: Path, ctx: dict[str, Any]) -> None:
     add(f"- 하루씩 앞으로 가는 시험 기간 {m['walkForward']['from']} ~ {m['walkForward']['to']}, {s['days']}거래일 "
         f"(각 날을 그 전날까지 {MIN_TRAIN_DAYS}일 이상으로 만든 식으로 예측).")
     add(f"- 시가 방향 기준 **{m['open']['callThreshold']}%**, 종가 방향 기준 **{m['close']['callThreshold']}%** "
-        f"(방향 낸 날 적중이 각각 {OPEN_TARGET_HIT:.0f}%·{CLOSE_TARGET_HIT:.0f}% 이상이 되는 가장 작은 값, 0.1 단위).")
+        f"(0.1 단위로 가장 작은 값. 시가: 방향 낸 날 전체 {OPEN_TARGET_HIT:.0f}% 이상이고 방향 낸 날이 {MIN_YEAR_CALLS}일 이상인 모든 해에서도 "
+        f"{OPEN_TARGET_HIT:.0f}% 이상. 종가: 전체 {CLOSE_TARGET_HIT:.0f}% 이상. 3절 표).")
+    add(ctx['thresholdNote'])
     add(f"- 방향 낸 날 {s['calls']}일 중 시가 적중 {s['openHits']}일 (**{p(pct(s['openHits'], s['calls']))}%**). "
         f"방향 안 낸 날 {s['noCallDays']}일. 종가 방향 낸 날 {s['closeCalls']}일 중 {s['closeHits']}일 적중 ({p(pct(s['closeHits'], s['closeCalls']))}%).")
-    add(f"- 멈춤 조건(전체 {STOP_OVERALL_OPEN_HIT:.0f}% 미만, 어느 해 {STOP_YEAR_OPEN_HIT:.0f}% 미만): "
-        + ('**해당함** — ' + '; '.join(stop) if stop else '**해당 없음**') + '.')
+    add(f"- 멈춤 조건(전체 {STOP_OVERALL_OPEN_HIT:.0f}% 미만, 방향 낸 날 {MIN_YEAR_CALLS}일 이상인 해 중 {STOP_YEAR_OPEN_HIT:.0f}% 미만): "
+        + ('**해당함** — ' + '; '.join(stop) if stop else '**해당 없음**') + '.'
+        + (' 판정에서 뺀 해(방향 낸 날 ' + str(MIN_YEAR_CALLS) + '일 미만, 숫자만 적음): ' + '; '.join(ctx['smallYears']) if ctx['smallYears'] else ''))
+    add(f"- 한국 ETF 초과분(§6.3, 2026-11-06 고침): 코스피는 EWY 기준 일봉 뒤 ~ P의 누적 등락률을 뺀다. 9절에 고치기 전과 비교.")
     add('')
     add('## 1. 자료와 표본')
     add('')
@@ -681,13 +702,22 @@ def write_report(path: Path, ctx: dict[str, Any]) -> None:
     add('')
     add('## 3. 기준 값 고르기 (하루씩 앞으로 가는 예측, |예상| ≥ 기준인 날 전부)')
     add('')
-    add('| 기준 | 시가: 낸 날 | 시가 적중 | 종가: 낸 날 | 종가 적중 |')
-    add('|---|---|---|---|---|')
+    years = sorted({y for t in ctx['thresholds'] for y in t['openYears']})
+    add('| 기준 | 시가: 낸 날 | 시가 적중 | ' + ' | '.join(f'시가 {y}' for y in years) + ' | 종가: 낸 날 | 종가 적중 |')
+    add('|---|---|---|' + '---|' * len(years) + '---|---|')
     for t in ctx['thresholds']:
         if t['thr'] <= 2.0:
             mark_o = ' ◀' if t['thr'] == m['open']['callThreshold'] else ''
             mark_c = ' ◀' if t['thr'] == m['close']['callThreshold'] else ''
-            add(f"| {t['thr']:.1f}% | {t['openDays']} | {p(t['openHitPct'])}%{mark_o} | {t['closeDays']} | {p(t['closeHitPct'])}%{mark_c} |")
+            cells = []
+            for y in years:
+                h, n = t['openYears'].get(y, (0, 0))
+                text = f'{p(pct(h, n))}% ({n})' if n else '–'
+                cells.append(text if n >= MIN_YEAR_CALLS or not n else f'({text})')
+            add(f"| {t['thr']:.1f}% | {t['openDays']} | {p(t['openHitPct'])}%{mark_o} | " + ' | '.join(cells)
+                + f" | {t['closeDays']} | {p(t['closeHitPct'])}%{mark_c} |")
+    add('')
+    add(f'해마다 괄호 안은 방향 낸 날 수. 방향 낸 날이 {MIN_YEAR_CALLS}일 미만인 해는 전체를 괄호로 묶었고 기준 고르기에 쓰지 않았다.')
     add('')
     add('## 4. 예상 세기 구간별 적중 (|예상 시가| 구간)')
     add('')
@@ -712,6 +742,7 @@ def write_report(path: Path, ctx: dict[str, Any]) -> None:
     add('| 해 | 거래일 | 시가 방향 낸 날 | 시가 적중 | 종가 방향 낸 날 | 종가 적중 | 장중(낸 날) |')
     add('|---|---|---|---|---|---|---|')
     for y, v in s['years'].items():
+        y = y if v['calls'] >= MIN_YEAR_CALLS else f'{y} (판정 제외: 방향 낸 날 {MIN_YEAR_CALLS}일 미만)'
         add(f"| {y} | {v['days']} | {v['calls']} | {frac(v['openHits'], v['calls'])} | {v['closeCalls']} | "
             f"{frac(v['closeHits'], v['closeCalls'])} | {frac(v['intradayHits'], v['calls'])} |")
     add('')
@@ -798,7 +829,16 @@ def write_report(path: Path, ctx: dict[str, Any]) -> None:
 
 # ---------------------------------------------------------------- main
 
-def holiday_lines(samples: list[dict], wf: list[dict], skipped_days: dict[str, list]) -> list[str]:
+def old_rule_walk_forward(samples: list[dict], open_thr: float, close_thr: float) -> list[dict]:
+    """The same walk-forward with the first design's ewyExcessPct, for comparison only."""
+    clones = [{**r, 'inputs': {**r['inputs'], 'ewyExcessPct': r['oldEwyExcessPct']}} for r in samples]
+    owf = walk_forward(clones)
+    apply_thresholds(owf, open_thr, close_thr)
+    return owf
+
+
+def holiday_lines(samples: list[dict], wf: list[dict], skipped_days: dict[str, list], old_wf: list[dict],
+                  open_thr: float, close_thr: float) -> list[str]:
     def hits(rows: list[dict]) -> str:
         c = [r for r in rows if r.get('pred') and r['pred']['openCall'] != 'none']
         return frac(sum(same_dir(r['pred']['openCall'], r['gap']) for r in c), len(c))
@@ -806,19 +846,25 @@ def holiday_lines(samples: list[dict], wf: list[dict], skipped_days: dict[str, l
     multi = [r for r in samples if len(r['usSessions']) > 1]
     no_p = [r for r in samples if r['P'] not in r['usSessions']]
     kr_hol = [r for r in samples if r['krHolidayGap']]
-    stale = [r for r in samples if r['staleKospiSessions'] != 0]
+    changed = [r for r in samples if r['oldRuleDiffers']]
+    two_kr = [r for r in samples if len(r['krInEwy']) > 1]
+    new_changed = [r for r in wf if r['oldRuleDiffers']]
+    old_changed = [r for r in old_wf if r['oldRuleDiffers']]
+    old_calls = [r for r in old_wf if r['pred']['openCall'] != 'none']
     out = [
         f"밤사이 미국 휴장(미국 세션 0개): {len(skipped_days.get('us_market_closed', []))}일 → 예보 없음(`us_market_closed`). "
         f"{', '.join(skipped_days.get('us_market_closed', [])[:15])}",
         f"한국만 쉰 날 뒤(미국 세션 2개 이상 누적): {len(multi)}일, 그중 시험 기간 {sum(r['T'] in wf_set for r in multi)}일, 방향 낸 날 시가 적중 {hits([r for r in multi if r['T'] in wf_set])}. "
         f"예: {', '.join(r['T'] + '(' + '+'.join(r['usSessions']) + ')' for r in multi[-4:])}",
         f"P와 T 사이에 한국 휴장 평일이 낀 날: {len(kr_hol)}일, 시험 기간 방향 낸 날 적중 {hits([r for r in kr_hol if r['T'] in wf_set])}.",
-        f"미국 세션에 P 날짜가 없는 날(P에 미국 휴장, 코스피 P일 등락률을 빼지 않음): {len(no_p)}일, 시험 기간 적중 {hits([r for r in no_p if r['T'] in wf_set])}. "
-        f"{', '.join(r['T'] for r in no_p[:10])}",
-        f"설계대로 계산했을 때 EWY 누적 등락률 안에 이미 빼지 않은 코스피 움직임이 남는 날(EWY 기준 일봉 뒤 ~ P 사이 한국 거래일 수 ≠ 뺀 개수): "
-        f"{len(stale)}일, 시험 기간 적중 {hits([r for r in stale if r['T'] in wf_set])}. "
-        f"주로 미국 휴일 다음 날(예: 미국 월요일 휴장 → 화요일 EWY가 한국 월·화 움직임을 함께 담음). 설계(§6.3)를 따랐고 바꾸지 않았다. "
-        f"{', '.join(r['T'] for r in stale[:10])}",
+        f"미국 세션에 P 날짜가 없는 날(P에 미국 휴장): {len(no_p)}일. {', '.join(r['T'] for r in no_p[:10])}",
+        f"미국만 쉰 날 다음(EWY 기준 일봉 뒤 ~ P에 한국 거래일 2개 이상, 코스피 이틀치 이상을 뺌): {len(two_kr)}일. "
+        f"예: {', '.join(r['T'] + '(코스피 ' + '+'.join(r['krInEwy']) + ')' for r in two_kr[-3:])}",
+        f"**고치기 전과 비교.** 처음 설계(P 하루치만, P가 미국 세션일 때만 뺌)와 입력이 달라지는 날 {len(changed)}일. 같은 기준 값"
+        f"(시가 {open_thr}% · 종가 {close_thr}%)으로 하루씩 앞으로 가는 시험을 두 번 돌린 결과, 그중 시험 기간 {len(new_changed)}일의 방향 낸 날 시가 적중: "
+        f"고친 뒤 {hits(new_changed)} · 고치기 전 {hits(old_changed)}. "
+        f"시험 기간 전체: 고친 뒤 {hits(wf)} · 고치기 전 {hits(old_wf)} (고치기 전 방향 낸 날 {len(old_calls)}일). "
+        f"참고: 첫 실행(고치기 전, 기준 0.2)의 같은 날 적중은 13/19였다. {', '.join(r['T'] for r in changed[-8:])}",
     ]
     return out
 
@@ -840,7 +886,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     wf = walk_forward(samples)
     table = threshold_table(wf)
-    open_thr = pick_threshold(table, 'openHitPct', OPEN_TARGET_HIT)
+    open_thr = pick_threshold(table, 'openHitPct', OPEN_TARGET_HIT, by_year=True)
     close_thr = pick_threshold(table, 'closeHitPct', CLOSE_TARGET_HIT)
     if open_thr is None or close_thr is None:
         print('no threshold reaches the target', open_thr, close_thr)
@@ -876,14 +922,27 @@ def main(argv: list[str] | None = None) -> int:
         stop.append(f'전체 시가 적중 {overall}%')
     for y, v in summary['years'].items():
         r = pct(v['openHits'], v['calls'])
-        if r is not None and r < STOP_YEAR_OPEN_HIT:
+        if r is not None and r < STOP_YEAR_OPEN_HIT and v['calls'] >= MIN_YEAR_CALLS:
             span = [w['T'] for w in wf if w['year'] == y]
             stop.append(f'{y}년 시가 적중 {r}% ({v["openHits"]}/{v["calls"]}, 시험 기간 안 {v["days"]}거래일 {span[0]}~{span[-1]})')
+    small_years = [f"{y}년 {frac(v['openHits'], v['calls'])}" for y, v in summary['years'].items() if v['calls'] < MIN_YEAR_CALLS]
+    old_wf = old_rule_walk_forward(samples, open_thr, close_thr)
+    row = next(t for t in table if t['thr'] == open_thr)
+    lower = [t for t in table if 0.1 <= t['thr'] < open_thr]
+    why = '; '.join(
+        f"{t['thr']:.1f}%: 전체 {p(t['openHitPct'])}%" + ''.join(
+            f", {y}년 {p(pct(h, n))}% ({h}/{n})" for y, (h, n) in t['openYears'].items()
+            if n >= MIN_YEAR_CALLS and 100 * h / n < OPEN_TARGET_HIT) for t in lower)
+    threshold_note = (f"- 시가 기준 {open_thr}%: 전체 {p(row['openHitPct'])}%, "
+                      + ', '.join(f"{y}년 {p(pct(h, n))}% ({h}/{n})" for y, (h, n) in row['openYears'].items())
+                      + f". 그보다 작은 값이 탈락한 이유 — {why}."
+                      + ('' if open_thr == 0.3 else f" 폴실장 예상(0.3)과 다르다. 규칙대로 나온 값을 썼다."))
     prelim_rows = [r for r in wf if '2024-11-06' <= r['T'] <= '2026-11-06']
     limits = [
         '기준 값은 하루씩 앞으로 가는 예측 결과를 보고 골랐다. 그래서 기준을 고른 그 기간의 적중률은 기준 고르기에 대해서는 표본 안 숫자다(계수는 표본 밖).',
-        f"시험 기간은 {wf[0]['T']}부터다. 처음 {MIN_TRAIN_DAYS}일은 학습 전용이라 그 기간(주로 2022~2023)의 성적은 없다. 예보 카드의 '(최근 2년)' 문구는 모델의 `walkForward.from`~`to`와 맞춰야 한다(지금 약 {round((date.fromisoformat(wf[-1]['T']) - date.fromisoformat(wf[0]['T'])).days / 365.25, 1)}년).",
-        '연도별 표에서 첫 해와 마지막 해는 일부 기간만이다.',
+        f"시험 기간은 {wf[0]['T']}부터다. 처음 {MIN_TRAIN_DAYS}일은 학습 전용이라 그 기간(주로 2022~2023)의 성적은 없다. 과거 기록 문구의 기간은 모델의 `walkForward.from`({wf[0]['T']})에서 만든다(§4.4, 약 {round((date.fromisoformat(wf[-1]['T']) - date.fromisoformat(wf[0]['T'])).days / 365.25, 1)}년).",
+        f'연도별 표에서 첫 해와 마지막 해는 일부 기간만이다. 방향 낸 날이 {MIN_YEAR_CALLS}일 미만인 해는 기준 고르기와 멈춤 판정에서 뺐다.',
+        '고치기 전 입력과의 비교(9절)는 같은 기준 값으로 시험을 한 번 더 돌린 것이다. 기준 값은 고친 입력으로만 골랐다.',
         '종가·장중은 밤사이 미국장만으로는 잘 맞지 않는다. 장중 방향은 반반 수준이라 예보하지 않는다(§3-5).',
         '크기: 실제 시가가 예상보다 크게 움직이는 경향(위 7절). 크기는 "안팎"과 범위로만 말해야 한다.',
         '대조: 네이버 종가는 야후 종가와만 대조했다. 네이버 시가는 대조할 공식 자료가 없다(야후 시가는 이상이 있어 대조로 쓰지 않음).',
@@ -895,7 +954,8 @@ def main(argv: list[str] | None = None) -> int:
         'generatedAt': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
         'model': model, 'summary': summary, 'wf': wf, 'data': data, 'samples': samples, 'check': check,
         'skipped': skipped, 'skippedDays': skipped_days, 'thresholds': table, 'checks': checks, 'stop': stop,
-        'strength': strength_table(wf), 'holiday': holiday_lines(samples, wf, skipped_days),
+        'strength': strength_table(wf), 'holiday': holiday_lines(samples, wf, skipped_days, old_wf, open_thr, close_thr),
+        'smallYears': small_years, 'thresholdNote': threshold_note,
         'prelimCompare': {'from': prelim_rows[0]['T'], 'to': prelim_rows[-1]['T'], 'days': len(prelim_rows),
                           'stats': window_stats(prelim_rows)},
         'yahooOpen': yahoo_open_effect(wf, data), 'limits': limits,

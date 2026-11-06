@@ -104,6 +104,23 @@ def check_us_holiday() -> None:
     assert out['reason'] == 'us_market_closed' and out['inputs'] is None and out['usSessions'] == [], out
 
 
+def check_after_us_only_holiday() -> None:
+    # US shut on Mon 2026-01-19 (MLK Day), KR open both days. T=Wed 01-21, P=Tue 01-20.
+    # EWY's Tue change is measured from Fri 01-16, so it already carries KOSPI's Mon and Tue moves:
+    # both are subtracted (SPEC §6.3, revised 2026-11-06), not Tue alone.
+    series = us(same_closes(['2026-01-15', '2026-01-16', '2026-01-20', '2026-01-21'], [100.0, 100.0, 104.0, 90.0]))
+    kospi = v3.Series([('2026-01-15', 990.0), ('2026-01-16', 1000.0), ('2026-01-19', 1010.0), ('2026-01-20', 1030.2)])
+    out = mf.forecast_inputs('2026-01-21', '2026-01-20', series, kospi)
+    assert out['reason'] is None and out['usSessions'] == ['2026-01-20'] and out['usBaseSession'] == '2026-01-16', out
+    assert out['krSessionsInEwy'] == ['2026-01-19', '2026-01-20'], out
+    assert out['inputs']['ewyPct'] == 4.0 and out['inputs']['kospiPrevPct'] == 3.02, out['inputs']  # 1.01 * 1.02 - 1
+    assert out['inputs']['ewyExcessPct'] == 0.98, out['inputs']  # the first design gave 4.0 - 2.0 = 2.0
+    # No KR session after the EWY base: nothing to subtract.
+    assert mf.kospi_since(kospi, '2026-01-20', '2026-01-20') == (0.0, [])
+    # P missing from the KOSPI closes is a data gap, not zero.
+    assert mf.kospi_since(v3.Series([('2026-01-16', 1000.0)]), '2026-01-15', '2026-01-20')[0] is None
+
+
 def check_broken_inputs() -> None:
     dates = ['2026-10-27', '2026-10-28']
     kospi = v3.Series([('2026-10-27', 1000.0), ('2026-10-28', 1005.0)])
@@ -144,9 +161,11 @@ def main() -> None:
     check_friday_to_monday()
     check_kr_only_holiday()
     check_us_holiday()
+    check_after_us_only_holiday()
     check_broken_inputs()
     check_calls_and_buckets()
-    print('PASS morning forecast 1-A: inputs (weekday, Fri->Mon, KR-only holiday, US holiday, 2026-11-06) and prediction')
+    print('PASS morning forecast 1-A: inputs (weekday, Fri->Mon, KR-only holiday, US holiday, after US-only holiday, '
+          '2026-11-06) and prediction')
 
 
 if __name__ == '__main__':

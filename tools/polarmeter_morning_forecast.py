@@ -75,13 +75,20 @@ def forecast_inputs(target_session: str, basis_kr_session: str, us_series: Mappi
       us_series_missing    SPY/SOXX/EWY series not given
       us_session_mismatch  SOXX or EWY dates differ from SPY's in the window
       input_missing        a close needed for a change is missing
-      kospi_prev_missing   KOSPI close on P or the session before it is missing
+      kospi_prev_missing   a KOSPI close needed for `kospiPrevPct` is missing
+
+    `kospiPrevPct` is KOSPI's cumulative change over the KR sessions dated after
+    the EWY base bar (the US session right before the first one used) and up to
+    P (SPEC §6.3, revised 2026-11-06). EWY's change from that base already
+    carries those KR moves; usually it is P alone, after a US-only holiday it is
+    two sessions. No such KR session gives 0.
 
     Inputs are rounded to 2 decimals before `ewyExcessPct` is formed, so the
     stored inputs reproduce the prediction exactly.
     """
     out: dict[str, Any] = {'targetSession': target_session, 'basisKrSession': basis_kr_session,
-                           'usSessions': [], 'usBaseSession': None, 'inputs': None, 'reason': None}
+                           'usSessions': [], 'usBaseSession': None, 'krSessionsInEwy': [], 'inputs': None,
+                           'reason': None}
     if any(symbol not in us_series or us_series[symbol] is None for _, symbol in US_INPUT_SYMBOLS):
         out['reason'] = 'us_series_missing'
         return out
@@ -107,18 +114,35 @@ def forecast_inputs(target_session: str, basis_kr_session: str, us_series: Mappi
         out['reason'] = 'us_session_mismatch'
         return out
     out['usBaseSession'] = bases.pop()
-    kospi_prev = None
-    if basis_kr_session in sessions:
-        i = kospi_closes.index_on_or_before(basis_kr_session)
-        pct = kospi_closes.ret(i) if i >= 1 and kospi_closes.dates[i] == basis_kr_session else None
-        if pct is None:
-            out['reason'] = 'kospi_prev_missing'
-            return out
-        kospi_prev = round(pct, INPUT_DECIMALS)
-    excess = raw['ewyPct'] - kospi_prev if kospi_prev is not None else raw['ewyPct']
+    kospi_prev, kr_sessions = kospi_since(kospi_closes, out['usBaseSession'], basis_kr_session)
+    out['krSessionsInEwy'] = kr_sessions
+    if kospi_prev is None:
+        out['reason'] = 'kospi_prev_missing'
+        return out
+    kospi_prev = round(kospi_prev, INPUT_DECIMALS)
+    excess = raw['ewyPct'] - kospi_prev
     out['inputs'] = {'spyPct': raw['spyPct'], 'soxxPct': raw['soxxPct'], 'ewyPct': raw['ewyPct'],
                      'kospiPrevPct': kospi_prev, 'ewyExcessPct': round(excess, INPUT_DECIMALS)}
     return out
+
+
+def kospi_since(kospi_closes: v3.Series, us_base: str, basis_kr_session: str) -> tuple[float | None, list[str]]:
+    """KOSPI cumulative % over KR sessions d with us_base < d <= P, and those sessions."""
+    if basis_kr_session not in kospi_closes.dates:
+        return None, []
+    kr_sessions = [d for d in kospi_closes.dates if us_base < d <= basis_kr_session]
+    if not kr_sessions:
+        return 0.0, []
+    if kr_sessions[-1] != basis_kr_session:
+        return None, kr_sessions  # P itself is missing
+    first = kospi_closes.dates.index(kr_sessions[0])
+    last = kospi_closes.dates.index(basis_kr_session)
+    if first < 1:
+        return None, kr_sessions  # no close before the window
+    window = kospi_closes.closes[first - 1:last + 1]
+    if any(close in (None, 0) for close in window):
+        return None, kr_sessions
+    return (window[-1] / window[0] - 1) * 100, kr_sessions
 
 
 def linear(part: Mapping[str, Any], features: tuple[str, ...] | list[str], inputs: Mapping[str, float]) -> float:
