@@ -146,6 +146,7 @@ jobs:
           PYTHONPATH=tools python3 tools/polarmeter_news_source_diagnostics_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_temperature_score_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_temperature_v3_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_morning_forecast_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_event_coverage_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_source_event_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_issue_cluster_contract.py

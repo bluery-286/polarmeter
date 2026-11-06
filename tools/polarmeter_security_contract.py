@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import urllib.error
 from pathlib import Path
 
-from polarmeter_free_cache_worker import assert_public_payload_safe
+from polarmeter_free_cache_worker import assert_public_payload_safe, sanitize_public_snapshot
+from polarmeter_morning_forecast import assert_public_morning_forecast
+from polarmeter_morning_forecast_contract import sample_block
 from polarmeter_free_provider_probe import safe_network_error
 from polarmeter_news_rss_probe import safe_public_news_url
 
@@ -89,6 +92,35 @@ def assert_public_payload_clean(public_dir: Path) -> None:
         assert not leaked, f'public file contains forbidden marker(s): {path}: {leaked}'
 
 
+def assert_morning_forecast_public() -> None:
+    """The forecast block passes the public-payload guard, survives the sanitizer unchanged and keeps its shape."""
+    block = sample_block()
+    assert_public_morning_forecast(block)
+    assert_public_payload_safe({'morningForecast': block})
+    published = sanitize_public_snapshot({'generatedAt': '2026-11-05T21:45:00Z', 'morningForecast': block})
+    assert published['morningForecast'] == block, 'sanitize_public_snapshot must pass morningForecast through unchanged'
+    assert sanitize_public_snapshot({'generatedAt': '2026-11-05T21:45:00Z'})['morningForecast'] is None
+    for leaked in ({**block, 'apiKey': 'do-not-publish'}, {**block, 'ledger': [{**block['ledger'][0], 'secretNote': 'x'}]}):
+        try:
+            assert_public_payload_safe({'morningForecast': leaked})
+        except AssertionError:
+            continue
+        raise AssertionError('public payload guard accepted a leaking morningForecast')
+
+
+def assert_public_forecast_in_payload(public_dir: Path, required: bool) -> None:
+    """A freshly prepared public snapshot must carry a well-formed morningForecast (any status, never blocking on it).
+
+    The checked-in default directory is an old payload from before the forecast existed: only checked when it has one.
+    """
+    snapshot_path = public_dir / 'market-snapshot-latest.json'
+    if not snapshot_path.is_file():
+        return
+    snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
+    if required or 'morningForecast' in snapshot:
+        assert_public_morning_forecast(snapshot.get('morningForecast'))
+
+
 def assert_secret_files_ignored() -> None:
     patterns = (ROOT / '.gitignore').read_text(encoding='utf-8').splitlines()
     required = {'.env', '.env.*', '*.pem', '*.key', '*.p12', '*.jks', 'google-services.json', 'GoogleService-Info.plist'}
@@ -124,15 +156,19 @@ def assert_public_payload_secret_guard() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--public-dir', type=Path, default=ROOT / 'github-pages-site')
+    parser.add_argument('--public-dir', type=Path, default=None)
     args = parser.parse_args()
+    explicit_public_dir = args.public_dir is not None
+    args.public_dir = args.public_dir or ROOT / 'github-pages-site'
     assert_error_redaction()
     assert_news_url_policy()
     assert_action_pinning()
     assert_single_pages_publisher()
     assert_public_payload_clean(args.public_dir)
+    assert_public_forecast_in_payload(args.public_dir, explicit_public_dir)
     assert_secret_files_ignored()
     assert_public_payload_secret_guard()
+    assert_morning_forecast_public()
     print('PolarMeter security contract: PASS')
     return 0
 

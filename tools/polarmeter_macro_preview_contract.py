@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_smoke as pages
+import polarmeter_morning_forecast as forecast
 import polarmeter_news_rss_probe as rss
 from polarmeter_macro_preview_policy import expired_us_cpi_preview, parse_timestamp
 
@@ -30,6 +31,7 @@ def public_fixture(current: datetime, headline: str, published: str, status: str
     snapshot = {
         'generatedAt': generated, 'paidProviderEnabled': False, 'clientDirectProviderCalls': False,
         'temperatureHistory': {'version': 'temperature-history-v1', 'retentionDays': 7, 'items': [], 'dailyDelta': {'status': 'ready'}},
+        'morningForecast': forecast.unavailable_block(None, current, forecast.ForecastUnavailable('fixture')),
         'dataQuality': {'coreCoverageRatio': 1.0, 'displayMode': 'normal'}, 'signals': {},
         'macroEvents': {'us_cpi': {
             'status': status, 'sourcePolicy': 'official_release_registry_with_expiry_gate',
@@ -57,7 +59,7 @@ def public_fixture(current: datetime, headline: str, published: str, status: str
         'estimatedMonthlyCost': {}, 'budgetLimit': {'monthlyLimit': 50, 'warningLimit': 20},
         'killSwitchStatus': {}, 'costGuardrails': {'commercialUseChecked': False},
         'budgetCapConfigured': True, 'commercialUseChecked': False, 'killSwitchActive': False,
-        'temperatureHistoryStatus': 'ready',
+        'temperatureHistoryStatus': 'ready', 'morningForecastStatus': 'unavailable',
     }
     health = dict(manifest)
     return snapshot, manifest, health

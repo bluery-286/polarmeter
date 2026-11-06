@@ -11,6 +11,7 @@ from unittest.mock import patch
 import polarmeter_free_cache_worker as worker
 import polarmeter_cache_snapshot as cache
 import polarmeter_github_pages_prepare as prepare
+import polarmeter_morning_forecast as forecast
 import polarmeter_data_freshness_audit as freshness
 import polarmeter_last_close_policy as close_policy
 from polarmeter_market_source_diagnostics import summarize_market_sources, summarize_market_freshness_failure
@@ -148,6 +149,7 @@ def check_seeded_last_good_public_metadata():
                             news={'items': [{} for _ in range(10)], 'ttlMinutes': 30, 'nextRefreshAt': now.isoformat()},
                             temperatureHistory={'version': 'temperature-history-v1', 'retentionDays': 7,
                                                 'items': [], 'dailyDelta': {'status': 'ready'}},
+                            morningForecast=forecast.unavailable_block(None, now, forecast.ForecastUnavailable('fixture')),
                             costGuardrails=worker.public_cost_guardrails())
             snapshot_path.write_text(json.dumps(snapshot), encoding='utf-8')
             manifest = worker.public_manifest(snapshot, snapshot_path.name)

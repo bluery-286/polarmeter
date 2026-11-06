@@ -814,6 +814,7 @@ def public_manifest(snapshot: dict[str, Any], snapshot_name: str) -> dict[str, A
         'temperatureHistoryStatus': ((snapshot.get('temperatureHistory') or {}).get('dailyDelta') or {}).get('status') or 'pending',
         'temperatureHistoryCurrentDateKst': (snapshot.get('temperatureHistory') or {}).get('currentDateKst'),
         'temperatureHistoryComparisonDateKst': (snapshot.get('temperatureHistory') or {}).get('comparisonDateKst'),
+        'morningForecastStatus': (snapshot.get('morningForecast') or {}).get('status') or 'unavailable',
         'lastSuccessfulSnapshotAt': snapshot.get('generatedAt') if snapshot.get('status') in {'ok', 'partial'} else None,
         'providerCallCount': provider_metrics.get('providerCallCount', 0),
         'providerFailureCount': provider_metrics.get('providerFailureCount', 0),
@@ -1282,6 +1283,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'scoreCoreV3': snapshot.get('scoreCoreV3'),
         'investorFlows': snapshot.get('investorFlows'),
         'linkSignals': snapshot.get('linkSignals') or [],
+        'morningForecast': snapshot.get('morningForecast'),
         'temperatureHistory': snapshot.get('temperatureHistory') or {
             'version': 'temperature-history-v1',
             'basis': 'kst_calendar_day_latest_settled_market_session',
