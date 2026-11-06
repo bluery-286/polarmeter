@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline contract: the push outbox (보낼 알림 목록), SPEC §13.3-§13.6, §6.5, bundle 1-D.
 
-Fixed in-code data, no network. Covers the send time (08:00 Seoul time all year, on both sides of the US daylight-saving
+Fixed in-code data, no network. Covers the send time (08:05 Seoul time all year, on both sides of the US daylight-saving
 switch), weekends and KRX holidays, the topic set of a call day and a no-call day, the 08:55 and 18:00 expiry, no result
 before the close is scored, paused / unavailable / no-forecast days, one id per day and kind, the copy of the four
 SPEC §13.4 examples, the §6.5 copy rules and length limits in both languages, a miss day, the cap, the public shape, and
@@ -92,17 +92,17 @@ def ids(items: list[dict]) -> list[str]:
 # ---------------------------------------------------------------- time windows
 
 def check_send_time_ignores_daylight_saving() -> None:
-    # 08:00 Seoul is 23:00 UTC the day before, summer or winter, and on both sides of the US switch (2026-11-01).
-    for target, send, expire in (('2026-07-15', '2026-07-14T23:00:00Z', '2026-07-14T23:55:00Z'),   # US daylight time
-                                 ('2026-12-15', '2026-12-14T23:00:00Z', '2026-12-14T23:55:00Z'),   # US standard time
-                                 ('2026-10-30', '2026-10-29T23:00:00Z', '2026-10-29T23:55:00Z'),   # before the US switch
-                                 ('2026-11-03', '2026-11-02T23:00:00Z', '2026-11-02T23:55:00Z')):  # after it
+    # 08:05 Seoul is 23:05 UTC the day before, summer or winter, and on both sides of the US switch (2026-11-01).
+    for target, send, expire in (('2026-07-15', '2026-07-14T23:05:00Z', '2026-07-14T23:55:00Z'),   # US daylight time
+                                 ('2026-12-15', '2026-12-14T23:05:00Z', '2026-12-14T23:55:00Z'),   # US standard time
+                                 ('2026-10-30', '2026-10-29T23:05:00Z', '2026-10-29T23:55:00Z'),   # before the US switch
+                                 ('2026-11-03', '2026-11-02T23:05:00Z', '2026-11-02T23:55:00Z')):  # after it
         item = only(build(snapshot(current_row('down', target=target)), f'{target}T06:00:00'))
         assert item['sendAfter'] == send and item['expireAt'] == expire, (target, item['sendAfter'], item['expireAt'])
         assert item['id'] == f'kr_forecast:{target}' and item['open']['targetSession'] == target, item
-    # the instants really are 08:00 and 08:55 in Seoul
+    # the instants really are 08:05 and 08:55 in Seoul
     item = only(build(snapshot(current_row('down')), '2026-11-06T06:00:00'))
-    assert datetime.fromisoformat(item['sendAfter'].replace('Z', '+00:00')).astimezone(KST).strftime('%H:%M') == '08:00'
+    assert datetime.fromisoformat(item['sendAfter'].replace('Z', '+00:00')).astimezone(KST).strftime('%H:%M') == '08:05'
     assert datetime.fromisoformat(item['expireAt'].replace('Z', '+00:00')).astimezone(KST).strftime('%H:%M') == '08:55'
 
 
@@ -117,14 +117,14 @@ def check_weekend_and_holiday_send_nothing() -> None:
 
 
 def check_saturday_built_monday() -> None:
-    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert waits for Monday 08:00.
+    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert waits for Monday 08:05.
     block = mfc.run('2026-11-07T07:00:00')
     cur = block['current']
     assert cur['targetSession'] == '2026-11-09' and cur['state'] == 'issued', cur
     snap = {'morningForecast': block}
     item = only(build(snap, '2026-11-07T07:00:00', 'saturday for monday'))
     assert item['id'] == 'kr_forecast:2026-11-09', item['id']
-    assert item['sendAfter'] == '2026-11-08T23:00:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:00 / 08:55
+    assert item['sendAfter'] == '2026-11-08T23:05:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:05 / 08:55
     assert item['open'] == {'screen': 'home', 'focus': 'forecast', 'targetSession': '2026-11-09'}, item['open']
     assert item['title']['ko'] == '꽁치 예보 · 오늘 한국장', item['title']   # sent on Monday, so "today" is right when it lands
     # Sunday night it is still listed, a minute after the window it is not
@@ -559,7 +559,7 @@ def main() -> None:
     check_wired_after_coach_brief()
     if args.samples_dir:
         write_samples(args.samples_dir)
-    print('PASS push outbox: 08:00 Seoul time all year, weekends and holidays, topics by day type, 08:55 and 18:00 expiry, '
+    print('PASS push outbox: 08:05 Seoul time all year, weekends and holidays, topics by day type, 08:55 and 18:00 expiry, '
           'no result before the scored close, paused / unavailable / no forecast, one id per day, copy (ko/en) and §6.5, '
           'miss day, cap, never raises, public shape (1-D)')
 

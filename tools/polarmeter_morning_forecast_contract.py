@@ -610,6 +610,9 @@ def check_copy_rules(copy: dict, label: str) -> None:
         assert copy['resultHeadline']['ko'].endswith('요') and len(copy['resultHeadline']['ko']) <= 22, copy['resultHeadline']
         assert 'resultBadge' in copy and copy['resultBadge']['tone'] in ('minus', 'plus', 'neutral') and len(copy['resultBadge']['ko']) <= 8
     assert ('resultHeadline' in copy) == ('resultBadge' in copy) == ('resultRows' in copy), 'result parts come together'
+    for row in copy.get('resultRows', []):  # a size the model does not publish as a forecast is not scored in the table
+        assert row['key'] in ('open', 'open_size', 'close') and '종가 크기' not in row['label']['ko'], row
+    assert 'resultRows' not in copy or [r['key'] for r in copy['resultRows']] == ['open', 'open_size', 'close'], 'no close_size row'
 
 
 def synthetic_row(call: str, strength: str, state: str = 'issued', *, open_pct=None, close_pct=None, intraday=None,
@@ -728,8 +731,8 @@ def check_case11_copy() -> None:
     check_copy_rules(done, 'live 2026-11-06 15:40')
     assert done['say']['id'] == 'H7' and done['resultTitle']['ko'] == '오늘 예보 결과', done  # -2.24 is inside -4.37..-2.07
     assert done['resultHeadline']['ko'] == '오늘은 예보대로였어요' and done['resultBadge']['ko'] == '방향 적중', done
-    assert [r['key'] for r in done['resultRows']] == ['open', 'open_size', 'close', 'close_size']
-    assert [r['hit'] for r in done['resultRows']] == [True, True, True, None]
+    assert [r['key'] for r in done['resultRows']] == ['open', 'open_size', 'close'], 'the close size is not forecast, so it is not scored'
+    assert [r['hit'] for r in done['resultRows']] == [True, True, True]
     # Titles for every table row, both languages (SPEC §4.3), with the weekday swap.
     def title(call, strength, target):
         return mf.title_copy(synthetic_row(call, strength, target=target), today)
