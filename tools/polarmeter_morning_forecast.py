@@ -786,19 +786,26 @@ def say_before(row: Mapping[str, Any], model: Mapping[str, Any]) -> dict[str, st
             'en': f'At this signal strength the open direction was right {open_hit}% of the time. The close was right {close_hit}% of the time.'}
 
 
-def say_after(row: Mapping[str, Any]) -> dict[str, str] | None:
-    """H5-H7 once the close is scored (H5 needs the open-to-close move)."""
+def say_after(row: Mapping[str, Any], today: date | None = None) -> dict[str, str] | None:
+    """H5-H7 once the close is scored (H5 needs the open-to-close move).
+
+    H6 and H7 name the day like the title does: "오늘" for today, the weekday for a later day, the date for an earlier
+    one (a Saturday morning showing Friday's result says "11월 6일"). Without `today` the row is taken to be today's.
+    """
     pred, actual, result = row['predicted'], row.get('actual') or {}, row.get('result') or {}
+    ko_day, en_day = day_words(row['targetSession'], today) if today else ('오늘', 'today')
     open_pct, intraday = actual.get('openPct'), actual.get('intradayPct')
     if pred['openCall'] == 'none' or open_pct is None or result.get('openHit') is None:
         return None
     if result['openHit'] is False:
         return {'id': 'H6',
-                'ko': f'오늘은 틀렸어요. 밤사이 신호와 반대로 시가 {fmt_pct(open_pct, 1, True)}로 시작했어요. 성적표에 그대로 남겨요.',
-                'en': f'I was wrong today. The market opened {fmt_pct(open_pct, 1, True)}, against the overnight signal. The miss stays in the record.'}
+                'ko': f'{ko_day}은 틀렸어요. 밤사이 신호와 반대로 시가 {fmt_pct(open_pct, 1, True)}로 시작했어요. 성적표에 그대로 남겨요.',
+                'en': f"I was wrong {'today' if en_day == 'today' else 'on ' + en_day}. The market opened "
+                      f'{fmt_pct(open_pct, 1, True)}, against the overnight signal. The miss stays in the record.'}
     if result.get('openInBand') is True:
-        return {'id': 'H7', 'ko': f'오늘은 예보대로였어요. 시가 {fmt_pct(open_pct)}, 예상 범위 안이에요.',
-                'en': f'Today went as forecast. The open was {fmt_pct(open_pct)}, inside the expected range.'}
+        return {'id': 'H7', 'ko': f'{ko_day}은 예보대로였어요. 시가 {fmt_pct(open_pct)}, 예상 범위 안이에요.',
+                'en': f"{'Today' if en_day == 'today' else en_day} went as forecast. "
+                      f'The open was {fmt_pct(open_pct)}, inside the expected range.'}
     if intraday is None:
         return None
     moved_down = intraday < 0
@@ -920,7 +927,7 @@ def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) ->
     if row['state'] in SCORED_STATES and row.get('actual'):
         copy['openResult'] = open_result_copy(row)
     if row['state'] == 'closed_scored' and row.get('actual'):
-        after = say_after(row)
+        after = say_after(row, today)
         if after:
             say = after
         ko_day, en_day = day_words(row['targetSession'], today)

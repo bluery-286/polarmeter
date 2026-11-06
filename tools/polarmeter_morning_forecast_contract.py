@@ -675,6 +675,29 @@ def check_case11_copy() -> None:
     assert say(h7)['ko'] == '오늘은 예보대로였어요. 시가 −2.2%, 예상 범위 안이에요.'
     h6 = synthetic_row('down', 'strong', 'closed_scored', open_pct=0.4, close_pct=0.2, intraday=-0.2)
     assert say(h6)['id'] == 'H6' and '+0.4%' in say(h6)['ko']
+    # H6 and H7 name the day like the title does (1-C follow-up): not "오늘" when the target day is not today.
+    def say_on(row: dict, target: str, on: date) -> dict:
+        row['targetSession'] = target
+        return mf.build_copy(row, on, FULL_MODEL)['say']
+    h7_row = lambda: synthetic_row('down', 'strong', 'closed_scored', open_pct=-2.2, close_pct=-6.0, intraday=-3.9, in_band=True)
+    h6_row = lambda: synthetic_row('down', 'strong', 'closed_scored', open_pct=0.4, close_pct=0.2, intraday=-0.2)
+    saturday, sunday = date(2026, 11, 7), date(2026, 11, 8)
+    assert say_on(h7_row(), '2026-11-06', saturday)['ko'] == '11월 6일은 예보대로였어요. 시가 −2.2%, 예상 범위 안이에요.'  # Friday seen on Saturday
+    assert say_on(h7_row(), '2026-11-06', saturday)['en'] == 'Nov 6 went as forecast. The open was −2.2%, inside the expected range.'
+    assert say_on(h7_row(), '2026-11-06', date(2026, 11, 6))['ko'].startswith('오늘은 예보대로였어요.')
+    assert say_on(h7_row(), '2026-11-06', date(2026, 11, 6))['en'].startswith('Today went as forecast.')
+    assert say_on(h7_row(), '2026-11-09', sunday)['ko'].startswith('월요일은 예보대로였어요.')  # a later day: the weekday
+    assert say_on(h7_row(), '2026-11-09', sunday)['en'].startswith('Monday went as forecast.')
+    assert say_on(h6_row(), '2026-11-06', saturday)['ko'].startswith('11월 6일은 틀렸어요. 밤사이 신호와 반대로 시가 +0.4%로 시작했어요.')
+    assert say_on(h6_row(), '2026-11-06', saturday)['en'].startswith('I was wrong on Nov 6. The market opened +0.4%')
+    assert say_on(h6_row(), '2026-11-06', date(2026, 11, 6))['ko'].startswith('오늘은 틀렸어요.')
+    assert say_on(h6_row(), '2026-11-06', date(2026, 11, 6))['en'].startswith('I was wrong today.')
+    assert say_on(h6_row(), '2026-11-09', sunday)['ko'].startswith('월요일은 틀렸어요.')
+    assert say_on(h6_row(), '2026-11-09', sunday)['en'].startswith('I was wrong on Monday.')
+    for row_call, on_day in ((h7_row, saturday), (h6_row, saturday), (h7_row, sunday)):  # the new wording passes the copy rules
+        row = row_call()
+        row['targetSession'] = '2026-11-06'
+        check_copy_rules(mf.build_copy(row, on_day, FULL_MODEL), f'say_after on {on_day}')
     # Real model file: every number in H1-H4 and the past line is derived from it, none typed here.
     real = mf.load_model()
     rates = real['baseRates']
