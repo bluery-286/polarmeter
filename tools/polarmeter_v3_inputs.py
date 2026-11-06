@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import polarmeter_coach_brief as coach_brief
 import polarmeter_morning_forecast as morning_forecast
+import polarmeter_push_outbox as push_outbox
 import polarmeter_score_core_v3 as v3
 
 KST = ZoneInfo('Asia/Seoul')
@@ -329,7 +330,7 @@ def link_signals(series: dict[str, v3.Series], flows: dict[str, dict[str, Any]],
 
 def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | None, now: datetime | None = None,
                     fetch: Fetch = fetch_json, pause: float = 0.15) -> dict[str, Any]:
-    """Attach scoreCoreV3, investorFlows, linkSignals, morningForecast and coachBrief. Never raises."""
+    """Attach scoreCoreV3, investorFlows, linkSignals, morningForecast, coachBrief and pushOutbox. Never raises."""
     now = now or datetime.now(timezone.utc)
     series: dict[str, v3.Series] = {}
     try:
@@ -357,4 +358,6 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
     morning_forecast.apply_morning_forecast(snapshot, previous_public, series, now, fetch)
     # The coach brief reads everything attached above (forecast, scores, flows, links) and never raises.
     coach_brief.apply_coach_brief(snapshot, now)
+    # The push outbox lists what the sender Worker may deliver, from the forecast block alone, and never raises.
+    push_outbox.apply_push_outbox(snapshot, now)
     return snapshot
