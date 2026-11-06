@@ -40,6 +40,7 @@ from polarmeter_cache_snapshot import (  # noqa: E402
 from polarmeter_macro_preview_policy import expired_us_cpi_preview  # noqa: E402
 import polarmeter_coach_brief as coach_brief  # noqa: E402
 import polarmeter_morning_forecast as morning_forecast  # noqa: E402
+import polarmeter_push_outbox as push_outbox  # noqa: E402
 
 
 def parse_utc(value: object) -> datetime | None:
@@ -148,6 +149,7 @@ def validate_payload(out: Path) -> dict:
         raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready')
     morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     coach_brief.assert_public_coach_brief_if_present(snapshot)
+    push_outbox.assert_public_push_outbox_if_present(snapshot)
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:

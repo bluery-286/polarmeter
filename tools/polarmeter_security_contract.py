@@ -13,6 +13,8 @@ from polarmeter_coach_brief_contract import sample_brief
 from polarmeter_free_cache_worker import assert_public_payload_safe, sanitize_public_snapshot
 from polarmeter_morning_forecast import assert_public_forecast_if_present, assert_public_morning_forecast
 from polarmeter_morning_forecast_contract import sample_block
+from polarmeter_push_outbox import assert_public_push_outbox, assert_public_push_outbox_if_present
+from polarmeter_push_outbox_contract import sample_outbox
 from polarmeter_free_provider_probe import safe_network_error
 from polarmeter_news_rss_probe import safe_public_news_url
 
@@ -125,6 +127,21 @@ def assert_coach_brief_public() -> None:
     raise AssertionError('public payload guard accepted a leaking coachBrief')
 
 
+def assert_push_outbox_public() -> None:
+    outbox = sample_outbox()
+    assert outbox['items'], 'the sample push outbox must carry an item'
+    assert_public_push_outbox(outbox)
+    assert_public_payload_safe({'pushOutbox': outbox})
+    published = sanitize_public_snapshot({'generatedAt': '2026-11-05T21:55:00Z', 'pushOutbox': outbox})
+    assert published['pushOutbox'] == outbox, 'sanitize_public_snapshot must pass pushOutbox through unchanged'
+    assert sanitize_public_snapshot({'generatedAt': '2026-11-05T21:55:00Z'})['pushOutbox'] is None
+    try:
+        assert_public_payload_safe({'pushOutbox': {**outbox, 'apiKey': 'do-not-publish'}})
+    except AssertionError:
+        return
+    raise AssertionError('public payload guard accepted a leaking pushOutbox')
+
+
 def assert_public_forecast_in_payload(public_dir: Path) -> None:
     """A public snapshot that carries a morningForecast must carry a well-formed one. A snapshot without it (old data,
     the rollback path) passes: the forecast layer must never block a publish."""
@@ -133,6 +150,7 @@ def assert_public_forecast_in_payload(public_dir: Path) -> None:
         snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
         assert_public_forecast_if_present(snapshot)
         assert_public_coach_brief_if_present(snapshot)  # the same rule for the coach brief: absent or null passes
+        assert_public_push_outbox_if_present(snapshot)  # and for the push outbox
 
 
 def assert_secret_files_ignored() -> None:
@@ -183,6 +201,7 @@ def main() -> int:
     assert_public_payload_secret_guard()
     assert_morning_forecast_public()
     assert_coach_brief_public()
+    assert_push_outbox_public()
     print('PolarMeter security contract: PASS')
     return 0
 

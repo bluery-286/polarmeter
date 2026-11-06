@@ -1285,6 +1285,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'linkSignals': snapshot.get('linkSignals') or [],
         'morningForecast': snapshot.get('morningForecast'),
         'coachBrief': snapshot.get('coachBrief'),
+        'pushOutbox': snapshot.get('pushOutbox'),
         'temperatureHistory': snapshot.get('temperatureHistory') or {
             'version': 'temperature-history-v1',
             'basis': 'kst_calendar_day_latest_settled_market_session',

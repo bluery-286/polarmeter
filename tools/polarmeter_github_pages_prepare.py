@@ -29,6 +29,7 @@ from polarmeter_last_close_policy import valid_last_close, last_close_time
 import polarmeter_cache_snapshot as cache_policy
 import polarmeter_coach_brief as coach_brief
 import polarmeter_morning_forecast as morning_forecast
+import polarmeter_push_outbox as push_outbox
 from polarmeter_free_provider_probe import REQUIRED_SIGNALS
 
 WORKSPACE = Path(__file__).resolve().parents[1]
@@ -497,6 +498,7 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('manifest must expose ready temperatureHistoryStatus')
     morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     coach_brief.assert_public_coach_brief_if_present(snapshot)
+    push_outbox.assert_public_push_outbox_if_present(snapshot)
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
