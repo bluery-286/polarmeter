@@ -5,7 +5,7 @@ Pure functions over an already assembled snapshot; no network, no files. The wor
 `apply_push_outbox(snapshot, now)`, which never raises: any failure leaves an empty `items` list.
 
 What is listed (SPEC §13.3-§13.5):
-  * morning forecast  - id `kr_forecast:{T}`, T = the KR trading day the forecast is for. Sent at 08:00 KST on T,
+  * morning forecast  - id `kr_forecast:{T}`, T = the KR trading day the forecast is for. Sent at 08:05 KST on T,
     dropped from the list at 08:55 KST. Topics: `kr_forecast_call_{ko|en}` + `kr_forecast_daily_{ko|en}` on a day with a
     direction call, `kr_forecast_daily_{ko|en}` alone on a no-call day.
   * scored result     - id `kr_result:{T}`, only for a day with a direction call whose close is scored. `sendAfter` is the
@@ -36,7 +36,7 @@ KINDS = ('kr_forecast', 'kr_result')
 LANGS = ('ko', 'en')
 MAX_ITEMS = 4
 
-SEND_TIME_KST = time(8, 0)         # SPEC §13.3: the morning forecast goes out at 08:00 on a trading day
+SEND_TIME_KST = time(8, 5)         # the morning forecast goes out at 08:05 on a trading day (08:00 is the edge of the night-time limit)
 MORNING_EXPIRE_KST = time(8, 55)   # after 08:55 a "forecast" is not sent any more
 RESULT_EXPIRE_KST = time(18, 0)    # a scored result is dropped at 18:00
 
@@ -71,7 +71,7 @@ EMOJI_OR_BANG = re.compile('[!\U0001F000-\U0001FFFF☀-➿]')
 # ---------------------------------------------------------------- small helpers
 
 def kst_moment(day: date, at: time) -> datetime:
-    """A Seoul wall-clock time. KST has no daylight saving, so 08:00 is 23:00 UTC the day before all year round."""
+    """A Seoul wall-clock time. KST has no daylight saving, so 08:05 is 23:05 UTC the day before all year round."""
     return datetime.combine(day, at, KST)
 
 

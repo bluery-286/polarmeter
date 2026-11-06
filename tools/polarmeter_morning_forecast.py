@@ -879,8 +879,6 @@ def result_rows_copy(row: Mapping[str, Any]) -> list[dict[str, Any]]:
          'forecast': {'ko': {'down': '하락 쪽', 'up': '상승 쪽', 'none': '방향 없음'}[close_call],
                       'en': {'down': 'Lower', 'up': 'Higher', 'none': 'No call'}[close_call]},
          'actual': actual_pct(close_pct), 'hit': result.get('closeHit')},
-        {'key': 'close_size', 'label': {'ko': '종가 크기', 'en': 'Close size'},
-         'forecast': size_copy(pred['closePct']), 'actual': actual_pct(close_pct), 'hit': None},
     ]
 
 
