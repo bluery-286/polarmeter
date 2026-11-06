@@ -144,22 +144,22 @@ def pre_snap(call='down', **row_args) -> dict:
 def check_pre_open_rules() -> None:
     cases = [
         # (label, call, row args, rule, tone, ko, en)
-        ('C1 down, S&P500 leads', 'down', dict(), 'C1', 'minus', '미국 급락이 그대로 밀려오는 날이에요',
-         'A sharp US drop carries straight into Korea'),
+        ('C1 down, S&P500 leads', 'down', dict(), 'C1', 'minus', '미국 급락이 그대로 넘어오는 날이에요',
+         'The US plunge carries straight over to Korea'),
         ('C2 down, chips lead', 'down', dict(spy=-1.0, soxx=-3.0, excess=-1.0, top='soxxPct'), 'C2', 'minus',
          '미국 반도체가 한국장을 끌어내리는 날이에요', 'US chips are pulling Korea lower'),
         ('C3 down, Korea alone', 'down', dict(spy=-0.5, soxx=-1.0, excess=-5.0), 'C3', 'minus',
          '밤사이 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped overnight'),
         ('C0 down', 'down', dict(spy=-0.5, soxx=-1.0, excess=-0.5, top='spyPct'), 'C0', 'minus',
-         '밤사이 미국장 약세가 밀려오는 날이에요', 'Weakness in US stocks carries over to Korea'),
+         '밤사이 미국장 약세가 넘어오는 날이에요', 'US weakness carries over to Korea overnight'),
         ('C4 up, S&P500 leads', 'up', dict(spy=1.6, soxx=1.0, excess=1.0, top='spyPct'), 'C4', 'plus',
-         '미국 급등에 그대로 올라타는 날이에요', 'A sharp US rally carries straight into Korea'),
+         '미국 급등이 그대로 넘어오는 날이에요', 'The US surge carries straight over to Korea'),
         ('C5 up, chips lead', 'up', dict(spy=1.0, soxx=2.6, excess=1.0, top='soxxPct'), 'C5', 'plus',
          '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
         ('C6 up, Korea alone', 'up', dict(spy=0.5, soxx=1.0, excess=5.0), 'C6', 'plus',
          '밤사이 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up overnight'),
         ('C0 up', 'up', dict(spy=0.5, soxx=1.0, excess=0.5, top='spyPct'), 'C0', 'plus',
-         '밤사이 미국장 강세에 올라타는 날이에요', 'Strength in US stocks carries over to Korea'),
+         '밤사이 미국장 강세가 넘어오는 날이에요', 'US strength carries over to Korea overnight'),
         ('C7 no call', 'none', dict(spy=0.2, soxx=-0.3, excess=0.1, top='spyPct'), 'C7', 'neutral',
          '미국장은 조용했어요. 한국 안쪽 재료가 정해요', 'US stocks were quiet. Korea-specific news decides'),
     ]
@@ -366,28 +366,30 @@ def check_evidence() -> None:
                      temps=score((50.0, 50.0), (30.0, 30.0)), flows=flows_ledger(last_net=(-100.0, 0.0), sells=1))
     brief = build(level, PRE_NOW, 'evidence vix level')
     assert [e['ko'] for e in brief['evidence']] == ['VIX 26(0%)'], brief['evidence']
-    # Foreign flow: the streak form; the single-day form (selling needs 25 characters, so "원" goes; buying fits 24); the buying side.
+    # Foreign flow: the streak form (이틀째 / 사흘째 / 나흘째, then 5일째); the single-day form; the buying side.
     only_flow = dict(usd_krw=None, vix=None)
     flow_snap = lambda ledger: snapshot(morning_block(forecast_row(), 'pre_open'), morning_signals(**only_flow), flows=ledger,
                                         temps=score((50.0, 50.0), (30.0, 30.0)))
     streak = build(flow_snap(flows_ledger()), PRE_NOW, 'flow streak')['evidence']
-    assert [e['ko'] for e in streak] == ['외국인 2일째 2.8조 원 팔았어요'] and streak[0]['en'] == 'Foreigners pulled out 2.8T won, day 2'
+    assert [e['ko'] for e in streak] == ['외국인 이틀째 순매도'] and streak[0]['en'] == 'Foreign net selling, day 2 (2.8T won)'
     typical = math.sqrt((29 * 13000 ** 2 + 15000 ** 2) / 30)           # the same day-size rule `link_signals` uses
     assert abs(typical - 13071.6) < 0.1 and abs(27788 / typical - 2.126) < 0.001
     single = build(flow_snap(flows_ledger(sells=1)), PRE_NOW, 'flow single')['evidence']
-    assert single[0]['ko'] == '외국인 2.8조 팔았어요(평소의 2.1배)' and len(single[0]['ko']) <= cb.LIMIT_EVIDENCE
-    assert single[0]['en'] == 'Foreigners pulled out 2.8T won (2.1x usual)'
+    assert single[0]['ko'] == '외국인 2.8조 원 순매도(평소의 2.1배)' and len(single[0]['ko']) <= cb.LIMIT_EVIDENCE
+    assert single[0]['en'] == 'Foreign net selling 2.8T won (2.1x usual)'
     buy = build(flow_snap(flows_ledger(sells=2, last_net=(26892.0, 896.0))), PRE_NOW, 'flow buy')['evidence']
-    assert buy[0]['ko'] == '외국인 2.8조 원 샀어요(평소의 2.1배)' and buy[0]['en'] == 'Foreigners put in 2.8T won (2.1x usual)'
+    assert buy[0]['ko'] == '외국인 2.8조 원 순매수(평소의 2.1배)' and buy[0]['en'] == 'Foreign net buying 2.8T won (2.1x usual)'
     small_unit = build(flow_snap(flows_ledger(last_net=(-26000.0, 0.0), sells=3)), PRE_NOW)['evidence']
-    assert small_unit[0]['ko'].startswith('외국인 3일째 2.6조')
+    assert small_unit[0]['ko'] == '외국인 사흘째 순매도'
+    assert build(flow_snap(flows_ledger(last_net=(-26000.0, 0.0), sells=4)), PRE_NOW)['evidence'][0]['ko'] == '외국인 나흘째 순매도'
+    assert build(flow_snap(flows_ledger(last_net=(-26000.0, 0.0), sells=5)), PRE_NOW)['evidence'][0]['ko'] == '외국인 5일째 순매도'
     # Flows of another day than the card's are not used; the published linkSignals row is the fallback for the same day.
     assert build(flow_snap(flows_ledger('2026-11-04')), PRE_NOW) is not None
     assert build(flow_snap(flows_ledger('2026-11-04')), PRE_NOW)['evidence'] == []
     row = {'key': 'foreign_flow', 'value': '-27,788억', 'changePct': None, 'asOf': '2026-11-05', 'readKo': '외국인 순매도 · 평소 규모의 1.4배'}
     fallback = snapshot(morning_block(forecast_row(), 'pre_open'), morning_signals(**only_flow), temps=score((50.0, 50.0), (30.0, 30.0)),
                         flows={'items': []}, link=[row])
-    assert build(fallback, PRE_NOW, 'flow fallback')['evidence'][0]['ko'] == '외국인 2.8조 팔았어요(평소의 1.4배)'
+    assert build(fallback, PRE_NOW, 'flow fallback')['evidence'][0]['ko'] == '외국인 2.8조 원 순매도(평소의 1.4배)'
     # KOSPI is evidence only while the session is on or just closed; strength is |change| / 1%.
     brief = build(open_snap(), OPEN_NOW, 'evidence kospi open')
     assert [e['key'] for e in brief['evidence']] == ['us_temp', 'vix', 'kospi'], brief['evidence']      # 3.6, 3.6, then 3.5
@@ -454,10 +456,10 @@ def check_baselines() -> None:
     snap['investorFlows'] = building
     lines = lines_of(snap, OPEN_NOW, 'L4 sell')
     l4 = [l for l in lines if l['ruleId'] == 'L4'][0]
-    assert l4 == {'ruleId': 'L4', 'level': {'ko': '외국인 1.3조 원 넘게 팔면', 'en': 'Foreign outflow over 1.3T won'}, 'tone': 'minus',
+    assert l4 == {'ruleId': 'L4', 'level': {'ko': '순매도 1.3조 원 넘으면', 'en': 'Net selling over 1.3T won'}, 'tone': 'minus',
                   'ko': '평소보다 큰 규모예요', 'en': 'Bigger than a typical day'}, l4
     snap['investorFlows'] = flows_ledger('2026-11-06', sells=2, last_net=(9000.0, 0.0), settled=False)
-    assert [l for l in lines_of(snap, OPEN_NOW, 'L4 buy') if l['ruleId'] == 'L4'][0]['level']['ko'] == '외국인 1.3조 원 넘게 사면'
+    assert [l for l in lines_of(snap, OPEN_NOW, 'L4 buy') if l['ruleId'] == 'L4'][0]['level']['ko'] == '순매수 1.3조 원 넘으면'
     for label, ledger in (('over a typical day', flows_ledger('2026-11-06', last_net=(-15000.0, 0.0), settled=False)),
                           ('settled', flows_ledger('2026-11-06', last_net=(-9000.0, 0.0), settled=True))):
         snap['investorFlows'] = ledger
@@ -584,11 +586,14 @@ def check_copy_rules_negative() -> None:
         '금지 낱말 확인': (lambda b: b['evidence'][0].update(ko='미국 온도 48°를 확인해요'), 'banned 확인'),
         '금지 낱말 다음 갱신': (lambda b: b['next'][0].update(ko='다음 갱신에서 봐요'), 'banned 다음 갱신'),
         '금지 낱말 수 있어요': (setv('내려갈 수 있어요'), 'banned 수 있어요'),
-        '순매도': (lambda b: b['evidence'][0].update(ko='외국인 2일째 순매도'), 'banned 매도'),
-        '매수': (lambda b: b['lines'][0].update(ko='매수 구간이에요 1,345원'), 'banned 매수'),
+        '매도하세요': (lambda b: b['lines'][0].update(ko='1,345원 위에서 매도하세요'), 'banned 매수/매도'),
+        '매수 추천': (lambda b: b['lines'][0].update(ko='1,345원 아래 매수 추천이에요'), 'banned'),
+        '순 없는 매수': (lambda b: b['lines'][0].update(ko='외국인 매수 구간이에요 1,345원'), 'banned 매수/매도'),
+        '담으세요': (lambda b: b['lines'][0].update(ko='1,345원 아래에서 담으세요'), 'banned 담으세요'),
+        '순매도하세요': (lambda b: b['lines'][0].update(ko='1,345원 위에서 매도하세요'), 'banned'),
         '비중': (lambda b: b['lines'][0].update(ko='비중을 줄여요'), 'banned 비중'),
         '종목 이름': (lambda b: b['evidence'][0].update(ko='삼성전자 -7.6%'), 'banned 삼성전자'),
-        '방향 낱말 없음': (setv('미국 급락이 그대로 넘어오는 날이에요'), 'direction word'),
+        '방향 낱말 없음': (setv('미국이 그대로 넘어오는 날이에요'), 'direction word'),
         '28자 넘음': (setv('밤사이 미국장이 크게 내려서 한국장도 많이 밀려요 정말로 그래요요'), 'verdict over 28'),
         '해요체 아님': (setv('미국 급락이 밀려옴'), '해요체'),
         '근거에 숫자 없음': (lambda b: b['evidence'][0].update(ko='미국 온도가 내려갔어요'), 'evidence needs a number'),
@@ -600,7 +605,8 @@ def check_copy_rules_negative() -> None:
         '다음 26자 넘음': (lambda b: b['next'][0].update(ko='미국장이 시작하면 반도체가 반등하는지 아닌지를 꼭 봐요 지금'), 'next over 26'),
         '영어 watch': (lambda b: b['verdict'].update(en='Watch the US drop'), 'banned English'),
         '영어 sold': (lambda b: b['evidence'][0].update(en='Foreigners sold 2.8T won'), 'banned English'),
-        '영어 buying': (lambda b: b['evidence'][0].update(en='Foreign net buying 2.8T won'), 'banned English'),
+        '영어 buying': (lambda b: b['evidence'][0].update(en='Foreigners buying 2.8T won'), 'banned English'),
+        '영어 buy': (lambda b: b['lines'][0].update(en='Buy below 1,335'), 'banned English'),
         '영어 may': (lambda b: b['lines'][0].update(en='It may weigh on foreign money 1,345'), 'banned English'),
         '느낌표': (setv('미국 급락이 밀려와요!'), 'exclamation'),
         '이모지': (setv('미국 급락이 밀려와요 \U0001F4C9'), 'exclamation or emoji'),
@@ -609,6 +615,23 @@ def check_copy_rules_negative() -> None:
     for name, (edit, expect) in cases.items():
         problems = bad(edit)
         assert any(expect in p for p in problems), (name, problems)
+    # The revised rules (SPEC §6.5, 2026-11-07): flows described as fact pass, instructions to trade do not.
+    passing = {
+        '순매도 근거': lambda b: b['evidence'][0].update(ko='외국인 2.8조 원 순매도(평소의 2.1배)', en='Foreign net selling 2.8T won'),
+        '순매수 근거': lambda b: b['evidence'][0].update(ko='외국인 순매수 2.8조 원', en='Foreign net buying 2.8T won'),
+        '이틀째 순매도': lambda b: b['evidence'][0].update(ko='외국인 이틀째 순매도', en='Foreign net selling, day 2'),
+        '사흘째': lambda b: b['evidence'][0].update(ko='외국인 사흘째 순매도'),
+        '나흘째': lambda b: b['evidence'][0].update(ko='외국인 나흘째 순매수'),
+        '순매도 기준선': lambda b: b['lines'][0].update(level={'ko': '순매도 1.3조 원 넘으면', 'en': 'Net selling over 1.3T won'},
+                                                  ko='평소보다 큰 규모예요', en='Bigger than a typical day'),
+        '급락': setv('미국 급락이 그대로 넘어오는 날이에요'), '급등': setv('미국 급등이 그대로 넘어오는 날이에요'),
+        '약세': setv('밤사이 미국장 약세가 넘어오는 날이에요'), '강세': setv('밤사이 미국장 강세가 넘어오는 날이에요'),
+        '하락': setv('코스피 하락이 이어지는 날이에요'), '상승': setv('코스피 상승이 이어지는 날이에요'),
+        '반등': setv('반도체가 반등하는 날이에요'), '되돌': setv('시가에서 되돌려지는 날이에요'),
+    }
+    for name, edit in passing.items():
+        assert bad(edit) == [], (name, bad(edit))
+    assert bad(lambda b: b['evidence'][0].update(ko='외국인 순매도 규모')) != [], 'a day-count-free, number-free evidence line still fails'
 
 
 def check_copy_rules_all() -> None:
@@ -620,7 +643,7 @@ def check_copy_rules_all() -> None:
         cb.assert_public_coach_brief(brief)
         seen_rules.add(brief['ruleId'])
         text = json.dumps(brief, ensure_ascii=False)
-        assert '매수' not in text and '매도' not in text, label
+        assert not cb.NAKED_TRADE.search(text), label
         assert len(brief['verdict']['ko']) <= cb.LIMIT_VERDICT
     assert seen_rules == set(cb.RULE_IDS), sorted(set(cb.RULE_IDS) - seen_rules)
     # Both languages are filled everywhere, the ASCII-only English never carries Hangul.

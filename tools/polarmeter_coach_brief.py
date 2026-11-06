@@ -5,9 +5,10 @@ Pure functions over an already assembled snapshot; no network, no files. The wor
 `apply_coach_brief(snapshot, now)`, which never raises: any failure leaves `coachBrief: None`
 and the app keeps its old advice.
 
-Where the SPEC text and the SPEC rules (§6.5) disagree, the rules win (see the 1-C report):
-a verdict is at most 28 characters and carries a direction word, no sentence says 매수/매도
-(not even as 순매수/순매도), and every line other than the verdict carries a digit or a time.
+Copy rules are SPEC §6.5 (as revised 2026-11-07): a verdict is at most 28 characters and carries a
+direction word; "순매수"/"순매도" (a fact about investors' flows) are fine, a bare "매수"/"매도" or an
+instruction to trade is not; every line other than the verdict carries a digit, a time or a day count
+(이틀째, 사흘째, 나흘째).
 """
 from __future__ import annotations
 
@@ -64,12 +65,14 @@ LIMIT_NEXT = 26
 # ---------------------------------------------------------------- copy rules (SPEC §6.5)
 
 KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '가능성', '수 있어요', '다음 갱신')
-KO_ACTION = ('매수', '매도', '사세요', '파세요', '비중', '목표가', '손절', '추천')
+KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천')
+NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # 순매수 / 순매도 describe flows and pass; 매수하세요, 매도 추천 do not
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung',
          'SPY', 'SOXX', 'EWY')
-EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|buying|bought|sell|selling|sold|stock\s+pick)\b'
-                       r'|keep an eye|recommend', re.I)
-DIRECTION_WORDS = ('내려', '올라', '밀려', '끌어', '팔렸', '샀', '조용')
+EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold|bought|stock\s+pick)\b'
+                       r'|(?<!net )\b(buying|selling)\b|keep an eye|recommend', re.I)   # "net buying" / "net selling" pass
+DIRECTION_WORDS = ('내려', '올라', '밀려', '끌어', '팔렸', '샀', '조용', '급락', '급등', '하락', '상승', '약세', '강세', '반등', '되돌')
+HAS_NUMBER = re.compile(r'\d|이틀째|사흘째|나흘째')   # day counts in words count as numbers
 KO_SENTENCE_END = re.compile(r'요\.?$')
 KO_HAS_SENTENCE = re.compile(r'요(\.|$)')   # a baseline meaning may close with a noun phrase: "구간이에요. 외국인 자금에 부담"
 TIME_TEXT = re.compile(r'^\d{2}:\d{2}$')
@@ -330,14 +333,14 @@ def verdict(rule_id: str, tone: str, ko: str, en: str) -> dict[str, str]:
 
 PRE_TEXT = {
     # rule, down: (ko, en), up: (ko, en). The table in SPEC §4.6 plus the direction words §6.5 asks for.
-    'C1': ('C4', '미국 급락이 그대로 밀려오는 날이에요', 'A sharp US drop carries straight into Korea',
-           '미국 급등에 그대로 올라타는 날이에요', 'A sharp US rally carries straight into Korea'),
+    'C1': ('C4', '미국 급락이 그대로 넘어오는 날이에요', 'The US plunge carries straight over to Korea',
+           '미국 급등이 그대로 넘어오는 날이에요', 'The US surge carries straight over to Korea'),
     'C2': ('C5', '미국 반도체가 한국장을 끌어내리는 날이에요', 'US chips are pulling Korea lower',
            '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
     'C3': ('C6', '밤사이 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped overnight',
            '밤사이 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up overnight'),
-    'C0': ('C0', '밤사이 미국장 약세가 밀려오는 날이에요', 'Weakness in US stocks carries over to Korea',
-           '밤사이 미국장 강세에 올라타는 날이에요', 'Strength in US stocks carries over to Korea'),
+    'C0': ('C0', '밤사이 미국장 약세가 넘어오는 날이에요', 'US weakness carries over to Korea overnight',
+           '밤사이 미국장 강세가 넘어오는 날이에요', 'US strength carries over to Korea overnight'),
 }
 
 
@@ -505,16 +508,17 @@ def evidence_candidates(ctx: Context, skip_kospi: bool) -> list[tuple[float, int
     if flow and flow['ratio'] is not None:
         sell = flow['net'] < 0
         amount, amount_short = amount_ko(flow['net']), amount_ko(flow['net'], with_won=False)
-        verb = '팔았어요' if sell else '샀어요'
+        noun = '순매도' if sell else '순매수'
         ratio = f"{flow['ratio']:.1f}"
+        days = {2: '이틀째', 3: '사흘째', 4: '나흘째'}.get(flow['streak'], f"{flow['streak']}일째")
+        en_noun = 'net selling' if sell else 'net buying'
         if flow['streak'] >= 2:
-            ko = first_fit([f"외국인 {flow['streak']}일째 {amount} {verb}", f"외국인 {flow['streak']}일째 {amount_short} {verb}"],
-                           LIMIT_EVIDENCE)
-            en = f"Foreigners {'pulled out' if sell else 'put in'} {amount_en(flow['net'])}, day {flow['streak']}"
+            ko = f'외국인 {days} {noun}'
+            en = f"Foreign {en_noun}, day {flow['streak']} ({amount_en(flow['net'])})"
         else:
-            ko = first_fit([f'외국인 {amount} {verb}(평소의 {ratio}배)', f'외국인 {amount_short} {verb}(평소의 {ratio}배)',
-                            f'외국인 {amount_short} {verb}(평소 {ratio}배)', f'외국인 {amount} {verb}'], LIMIT_EVIDENCE)
-            en = f"Foreigners {'pulled out' if sell else 'put in'} {amount_en(flow['net'])} ({ratio}x usual)"
+            ko = first_fit([f'외국인 {amount} {noun}(평소의 {ratio}배)', f'외국인 {amount_short} {noun}(평소의 {ratio}배)',
+                            f'외국인 {amount_short} {noun}(평소 {ratio}배)', f'외국인 {amount} {noun}'], LIMIT_EVIDENCE)
+            en = f"Foreign {en_noun} {amount_en(flow['net'])} ({ratio}x usual)"
         add('foreign_flow', flow['ratio'] / FLOW_BASE, ko, en)
     vix = vix_fact(ctx)
     if vix:
@@ -570,8 +574,8 @@ def line_candidates(ctx: Context) -> list[dict[str, Any]]:
         sell = flow['net'] < 0  # L4: a day that is still building toward a typical day's size
         amount = amount_ko(flow['typical'])
         add('flow', 4, (flow['typical'] - abs(flow['net'])) / flow['typical'] * 100,
-            line('L4', 'minus' if sell else 'plus', f"외국인 {amount} 넘게 {'팔면' if sell else '사면'}",
-                 f"Foreign {'outflow' if sell else 'inflow'} over {amount_en(flow['typical'])}",
+            line('L4', 'minus' if sell else 'plus', f"{'순매도' if sell else '순매수'} {amount} 넘으면",
+                 f"Net {'selling' if sell else 'buying'} over {amount_en(flow['typical'])}",
                  '평소보다 큰 규모예요', 'Bigger than a typical day'))
     vix = vix_fact(ctx)
     if vix:  # L5: VIX 30 and 20
@@ -735,6 +739,8 @@ def copy_problems(brief: Mapping[str, Any]) -> list[str]:
             problems.append(f'exclamation or emoji {where}')
         if lang == 'ko':
             problems += [f'banned {word} {where}' for word in KO_BANNED + KO_ACTION + NAMES if word in text]
+            if NAKED_TRADE.search(text):
+                problems.append(f'banned 매수/매도 without 순 {where}')
         else:
             if EN_BANNED.search(text):
                 problems.append(f'banned English {where}')
@@ -753,7 +759,7 @@ def copy_problems(brief: Mapping[str, Any]) -> list[str]:
         if len(item['ko']) > LIMIT_EVIDENCE:
             problems.append(f"evidence over {LIMIT_EVIDENCE} characters: {item['ko']!r}")
         for lang in ('ko', 'en'):
-            if not re.search(r'\d', item[lang]):
+            if not HAS_NUMBER.search(item[lang]):
                 problems.append(f'evidence needs a number: {item[lang]!r}')
     lines = brief.get('lines') or []
     if len(lines) > MAX_LINES:
@@ -764,7 +770,7 @@ def copy_problems(brief: Mapping[str, Any]) -> list[str]:
         if not KO_HAS_SENTENCE.search(item['ko']):
             problems.append(f"line meaning must be 해요체: {item['ko']!r}")
         for lang in ('ko', 'en'):  # the level carries the number: "1,345원 위: 원화 약세 구간이에요..."
-            if not re.search(r'\d', item['level'][lang] + item[lang]):
+            if not HAS_NUMBER.search(item['level'][lang] + item[lang]):
                 problems.append(f'line needs a number: {item[lang]!r}')
     upcoming = brief.get('next') or []
     if len(upcoming) > MAX_NEXT:

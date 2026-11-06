@@ -546,9 +546,10 @@ def check_pause() -> None:
 # ---------------------------------------------------------------- copy rules (SPEC §6.5)
 
 KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '가능성도', '수 있어요', '다음 갱신')
-KO_ACTION = ('매수', '매도', '사세요', '파세요', '비중', '목표가', '손절', '추천')
+KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천')
+NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # SPEC §6.5 (2026-11-07): 순매수 / 순매도 are allowed
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung', 'SPY', 'SOXX', 'EWY')
-EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold)\b|keep an eye|recommend', re.I)
+EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold)\b|(?<!net )\b(buying|selling)\b|keep an eye|recommend', re.I)
 TITLE_KO = re.compile(r'^(오늘|[월화수목금토일]요일|\d+월 \d+일)'
                       r'( 한국장, (크게 밀려서 시작해요|내려서 시작할 가능성이 높아요|크게 올라서 시작해요|올라서 시작할 가능성이 높아요)'
                       r'|은 방향을 내지 않아요)$')
@@ -585,6 +586,7 @@ def check_copy_rules(copy: dict, label: str) -> None:
         if lang == 'ko':
             for word in KO_BANNED + KO_ACTION + NAMES:
                 assert word not in text, f'banned {word}: {where}'
+            assert not NAKED_TRADE.search(text), f'banned 매수/매도 without 순: {where}'
             assert '가능성이' not in text or path == '.title', f'가능성이 only in the title: {where}'
         else:
             assert not EN_BANNED.search(text), f'banned English: {where}'
