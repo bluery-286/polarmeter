@@ -65,8 +65,13 @@ def public_fixture(current: datetime, headline: str, published: str, status: str
     return snapshot, manifest, health
 
 
-def check_payload(current: datetime, headline: str, published: str, status: str, expired: bool) -> None:
+def check_payload(current: datetime, headline: str, published: str, status: str, expired: bool, forecast: str = 'stub') -> None:
     snapshot, manifest, health = public_fixture(current, headline, published, status)
+    if forecast == 'absent':  # an old public payload from before the morning forecast (first deployment, rollback path)
+        snapshot.pop('morningForecast')
+        manifest.pop('morningForecastStatus'), health.pop('morningForecastStatus')
+    elif forecast == 'none':  # what sanitize_public_snapshot writes when there is no block
+        snapshot['morningForecast'] = None
     with TemporaryDirectory(prefix='cpi-preview-contract-') as tmp:
         out = Path(tmp)
         for name in pages.REQUIRED_FILES:
@@ -177,6 +182,11 @@ def main() -> None:
         check_payload(november, 'US October CPI preview', published, status, False)
         check_payload(november, 'US September CPI preview', published, status, True)
         checks += 4
+        # An old public payload with no morningForecast (first deployment, rollback) must still pass the Pages smoke.
+        for forecast in ('absent', 'none'):
+            check_payload(november, 'US October CPI preview', published, status, False, forecast)
+            check_payload(october, FAILED_TITLE, '2026-10-22T10:05:42Z', status, True, forecast)
+            checks += 2
 
     # Exercise the actual ingress, not just the shared helper. No network calls.
     class FrozenDateTime(datetime):

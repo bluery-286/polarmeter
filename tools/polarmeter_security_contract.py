@@ -9,7 +9,7 @@ import urllib.error
 from pathlib import Path
 
 from polarmeter_free_cache_worker import assert_public_payload_safe, sanitize_public_snapshot
-from polarmeter_morning_forecast import assert_public_morning_forecast
+from polarmeter_morning_forecast import assert_public_forecast_if_present, assert_public_morning_forecast
 from polarmeter_morning_forecast_contract import sample_block
 from polarmeter_free_provider_probe import safe_network_error
 from polarmeter_news_rss_probe import safe_public_news_url
@@ -108,17 +108,12 @@ def assert_morning_forecast_public() -> None:
         raise AssertionError('public payload guard accepted a leaking morningForecast')
 
 
-def assert_public_forecast_in_payload(public_dir: Path, required: bool) -> None:
-    """A freshly prepared public snapshot must carry a well-formed morningForecast (any status, never blocking on it).
-
-    The checked-in default directory is an old payload from before the forecast existed: only checked when it has one.
-    """
+def assert_public_forecast_in_payload(public_dir: Path) -> None:
+    """A public snapshot that carries a morningForecast must carry a well-formed one. A snapshot without it (old data,
+    the rollback path) passes: the forecast layer must never block a publish."""
     snapshot_path = public_dir / 'market-snapshot-latest.json'
-    if not snapshot_path.is_file():
-        return
-    snapshot = json.loads(snapshot_path.read_text(encoding='utf-8'))
-    if required or 'morningForecast' in snapshot:
-        assert_public_morning_forecast(snapshot.get('morningForecast'))
+    if snapshot_path.is_file():
+        assert_public_forecast_if_present(json.loads(snapshot_path.read_text(encoding='utf-8')))
 
 
 def assert_secret_files_ignored() -> None:
@@ -158,14 +153,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--public-dir', type=Path, default=None)
     args = parser.parse_args()
-    explicit_public_dir = args.public_dir is not None
     args.public_dir = args.public_dir or ROOT / 'github-pages-site'
     assert_error_redaction()
     assert_news_url_policy()
     assert_action_pinning()
     assert_single_pages_publisher()
     assert_public_payload_clean(args.public_dir)
-    assert_public_forecast_in_payload(args.public_dir, explicit_public_dir)
+    assert_public_forecast_in_payload(args.public_dir)
     assert_secret_files_ignored()
     assert_public_payload_secret_guard()
     assert_morning_forecast_public()

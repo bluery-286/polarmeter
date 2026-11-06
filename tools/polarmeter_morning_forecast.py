@@ -724,10 +724,14 @@ def chip_tone(value: float) -> str:
 
 
 def chips_copy(inputs: Mapping[str, float]) -> list[dict[str, str]]:
-    spec = (('spyPct', 'S&P500', 'S&P 500'), ('soxxPct', '미국 반도체', 'US chips'),
-            ('ewyPct', '미국 상장 한국 ETF', 'Korea ETF in NY'))
-    return [{'ko': f'{ko} {fmt_pct(float(inputs[key]), 1, True)}', 'en': f'{en} {fmt_pct(float(inputs[key]), 1, True)}',
-             'tone': chip_tone(float(inputs[key]))} for key, ko, en in spec]
+    """Three overnight numbers. The third is the Korea ETF's move beyond KOSPI's own (the model's strongest input)."""
+    spy, soxx, excess = float(inputs['spyPct']), float(inputs['soxxPct']), float(inputs['ewyExcessPct'])
+    return [
+        {'ko': f'S&P500 {fmt_pct(spy, 1, True)}', 'en': f'S&P 500 {fmt_pct(spy, 1, True)}', 'tone': chip_tone(spy)},
+        {'ko': f'미국 반도체 {fmt_pct(soxx, 1, True)}', 'en': f'US chips {fmt_pct(soxx, 1, True)}', 'tone': chip_tone(soxx)},
+        {'ko': f'한국 ETF 코스피 대비 {fmt_num(excess, 1, True)}%p', 'en': f'Korea ETF vs KOSPI {fmt_num(excess, 1, True)}pp',
+         'tone': chip_tone(excess)},
+    ]
 
 
 def past_copy(row: Mapping[str, Any]) -> dict[str, str] | None:
@@ -873,6 +877,28 @@ def result_rows_copy(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def result_headline_copy(row: Mapping[str, Any], today: date) -> tuple[dict[str, str], dict[str, str]] | None:
+    """Headline and badge for a fully scored day (not shown while only the open is scored)."""
+    pred, result = row['predicted'], row.get('result') or {}
+    ko_day, en_day = day_words(row['targetSession'], today)
+    is_today = en_day == 'today'
+    if pred['openCall'] == 'none':
+        return ({'ko': f'{ko_day}은 방향을 내지 않았어요',
+                 'en': 'No call today' if is_today else f'No call for {en_day}'},
+                {'ko': '방향 없음', 'en': 'No call', 'tone': 'neutral'})
+    if result.get('openHit') is None:
+        return None
+    if result['openHit'] is False:
+        return ({'ko': f'{ko_day} 예보는 빗나갔어요',
+                 'en': "Today's call was wrong" if is_today else f"{en_day}'s call was wrong"},
+                {'ko': '빗나감', 'en': 'Missed', 'tone': 'minus'})
+    badge = {'ko': '방향 적중', 'en': 'Direction right', 'tone': 'plus'}
+    if result.get('openInBand') is True:
+        return ({'ko': f'{ko_day}은 예보대로였어요',
+                 'en': 'Today went as forecast' if is_today else f'{en_day} went as forecast'}, badge)
+    return ({'ko': '방향은 맞았고, 크기는 빗나갔어요', 'en': 'Direction was right, size was off'}, badge)
+
+
 def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) -> dict[str, Any]:
     """The card text for the current row. Every number comes from the row or the model file."""
     copy: dict[str, Any] = {'title': title_copy(row, today), 'badge': badge_copy(row)}
@@ -900,6 +926,9 @@ def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) ->
         ko_day, en_day = day_words(row['targetSession'], today)
         copy['resultTitle'] = {'ko': f'{ko_day} 예보 결과', 'en': 'Forecast result' if en_day == 'today' else f'{en_day} forecast result'}
         copy['resultRows'] = result_rows_copy(row)
+        headline = result_headline_copy(row, today)
+        if headline:
+            copy['resultHeadline'], copy['resultBadge'] = headline
     if say:
         copy['say'] = say
     return copy
@@ -1035,6 +1064,20 @@ def apply_morning_forecast(snapshot: dict[str, Any], previous_public: Mapping[st
 
 
 # ---------------------------------------------------------------- public-shape check (security / pages contracts)
+
+def assert_public_forecast_if_present(snapshot: Mapping[str, Any], manifest: Mapping[str, Any] | None = None) -> None:
+    """Pre-publish check that never blocks a publish for lack of the block (SPEC §5 decision 5).
+
+    Old public data (the rollback path, or the first deployment) has no `morningForecast`: that passes. When the block
+    is there it must be well formed and the manifest's status line must match it.
+    """
+    block = snapshot.get('morningForecast')
+    if block is None:
+        return
+    assert_public_morning_forecast(block)
+    if manifest is not None and 'morningForecastStatus' in manifest and manifest['morningForecastStatus'] != block['status']:
+        raise AssertionError('manifest morningForecastStatus must match the public morningForecast status')
+
 
 def assert_public_morning_forecast(block: Any) -> None:
     """Structural check of the public block; raises AssertionError. Used by the contracts and the pages checks."""

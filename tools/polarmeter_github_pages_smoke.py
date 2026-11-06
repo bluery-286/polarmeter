@@ -145,9 +145,7 @@ def validate_payload(out: Path) -> dict:
         raise AssertionError('pages snapshot temperatureHistory.items must be a <=7 item list')
     if (history.get('dailyDelta') or {}).get('status') != 'ready':
         raise AssertionError('pages snapshot temperatureHistory dailyDelta status must be ready')
-    morning_forecast.assert_public_morning_forecast(snapshot.get('morningForecast'))
-    if manifest.get('morningForecastStatus') != snapshot['morningForecast']['status']:
-        raise AssertionError('pages manifest morningForecastStatus must match the public morningForecast status')
+    morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     data_quality = snapshot.get('dataQuality') or {}
     core_coverage = data_quality.get('coreCoverageRatio')
     if not isinstance(core_coverage, (int, float)) or core_coverage < 0.6:

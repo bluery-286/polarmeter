@@ -602,7 +602,11 @@ def check_copy_rules(copy: dict, label: str) -> None:
         assert re.search(r'요(\.|\(\d+%\)\.|\. \(\d{4}년 \d{1,2}월부터\))$', item['ko']), f"{label}: 해요체: {item['ko']!r}"
         assert len(item['ko']) <= 80, item['ko']
     for chip in copy.get('chips', []):
-        assert chip['tone'] in ('minus', 'plus', 'neutral')
+        assert chip['tone'] in ('minus', 'plus', 'neutral') and len(chip['ko']) <= 24, chip
+    if 'resultHeadline' in copy:  # a headline, like the title, carries no number; it is 해요체 and short
+        assert copy['resultHeadline']['ko'].endswith('요') and len(copy['resultHeadline']['ko']) <= 22, copy['resultHeadline']
+        assert 'resultBadge' in copy and copy['resultBadge']['tone'] in ('minus', 'plus', 'neutral') and len(copy['resultBadge']['ko']) <= 8
+    assert ('resultHeadline' in copy) == ('resultBadge' in copy) == ('resultRows' in copy), 'result parts come together'
 
 
 def synthetic_row(call: str, strength: str, state: str = 'issued', *, open_pct=None, close_pct=None, intraday=None,
@@ -683,7 +687,13 @@ def check_case11_copy() -> None:
     assert copy['title'] == {'ko': '오늘 한국장, 크게 밀려서 시작해요', 'en': 'Korea is set to open sharply lower'}
     assert copy['openStat']['ko'] == '−3% 안팎' and copy['openRange']['ko'] == '예상 범위 −2 ~ −4.5%', copy
     assert copy['closeStat']['ko'] == '하락 쪽' and copy['closeNote']['ko'] == '비슷한 36일 중 28일', copy
-    assert [c['ko'] for c in copy['chips']] == ['S&P500 −4.4%', '미국 반도체 −12.2%', '미국 상장 한국 ETF −13.5%'], copy['chips']
+    assert [c['ko'] for c in copy['chips']] == ['S&P500 −4.4%', '미국 반도체 −12.2%', '한국 ETF 코스피 대비 −8.2%p'], copy['chips']
+    assert [c['en'] for c in copy['chips']] == ['S&P 500 −4.4%', 'US chips −12.2%', 'Korea ETF vs KOSPI −8.2pp'], copy['chips']
+    assert [c['tone'] for c in copy['chips']] == ['minus', 'minus', 'minus']
+    # The third chip follows the excess over KOSPI, not the raw ETF move: +5.4% raw but -0.3 beyond KOSPI is neutral.
+    chips = mf.chips_copy({'spyPct': 0.3, 'soxxPct': 2.1, 'ewyPct': 5.4, 'kospiPrevPct': 5.7, 'ewyExcessPct': -0.3})
+    assert chips[2] == {'ko': '한국 ETF 코스피 대비 −0.3%p', 'en': 'Korea ETF vs KOSPI −0.3pp', 'tone': 'neutral'}, chips
+    assert mf.chips_copy({'spyPct': 0, 'soxxPct': 0, 'ewyPct': 0, 'kospiPrevPct': 0, 'ewyExcessPct': 6.0})[2]['tone'] == 'plus'
     assert copy['past']['ko'] == '밤사이 신호가 이만큼 나빴던 36일 중 33일은 하락 출발했어요. (2024년 11월부터)', copy['past']
     assert copy['badge'] == {'ko': '신호 뚜렷', 'en': 'Strong signal', 'tone': 'minus'}
     check_copy_rules(copy, 'live 2026-11-06 06:45')
@@ -691,6 +701,7 @@ def check_case11_copy() -> None:
     done = run('2026-11-06T15:40:00', run('2026-11-06T06:45:00'))['current']['copy']
     check_copy_rules(done, 'live 2026-11-06 15:40')
     assert done['say']['id'] == 'H7' and done['resultTitle']['ko'] == '오늘 예보 결과', done  # -2.24 is inside -4.37..-2.07
+    assert done['resultHeadline']['ko'] == '오늘은 예보대로였어요' and done['resultBadge']['ko'] == '방향 적중', done
     assert [r['key'] for r in done['resultRows']] == ['open', 'open_size', 'close', 'close_size']
     assert [r['hit'] for r in done['resultRows']] == [True, True, True, None]
     # Titles for every table row, both languages (SPEC §4.3), with the weekday swap.
@@ -708,6 +719,25 @@ def check_case11_copy() -> None:
     assert mf.fmt_half(-3.22) == '−3' and mf.fmt_half(-3.75) == '−4' and mf.fmt_half(3.75, True) == '+4' and mf.fmt_half(-0.2) == '0'
     assert mf.size_copy(0.4)['ko'] == '보합권' and mf.size_copy(-3.7)['ko'] == '−3.5% 안팎' and mf.fmt_pct(-0.04) == '0.0%'
     assert mf.fmt_num(-1358.4, 0) == '−1,358'
+    # Result headline and badge, only once the close is scored (SPEC follow-up from review).
+    def head(row, target='2026-11-06'):
+        row['targetSession'] = target
+        copy = mf.build_copy(row, today, FULL_MODEL)
+        return copy.get('resultHeadline'), copy.get('resultBadge')
+    hit_in = synthetic_row('down', 'strong', 'closed_scored', open_pct=-2.2, close_pct=-6.0, intraday=-3.9, in_band=True)
+    hit_out = synthetic_row('down', 'strong', 'closed_scored', open_pct=-2.2, close_pct=-6.0, intraday=-3.9, in_band=False)
+    wrong = synthetic_row('down', 'strong', 'closed_scored', open_pct=0.4, close_pct=0.2, intraday=-0.2, in_band=False)
+    nocall = synthetic_row('none', 'weak', 'closed_scored', open_pct=-0.4, close_pct=-0.6, intraday=-0.2)
+    assert head(hit_in) == ({'ko': '오늘은 예보대로였어요', 'en': 'Today went as forecast'}, {'ko': '방향 적중', 'en': 'Direction right', 'tone': 'plus'})
+    assert head(hit_out) == ({'ko': '방향은 맞았고, 크기는 빗나갔어요', 'en': 'Direction was right, size was off'},
+                             {'ko': '방향 적중', 'en': 'Direction right', 'tone': 'plus'})
+    assert head(wrong) == ({'ko': '오늘 예보는 빗나갔어요', 'en': "Today's call was wrong"}, {'ko': '빗나감', 'en': 'Missed', 'tone': 'minus'})
+    assert head(nocall) == ({'ko': '오늘은 방향을 내지 않았어요', 'en': 'No call today'}, {'ko': '방향 없음', 'en': 'No call', 'tone': 'neutral'})
+    assert head(wrong, '2026-11-03')[0] == {'ko': '11월 3일 예보는 빗나갔어요', 'en': "Nov 3's call was wrong"}
+    assert head(hit_in, '2026-11-03')[0]['ko'] == '11월 3일은 예보대로였어요'
+    assert head(nocall, '2026-11-03')[0]['ko'] == '11월 3일은 방향을 내지 않았어요'
+    for partial in (synthetic_row('down', 'strong', 'open_scored', open_pct=-2.2, in_band=True), synthetic_row('down', 'strong')):
+        assert head(partial) == (None, None), 'no headline while only the open is scored'
     # The analog widens toward zero below 20 days and drops out when it still has fewer.
     thin = deepcopy(FULL_MODEL)
     thin['analogBuckets'][1].update(days=4, openDown=3, closeDown=2)
@@ -729,6 +759,18 @@ def check_public_shape() -> None:
     assert block['disclaimer']['ko'] == '과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다.'
     raw = json.dumps(block, ensure_ascii=False).lower()
     assert not any(token in raw for token in ('apikey', 'secret', 'password', 'token', '/users/', 'naver.com', 'yahoo.com')), 'public block must stay clean'
+    # Old public data without the block passes the pre-publish check; a present block is still judged.
+    for old_data in ({}, {'morningForecast': None}):
+        mf.assert_public_forecast_if_present(old_data, {})
+        mf.assert_public_forecast_if_present(old_data, {'morningForecastStatus': 'ok'})
+    mf.assert_public_forecast_if_present({'morningForecast': block}, {'morningForecastStatus': block['status']})
+    for args in (({'morningForecast': {**block, 'schemaVersion': 'x'}}, None),
+                 ({'morningForecast': block}, {'morningForecastStatus': 'unavailable'})):
+        try:
+            mf.assert_public_forecast_if_present(*args)
+        except AssertionError:
+            continue
+        raise AssertionError('a present block must still be checked')
     for broken in ({**block, 'schemaVersion': 'x'}, {**block, 'status': 'weird'}, {**block, 'ledger': 'x'},
                    {**block, 'scorecard': {'recent': {'marks': ['hit'] * 21}}}):
         try:

@@ -494,9 +494,7 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('public snapshot temperatureHistory dailyDelta status must be ready')
     if manifest.get('temperatureHistoryStatus') != 'ready':
         raise AssertionError('manifest must expose ready temperatureHistoryStatus')
-    morning_forecast.assert_public_morning_forecast(snapshot.get('morningForecast'))
-    if manifest.get('morningForecastStatus') != snapshot['morningForecast']['status']:
-        raise AssertionError('manifest morningForecastStatus must match the public morningForecast status')
+    morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):
         raise AssertionError('manifest must expose news TTL and next refresh metadata')
     if not isinstance(manifest.get('marketDataTtlMinutes'), int) or not manifest.get('marketDataNextRefreshAt') or not manifest.get('nextRefreshAt'):
