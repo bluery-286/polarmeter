@@ -307,9 +307,10 @@ def check_us_open_rules() -> None:
 WEEKEND_NOW = '2026-11-07T10:00:00'
 
 
-def weekend_snap(spy: float | None = 0.8, sessions=('2026-11-06',), call='down', **over) -> dict:
-    row = forecast_row(call, target='2026-11-09', basis='2026-11-06', sessions=list(sessions), spy=spy, soxx=0.2, excess=0.1,
-                       top='spyPct')
+def weekend_snap(spy: float | None = 0.8, sessions=('2026-11-06',), call='none', soxx=0.2, excess=0.1, top='spyPct',
+                 **over) -> dict:
+    row = forecast_row(call, target='2026-11-09', basis='2026-11-06', sessions=list(sessions), spy=spy, soxx=soxx,
+                       excess=excess, top=top)
     signals = morning_signals()
     signals.update(over)
     return snapshot(morning_block(row, 'pre_open', next_issue='2026-11-09T21:45:00Z'), signals,
@@ -317,6 +318,7 @@ def weekend_snap(spy: float | None = 0.8, sessions=('2026-11-06',), call='down',
 
 
 def check_weekend_rules() -> None:
+    # No call for Monday: the card says how the last US session ended (C13).
     brief = build(weekend_snap(), WEEKEND_NOW, 'C13 up')
     assert (brief['ruleId'], brief['tone'], ko(brief)) == ('C13', 'plus', '금요일 S&P500은 0.8% 올라 끝났어요'), brief['verdict']
     assert brief['verdict']['en'] == 'S&P 500 ended 0.8% higher on Friday'
@@ -327,13 +329,45 @@ def check_weekend_rules() -> None:
     brief = build(weekend_snap(0.8, sessions=('2026-11-05', '2026-11-06')), WEEKEND_NOW, 'C13 two sessions')
     assert ko(brief) == '지난 S&P500은 0.8% 올라 끝났어요' and brief['verdict']['en'] == 'S&P 500 ended 0.8% higher in the last US session'
     assert build(weekend_snap(None), WEEKEND_NOW) is None  # no inputs on the row: nothing to say
-    # The weekend card does not depend on the call: a no-call Monday gets the same kind of sentence.
-    assert build(weekend_snap(call='none'), WEEKEND_NOW, 'C13 no call')['ruleId'] == 'C13'
+    # Monday's forecast made a call: the same rule as the pre-open sentence, worded for Monday (2026-11-07 follow-up).
+    cases = [
+        # (label, row args, rule, tone, ko, en)
+        ('weekend C4', dict(call='up', spy=1.6, soxx=1.0, excess=1.0), 'C4', 'plus',
+         '월요일엔 미국 급등이 그대로 넘어오는 날이에요', 'Monday: the US surge carries straight over to Korea'),
+        ('weekend C1', dict(call='down', spy=-1.6, soxx=-1.0, excess=-1.0), 'C1', 'minus',
+         '월요일엔 미국 급락이 그대로 넘어오는 날이에요', 'Monday: the US plunge carries straight over to Korea'),
+        ('weekend C5', dict(call='up', spy=0.31, soxx=3.51, excess=10.09, top='ewyExcessPct'), 'C5', 'plus',
+         '월요일엔 미국 반도체가 한국장을 끌어올리는 날이에요', 'Monday: US chips are pulling Korea higher'),
+        ('weekend C2', dict(call='down', spy=-1.0, soxx=-3.0, excess=-1.0, top='soxxPct'), 'C2', 'minus',
+         '월요일엔 미국 반도체가 한국장을 끌어내리는 날이에요', 'Monday: US chips are pulling Korea lower'),
+        ('weekend C6', dict(call='up', spy=0.5, soxx=1.0, excess=5.0, top='ewyExcessPct'), 'C6', 'plus',
+         '금요일 밤 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up on Friday night'),
+        ('weekend C3', dict(call='down', spy=-0.5, soxx=-1.0, excess=-5.0, top='ewyExcessPct'), 'C3', 'minus',
+         '금요일 밤 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped on Friday night'),
+        ('weekend C0 up', dict(call='up', spy=0.8), 'C0', 'plus',
+         '월요일엔 미국장 강세가 넘어오는 날이에요', 'Monday: US strength carries over to Korea'),
+        ('weekend C0 down', dict(call='down', spy=-0.5, soxx=-1.0, excess=-0.5), 'C0', 'minus',
+         '월요일엔 미국장 약세가 넘어오는 날이에요', 'Monday: US weakness carries over to Korea'),
+    ]
+    for label, args, rule, tone, text_ko, text_en in cases:
+        brief = build(weekend_snap(**args), WEEKEND_NOW, label)
+        assert (brief['ruleId'], brief['tone'], ko(brief), brief['verdict']['en']) == (rule, tone, text_ko, text_en), (label, brief['verdict'])
+        assert len(ko(brief)) <= cb.LIMIT_VERDICT, label
+    # Two US sessions behind a Korea-alone call: no single night to name.
+    brief = build(weekend_snap(call='up', spy=0.5, soxx=1.0, excess=5.0, top='ewyExcessPct', sessions=('2026-11-05', '2026-11-06')),
+                  WEEKEND_NOW, 'weekend C6 two sessions')
+    assert (ko(brief), brief['verdict']['en']) == ('지난 밤 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up in the last US session')
     # A weekday holiday is the same card: Friday 2026-10-09 (한글날), Monday's forecast not yet out -> last row is Thursday's.
-    holiday = snapshot(morning_block(forecast_row(target='2026-10-12', basis='2026-10-09', sessions=['2026-10-08', '2026-10-09'],
-                                                  spy=1.1, soxx=0.1, excess=0.0, top='spyPct'), 'pre_open',
-                                     next_issue='2026-10-12T21:45:00Z'), morning_signals(), flows=flows_ledger('2026-10-08'))
+    holiday = snapshot(morning_block(forecast_row(call='none', target='2026-10-12', basis='2026-10-09',
+                                                  sessions=['2026-10-08', '2026-10-09'], spy=1.1, soxx=0.1, excess=0.0,
+                                                  top='spyPct'), 'pre_open', next_issue='2026-10-12T21:45:00Z'),
+                       morning_signals(), flows=flows_ledger('2026-10-08'))
     assert build(holiday, '2026-10-10T10:00:00', 'holiday')['ruleId'] == 'C13'
+    holiday_call = snapshot(morning_block(forecast_row(call='up', target='2026-10-12', basis='2026-10-09',
+                                                       sessions=['2026-10-08', '2026-10-09'], spy=2.0, soxx=0.1, excess=0.0,
+                                                       top='spyPct'), 'pre_open', next_issue='2026-10-12T21:45:00Z'),
+                            morning_signals(), flows=flows_ledger('2026-10-08'))
+    assert ko(build(holiday_call, '2026-10-10T10:00:00', 'holiday call')) == '월요일엔 미국 급등이 그대로 넘어오는 날이에요'
 
 
 # ---------------------------------------------------------------- 2. evidence
@@ -395,7 +429,7 @@ def check_evidence() -> None:
     assert [e['key'] for e in brief['evidence']] == ['us_temp', 'vix', 'kospi'], brief['evidence']      # 3.6, 3.6, then 3.5
     assert brief['evidence'][2] == {'key': 'kospi', 'ko': '코스피 −3.5%', 'en': 'KOSPI −3.5%'}, brief['evidence']
     assert all(e['key'] != 'kospi' for e in build(pre_snap(), PRE_NOW)['evidence'])
-    assert all(e['key'] != 'kospi' for e in build(weekend_snap(), WEEKEND_NOW)['evidence'])
+    assert all(e['key'] != 'kospi' for e in build(weekend_snap(call='down'), WEEKEND_NOW)['evidence'])
     # A missing signal is a missing piece, not a missing card.
     bare = snapshot(morning_block(forecast_row(), 'pre_open'), {}, flows={}, temps={})
     brief = build(bare, PRE_NOW, 'bare')
@@ -523,7 +557,7 @@ def check_schedule() -> None:
     items = next_of(nocall, CLOSE_NOW, 'next no call')
     assert items[0]['ko'] == '미국장이 열려요' and items[0]['atKst'] == '23:30'
     # Weekend: Monday's open and first score; a no-call Monday scores nothing, so its close follows the open.
-    items = next_of(weekend_snap(), WEEKEND_NOW, 'next weekend')
+    items = next_of(weekend_snap(call='down'), WEEKEND_NOW, 'next weekend')
     assert [(i['atKst'], i['ko']) for i in items] == [('09:00', '월요일 한국장이 열려요'), ('09:35', '월요일 시가 예보를 채점해요')], items
     assert items[0]['at'] == '2026-11-09T00:00:00Z'
     items = next_of(weekend_snap(call='none'), WEEKEND_NOW, 'next weekend no call')
@@ -777,7 +811,9 @@ def check_end_to_end_with_real_blocks() -> None:
     brief = build(base(closed, kospi_close), '2026-11-06T16:00:00', 'e2e kr_closed')
     assert brief['ruleId'] == 'C11' and ko(brief) == '오늘 코스피 6.0% 내려 마감했어요', brief['verdict']
     brief = build(base(weekend), '2026-11-07T10:00:00', 'e2e weekend')
-    assert brief['ruleId'] == 'C13' and ko(brief) == '금요일 S&P500은 0.8% 올라 끝났어요', brief['verdict']
+    # The fixed world's Monday forecast calls up on the Korea ETF alone, so the weekend card leads with that (not S&P500).
+    assert weekend['current']['predicted']['openCall'] == 'up' and weekend['current']['predicted']['topDriver'] == 'ewyExcessPct', weekend['current']['predicted']
+    assert brief['ruleId'] == 'C6' and ko(brief) == '금요일 밤 한국 주식만 따로 샀어요', brief['verdict']
     assert [i['ko'] for i in brief['next']][0] == '월요일 한국장이 열려요'
     live = deepcopy(first)
     live['phase'] = 'us_open'
