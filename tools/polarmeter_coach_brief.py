@@ -344,6 +344,26 @@ PRE_TEXT = {
 }
 
 
+def pre_rule(ctx: Context) -> tuple[str, bool] | None:
+    """The pre-open rule key (C1/C2/C3/C0, down-side id) and whether the call is down; None without a down/up call."""
+    call = ctx.open_call
+    if call not in ('down', 'up') or ctx.cur.get('state') in ('no_forecast', 'void', 'pending'):
+        return None
+    down = call == 'down'
+    spy, soxx, excess = (num(ctx.inputs.get(key)) for key in ('spyPct', 'soxxPct', 'ewyExcessPct'))
+
+    def same(value: float | None, threshold: float) -> bool:
+        return value is not None and (value <= -threshold if down else value >= threshold)
+
+    if same(spy, SPY_SAME_DIRECTION):
+        return 'C1', down
+    if same(soxx, SOXX_SAME_DIRECTION):
+        return 'C2', down
+    if ctx.predicted.get('topDriver') == 'ewyExcessPct' and same(excess, 0.0) and excess != 0:
+        return 'C3', down
+    return 'C0', down
+
+
 def pre_verdict(ctx: Context) -> dict[str, str] | None:
     """C1-C7, C0: the forecast itself. Down side first, same order for the up side."""
     call = ctx.open_call
@@ -352,23 +372,40 @@ def pre_verdict(ctx: Context) -> dict[str, str] | None:
     if call == 'none':
         return verdict('C7', 'neutral', '미국장은 조용했어요. 한국 안쪽 재료가 정해요',
                        'US stocks were quiet. Korea-specific news decides')
-    down = call == 'down'
-    spy, soxx, excess = (num(ctx.inputs.get(key)) for key in ('spyPct', 'soxxPct', 'ewyExcessPct'))
-
-    def same(value: float | None, threshold: float) -> bool:
-        return value is not None and (value <= -threshold if down else value >= threshold)
-
-    if same(spy, SPY_SAME_DIRECTION):
-        key = 'C1'
-    elif same(soxx, SOXX_SAME_DIRECTION):
-        key = 'C2'
-    elif ctx.predicted.get('topDriver') == 'ewyExcessPct' and same(excess, 0.0) and excess != 0:
-        key = 'C3'
-    else:
-        key = 'C0'
+    key, down = pre_rule(ctx)
     up_id, down_ko, down_en, up_ko, up_en = PRE_TEXT[key]
     return verdict(key if down else up_id, 'minus' if down else 'plus', down_ko if down else up_ko,
                    down_en if down else up_en)
+
+
+def weekend_forecast_verdict(ctx: Context) -> dict[str, str] | None:
+    """The weekend / holiday card when the next session's forecast already made a call: the same rule as the
+    pre-open sentence (C1-C6, C0), worded for a day that is not today ("월요일엔 …"). None without a call."""
+    rule = pre_rule(ctx)
+    if rule is None:
+        return None
+    key, down = rule
+    target_ko, target_en = mf.day_words(ctx.target, ctx.today)
+    sessions = ctx.cur.get('usSessions') if isinstance(ctx.cur.get('usSessions'), list) else []
+    if key == 'C3':  # what happened to Korean stocks abroad: say which night, not the target day
+        if len(sessions) == 1:
+            us_day = date.fromisoformat(str(sessions[0]))
+            night_ko, night_en = f'{mf.WEEKDAYS_KO[us_day.weekday()]}요일 밤', f'{mf.WEEKDAYS_EN[us_day.weekday()]} night'
+        else:
+            night_ko, night_en = '지난 밤', 'the last US session'
+        ko = f"{night_ko} 한국 주식만 따로 {'팔렸어요' if down else '샀어요'}"
+        en = f"Korean stocks alone were {'dumped' if down else 'bid up'} {'on ' if len(sessions) == 1 else 'in '}{night_en}"
+    elif key == 'C1':
+        ko = f"{target_ko}엔 미국 {'급락' if down else '급등'}이 그대로 넘어오는 날이에요"
+        en = f"{target_en}: the US {'plunge' if down else 'surge'} carries straight over to Korea"
+    elif key == 'C2':
+        ko = f"{target_ko}엔 미국 반도체가 한국장을 {'끌어내리는' if down else '끌어올리는'} 날이에요"
+        en = f"{target_en}: US chips are pulling Korea {'lower' if down else 'higher'}"
+    else:
+        ko = f"{target_ko}엔 미국장 {'약세' if down else '강세'}가 넘어오는 날이에요"
+        en = f"{target_en}: US {'weakness' if down else 'strength'} carries over to Korea"
+    up_id = PRE_TEXT[key][0]
+    return verdict(key if down else up_id, 'minus' if down else 'plus', ko, en)
 
 
 def open_verdict(ctx: Context) -> dict[str, str] | None:
@@ -452,7 +489,7 @@ def us_verdict(ctx: Context) -> dict[str, str] | None:
 
 
 def weekend_verdict(ctx: Context) -> dict[str, str] | None:
-    """C13: the weekend / holiday card says how the last US session ended (the date of the next KR open is in 다음)."""
+    """C13: the weekend / holiday card without a call says how the last US session ended (the next KR open is in 다음)."""
     spy = num(ctx.inputs.get('spyPct'))
     if spy is None:
         return None
@@ -479,8 +516,8 @@ def pick_verdict(ctx: Context) -> dict[str, str] | None:
         return close_verdict(ctx)
     if ctx.zone == 'us_open':
         return us_verdict(ctx)
-    if ctx.zone == 'weekend':
-        return weekend_verdict(ctx)
+    if ctx.zone == 'weekend':  # a forecast that already made a call leads; otherwise how the last US session ended
+        return weekend_forecast_verdict(ctx) or weekend_verdict(ctx)
     return None
 
 
