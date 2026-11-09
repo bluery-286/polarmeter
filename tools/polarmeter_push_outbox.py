@@ -26,13 +26,14 @@ from datetime import date, datetime, time, timezone
 from typing import Any, Mapping
 
 import polarmeter_coach_brief as cb
+import polarmeter_evening_brief as eb
 import polarmeter_market_calendar as cal
 import polarmeter_morning_forecast as mf
 
 SCHEMA_VERSION = 'polarmeter-push-outbox-v1'
 KST = cal.KST_ZONE
 
-KINDS = ('kr_forecast', 'kr_result')
+KINDS = ('kr_forecast', 'kr_result', 'us_evening')
 LANGS = ('ko', 'en')
 MAX_ITEMS = 4
 
@@ -45,11 +46,18 @@ LIMIT_BODY_KO = 60
 LIMIT_TITLE_EN = 36
 LIMIT_BODY_EN = 100
 
-TOPIC_PATTERN = re.compile(r'^kr_(forecast_call|forecast_daily|result)_(ko|en)$')
-ID_PATTERN = re.compile(r'^(kr_forecast|kr_result):(\d{4}-\d{2}-\d{2})$')
+TOPIC_PATTERN = re.compile(r'^kr_(forecast_call|forecast_daily|result|us_evening)_(ko|en)$')
+ID_PATTERN = re.compile(r'^(kr_forecast|kr_result|us_evening):(\d{4}-\d{2}-\d{2})$')
 ISO_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
 
 SCORED_FOR_MORNING = ('issued', 'open_scored', 'closed_scored')
+
+# Evening brief notification (꽁치 저녁 브리핑): prepared, not listed. While this is False the outbox never carries an
+# evening item, so the sender Worker has nothing to send even after DRY_RUN is lifted for the morning forecast. Turn it
+# on only with 형's OK, after the app ships its evening switch (topics `kr_us_evening_{ko|en}`, default off).
+EVENING_PUSH_LISTED = False
+TITLE_EVENING = {'ko': '꽁치 저녁 브리핑 · 미국장', 'en': 'Ggongchi evening · US tonight'}
+EVENING_TITLE_SPLIT = '미국장, '
 
 TITLE_MORNING = {'ko': '꽁치 예보 · 오늘 한국장', 'en': 'Ggongchi forecast · Korea today'}
 TITLE_HIT = {'ko': '꽁치 예보 채점 · 적중', 'en': 'Ggongchi forecast result · Hit'}
@@ -248,6 +256,52 @@ def result_item(current: Mapping[str, Any], scorecard: Any, now: datetime) -> di
             'open': {'screen': 'home', 'focus': 'scorecard', 'targetSession': day.isoformat()}}
 
 
+def evening_copy(current: Mapping[str, Any]) -> tuple[dict[str, str], dict[str, str]] | None:
+    """Lead = the card title after '미국장, ', then the futures start and the held count, longest that fits."""
+    title = text_pair((current.get('copy') or {}).get('title'))
+    inputs, stats = current.get('inputs') or {}, current.get('stats') or {}
+    es_pct = cb.num(inputs.get('esPct'))
+    if title is None or EVENING_TITLE_SPLIT not in title[0] or es_pct is None:
+        return None
+    lead_ko = title[0].split(EVENING_TITLE_SPLIT, 1)[1].strip().rstrip('.')
+    lead_en = title[1].split(': ', 1)[-1].strip().rstrip('.')
+    start = eb.fmt_pct(es_pct)
+    held, days = stats.get('held'), stats.get('days')
+    ko = [f'{lead_ko}. S&P 선물 {start}, 비슷한 출발 {days}번 중 {held}번은 마감까지 유지' if held and days else '',
+          f'{lead_ko}. S&P 선물 {start}']
+    en = [f'{lead_en.capitalize()}: S&P futures {start}; {held} of {days} similar starts held to the close'
+          if held and days else '', f'{lead_en.capitalize()}: S&P futures {start}']
+    body_ko, body_en = fit([k for k in ko if k], LIMIT_BODY_KO), fit([e for e in en if e], LIMIT_BODY_EN)
+    if not body_ko or not body_en:
+        return None
+    return dict(TITLE_EVENING), pair(body_ko, body_en)
+
+
+def evening_item(snapshot: Mapping[str, Any], now: datetime) -> dict[str, Any] | None:
+    """Tonight's brief on a night with a clear start (up/down), sent when it is made, dropped at the US open."""
+    block = snapshot.get('eveningBrief')
+    if not isinstance(block, Mapping) or block.get('status') != 'ok':
+        return None
+    current = block.get('current')
+    if not isinstance(current, Mapping) or current.get('origin') != 'live' or current.get('state') != 'issued' \
+            or current.get('call') not in ('up', 'down') or not current.get('issuedAt'):
+        return None
+    try:
+        day = date.fromisoformat(str(current.get('targetSession')))
+    except ValueError:
+        return None
+    expire_at = eb.open_at(day)
+    if now >= expire_at:
+        return None
+    texts = evening_copy(current)
+    if texts is None:
+        return None
+    return {'id': f'us_evening:{day.isoformat()}', 'kind': 'us_evening', 'hasCall': True,
+            'topics': [f'kr_us_evening_{lang}' for lang in LANGS], 'sendAfter': current['issuedAt'],
+            'expireAt': mf.iso_utc(expire_at), 'title': texts[0], 'body': texts[1],
+            'open': {'screen': 'home', 'focus': 'evening', 'targetSession': day.isoformat()}}
+
+
 def limit_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Earliest send time first, at most MAX_ITEMS."""
     return sorted(items, key=lambda item: (item['sendAfter'], item['id']))[:MAX_ITEMS]
@@ -255,17 +309,19 @@ def limit_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def build_items(snapshot: Mapping[str, Any], now: datetime) -> list[dict[str, Any]]:
     """The notifications to list at `now` (may raise; `apply_push_outbox` catches)."""
-    block = snapshot.get('morningForecast')
-    if not isinstance(block, Mapping) or block.get('status') != 'ok':   # paused and unavailable send nothing
-        return []
-    current = block.get('current')
-    if not isinstance(current, Mapping) or current.get('origin') != 'live' or current.get('paused'):
-        return []
-    scorecard = block.get('scorecard')
     items = []
-    for builder in (morning_item, result_item):
-        item = builder(current, scorecard, now)
-        if item is not None and not item_problems(item):   # one item with a copy problem never takes the others down
+    block = snapshot.get('morningForecast')
+    current = block.get('current') if isinstance(block, Mapping) and block.get('status') == 'ok' else None
+    # paused and unavailable send nothing for the morning forecast
+    if isinstance(current, Mapping) and current.get('origin') == 'live' and not current.get('paused'):
+        scorecard = block.get('scorecard')
+        for builder in (morning_item, result_item):
+            item = builder(current, scorecard, now)
+            if item is not None and not item_problems(item):   # one item with a copy problem never takes the others down
+                items.append(item)
+    if EVENING_PUSH_LISTED:
+        item = evening_item(snapshot, now)
+        if item is not None and not item_problems(item):
             items.append(item)
     return limit_items(items)
 
@@ -371,7 +427,11 @@ def assert_public_push_outbox(block: Any) -> None:
             assert found, f'pushOutbox topic {topic!r}'
             if item['kind'] == 'kr_result':
                 assert found.group(1) == 'result', 'a result item sends to result topics only'
+            elif item['kind'] == 'us_evening':
+                assert found.group(1) == 'us_evening', 'an evening item sends to evening topics only'
             else:
+                assert found.group(1) != 'us_evening', 'a forecast item never sends to evening topics'
+
                 assert found.group(1) != 'result', 'a forecast item sends to forecast topics only'
                 assert item['hasCall'] or found.group(1) != 'forecast_call', 'a no-call day has no call topic'
         for lang in LANGS:
@@ -384,5 +444,5 @@ def assert_public_push_outbox(block: Any) -> None:
             assert isinstance(item.get(field), str) and ISO_PATTERN.match(item[field]), f'pushOutbox {field}'
         assert item['sendAfter'] < item['expireAt'], 'pushOutbox sendAfter must precede expireAt'
         opened = item.get('open')
-        assert isinstance(opened, dict) and opened.get('screen') == 'home' and opened.get('focus') in ('forecast', 'scorecard') \
+        assert isinstance(opened, dict) and opened.get('screen') == 'home' and opened.get('focus') in ('forecast', 'scorecard', 'evening') \
             and opened.get('targetSession') == match.group(2), 'pushOutbox open'

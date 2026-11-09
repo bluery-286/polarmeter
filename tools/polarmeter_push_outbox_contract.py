@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 
 import polarmeter_morning_forecast as mf
 import polarmeter_morning_forecast_contract as mfc
+import polarmeter_evening_brief_contract as ebc
 import polarmeter_push_outbox as po
 
 KST = ZoneInfo('Asia/Seoul')
@@ -517,6 +518,31 @@ def check_public_shape() -> None:
         raise AssertionError(f'the shape check accepted {case!r}')
 
 
+def check_evening_prepared_not_listed() -> None:
+    """The evening notification is built and passes every copy rule, but is never listed while the switch is off."""
+    block = ebc.sample_evening_block()
+    snap = {'eveningBrief': block}
+    issued = datetime.fromisoformat(block['current']['issuedAt'].replace('Z', '+00:00'))
+    assert po.EVENING_PUSH_LISTED is False, 'the evening notification stays unlisted until 형 turns it on'
+    assert po.build_items(snap, issued) == [], 'switch off: nothing listed'
+    item = po.evening_item(snap, issued)
+    assert item and not po.item_problems(item), (item, item and po.item_problems(item))
+    assert item['id'] == 'us_evening:2026-11-10' and item['topics'] == ['kr_us_evening_ko', 'kr_us_evening_en']
+    assert item['sendAfter'] == block['current']['issuedAt'] and item['expireAt'] == '2026-11-10T14:30:00Z'   # 09:30 New York
+    assert item['body']['ko'].startswith('강세 출발 구간이에요. S&P 선물 +0.60%'), item['body']
+    assert item['open'] == {'screen': 'home', 'focus': 'evening', 'targetSession': '2026-11-10'}
+    po.assert_public_push_outbox({**po.empty_block(issued), 'items': [item]})
+    assert po.evening_item(snap, datetime.fromisoformat('2026-11-10T14:30:00+00:00')) is None, 'dropped at the US open'
+    quiet = deepcopy(block)
+    quiet['current']['call'] = 'none'
+    assert po.evening_item({'eveningBrief': quiet}, issued) is None, 'no notification on a night without a clear start'
+    po.EVENING_PUSH_LISTED = True
+    try:
+        assert ids(po.build_items(snap, issued)) == ['us_evening:2026-11-10']
+    finally:
+        po.EVENING_PUSH_LISTED = False
+
+
 def check_wired_after_coach_brief() -> None:
     import polarmeter_v3_inputs as v3_inputs
     source = inspect.getsource(v3_inputs.apply_v3_layers)
@@ -557,6 +583,7 @@ def main() -> None:
     check_never_raises()
     check_public_shape()
     check_wired_after_coach_brief()
+    check_evening_prepared_not_listed()
     if args.samples_dir:
         write_samples(args.samples_dir)
     print('PASS push outbox: 08:05 Seoul time all year, weekends and holidays, topics by day type, 08:55 and 18:00 expiry, '
