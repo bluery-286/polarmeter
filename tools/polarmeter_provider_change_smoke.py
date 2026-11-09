@@ -99,6 +99,29 @@ def check_missing_previous_session_bar() -> None:
     assert session_closing_bar_close({**intraday(full), 'meta': {}}, stamps[2], seoul) is None
 
 
+def check_weekend_placeholder_bar() -> None:
+    # 2026-11-09 live: Yahoo DX-Y.NYB daily bars carry an empty Sunday 11/08 bar.
+    # On Monday the change must come from Friday 11/06, not be left unknown.
+    new_york = ZoneInfo('America/New_York')
+    days = ('2026-11-05', '2026-11-06', '2026-11-08', '2026-11-09')
+    stamps = [int(datetime.fromisoformat(f'{day}T00:00:00').replace(tzinfo=new_york).timestamp()) for day in days]
+    meta = {'regularMarketPrice': 102.048, 'exchangeTimezoneName': 'America/New_York',
+            'regularMarketTime': stamps[-1] + 2 * 3600}
+    price, change, pct, previous, source = yahoo_chart_change_fields(
+        meta, [101.55, 102.30, None, 102.048], prefer_daily_series_previous=True, timestamps=stamps,
+        recover_session_close=lambda _: None)
+    assert previous == 102.30 and source == 'daily_series_previous_close'
+    assert abs(pct - (102.048 / 102.30 - 1) * 100) < 1e-9
+    # A weekday null bar is still a real session gap: change stays unknown.
+    weekday = ('2026-11-04', '2026-11-05', '2026-11-06', '2026-11-09')
+    stamps = [int(datetime.fromisoformat(f'{day}T00:00:00').replace(tzinfo=new_york).timestamp()) for day in weekday]
+    meta = {**meta, 'regularMarketTime': stamps[-1] + 2 * 3600}
+    result = yahoo_chart_change_fields(
+        meta, [101.51, 101.55, None, 102.048], prefer_daily_series_previous=True, timestamps=stamps,
+        recover_session_close=lambda _: None)
+    assert result[4] == 'previous_session_bar_missing'
+
+
 def check_vix_stress_preservation() -> None:
     now = datetime.now(timezone.utc)
     observed_at = now.isoformat().replace('+00:00', 'Z')
@@ -170,6 +193,7 @@ def check_vix_stress_preservation() -> None:
 def main() -> int:
     check_consistent_quote_change_basis()
     check_missing_previous_session_bar()
+    check_weekend_placeholder_bar()
     check_daily_close_reference()
     check_session_close_reference()
     check_vix_stress_preservation()

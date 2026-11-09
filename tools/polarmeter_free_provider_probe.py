@@ -86,8 +86,19 @@ def as_float(value: Any) -> float | None:
         return None
 
 
-def previous_session_slot(meta: dict[str, Any], timestamps: list[Any] | None, size: int) -> int | None:
-    """Index of the last daily bar dated before the quote's session, in exchange time."""
+def previous_session_slot(
+    meta: dict[str, Any],
+    timestamps: list[Any] | None,
+    size: int,
+    closes: list[float | None] | None = None,
+) -> int | None:
+    """Index of the last daily bar dated before the quote's session, in exchange time.
+
+    A weekend-dated bar with no close is a placeholder, not a session: Yahoo's
+    DX-Y.NYB series carries an empty Sunday bar (ICE opens Sunday evening), and
+    on Monday 2026-11-09 that slot left the DXY change unknown and failed the
+    freshness audit for every run after 00:00 New York time.
+    """
     zone_name = meta.get('exchangeTimezoneName')
     quote_time = meta.get('regularMarketTime')
     if not timestamps or not zone_name or not isinstance(quote_time, (int, float)) or isinstance(quote_time, bool):
@@ -96,8 +107,12 @@ def previous_session_slot(meta: dict[str, Any], timestamps: list[Any] | None, si
         zone = ZoneInfo(str(zone_name))
         quote_day = datetime.fromtimestamp(quote_time, zone).date()
         for index in range(min(len(timestamps), size) - 1, -1, -1):
-            if datetime.fromtimestamp(float(timestamps[index]), zone).date() < quote_day:
-                return index
+            bar_day = datetime.fromtimestamp(float(timestamps[index]), zone).date()
+            if bar_day >= quote_day:
+                continue
+            if bar_day.weekday() >= 5 and closes is not None and index < len(closes) and closes[index] is None:
+                continue
+            return index
     except (TypeError, ValueError, OverflowError, KeyError):
         return None
     return None
@@ -127,7 +142,7 @@ def yahoo_chart_change_fields(
     change_pct = as_float(first_present(meta, ['regularMarketChangePercent']))
     source = ('meta_previous_close' if previous not in (None, 0)
               else 'meta_change' if change is not None or change_pct is not None else 'meta_previous_close')
-    slot = previous_session_slot(meta, timestamps, len(raw_closes)) if prefer_daily_series_previous else None
+    slot = previous_session_slot(meta, timestamps, len(raw_closes), raw_closes) if prefer_daily_series_previous else None
     if previous in (None, 0) and slot is not None:
         previous = raw_closes[slot]
         source = 'daily_series_previous_close'
