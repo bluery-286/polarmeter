@@ -1284,6 +1284,7 @@ def sanitize_public_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         'investorFlows': snapshot.get('investorFlows'),
         'linkSignals': snapshot.get('linkSignals') or [],
         'morningForecast': snapshot.get('morningForecast'),
+        'eveningBrief': snapshot.get('eveningBrief'),
         'coachBrief': snapshot.get('coachBrief'),
         'pushOutbox': snapshot.get('pushOutbox'),
         'temperatureHistory': snapshot.get('temperatureHistory') or {

@@ -18,6 +18,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import polarmeter_coach_brief as coach_brief
+import polarmeter_evening_brief as evening_brief
 import polarmeter_morning_forecast as morning_forecast
 import polarmeter_push_outbox as push_outbox
 import polarmeter_score_core_v3 as v3
@@ -356,6 +357,8 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
         snapshot.setdefault('linkSignals', [])
     # The morning forecast reuses the daily series above (Yahoo is not called twice) and never raises.
     morning_forecast.apply_morning_forecast(snapshot, previous_public, series, now, fetch)
+    # The evening brief (tonight's US start and how often such a start held) fetches its own futures data; never raises.
+    evening_brief.apply_evening_brief(snapshot, previous_public, now, fetch)
     # The coach brief reads everything attached above (forecast, scores, flows, links) and never raises.
     coach_brief.apply_coach_brief(snapshot, now)
     # The push outbox lists what the sender Worker may deliver, from the forecast block alone, and never raises.
