@@ -443,8 +443,10 @@ def build_copy(row: Mapping[str, Any], events: list[dict[str, Any]]) -> dict[str
         if nq_pct is not None:
             parts_ko.append(f'나스닥 선물 {fmt_pct(nq_pct)}')
             parts_en.append(f'Nasdaq futures {fmt_pct(nq_pct)}')
-        copy['start'] = {'ko': ' · '.join(parts_ko) + ' (21시, 전날 마감 대비)',
-                         'en': ' · '.join(parts_en) + ' (9 pm KST, vs previous close)'}
+        issued = _parse(row.get('issuedAt'))
+        at_ko = issued.astimezone(KST).strftime('%H:%M') if issued else '21:00'
+        copy['start'] = {'ko': ' · '.join(parts_ko) + f' ({at_ko} 기준, 전날 마감 대비)',
+                         'en': ' · '.join(parts_en) + f' ({at_ko} KST, vs previous close)'}
         stats = row.get('stats')
         if stats and call in ('up', 'down'):
             side_ko, side_en = ('플러스', 'above') if call == 'up' else ('마이너스', 'below')

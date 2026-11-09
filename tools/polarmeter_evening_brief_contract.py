@@ -97,6 +97,7 @@ def check_issue_freeze_and_score() -> None:
     assert copy['title']['ko'] == '오늘 밤 미국장, 강세 출발 구간이에요'
     assert '플러스를 지켰어요' in copy['hold']['ko'] and '반반' in copy['caveat']['ko']
     assert copy['events'] and copy['events'][0]['kst'] == '22:30'
+    assert copy['start']['ko'].endswith('(21:15 기준, 전날 마감 대비)'), copy['start']
 
     # Frozen: a later run with a different futures price does not touch tonight's row.
     moved = deepcopy(data)
