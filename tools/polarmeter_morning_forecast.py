@@ -857,7 +857,10 @@ def range_copy(pred: Mapping[str, Any]) -> dict[str, str] | None:
     band = pred.get('openBand')
     if not band:
         return None
-    low, high = sorted((round_half(band[0]), round_half(band[1])), key=abs)
+    # Rounded outward to 0.5 steps (review on #59): the range a reader sees always contains the calibrated band,
+    # so the coverage note under it never overstates.
+    edge_lo, edge_hi = math.floor(min(band) * 2) / 2, math.ceil(max(band) * 2) / 2
+    low, high = sorted((edge_lo, edge_hi), key=abs)
     if low == high:
         text = fmt_half(low, True)
         return {'ko': f'예상 범위 {text}% 안팎', 'en': f'Likely around {text}%'}
@@ -882,6 +885,10 @@ def close_copy(row: Mapping[str, Any], model: Mapping[str, Any]) -> dict[str, di
     rates = model.get('baseRates') or {}
     block = rates.get('gapUpIntradayExtend' if up else 'gapDownIntradayRebound') or {}
     share = rate_pct(block.get('extended' if up else 'rebounded'), block.get('days'))
+    # The intraday rate comes from starts of at least the block's gap (1.5%); smaller calls do not get it (review on #59).
+    gap = block.get('gapAtLeast' if up else 'gapAtMost')
+    if share is not None and not (isinstance(gap, (int, float)) and (pred['openPct'] >= gap if up else pred['openPct'] <= gap)):
+        share = None
     if share is None:
         tail_ko, tail_en = f' ({days}일 기준)', f' ({days} days)'
     else:

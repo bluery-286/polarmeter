@@ -84,4 +84,16 @@ done = base.synthetic_row('down', 'strong', 'closed_scored', open_pct=-2.2, clos
 rows = mf.result_rows_copy(done)
 assert rows[2]['key'] == 'close' and rows[2]['hit'] is None and done['result']['closeHit'] is True, rows[2]
 
+# 6. Review on #59: the shown range contains the calibrated band; the intraday rate only for starts of its own size.
+shown = mf.range_copy({'openBand': [-1.37, 0.57]})
+assert shown['ko'] == '예상 범위 +1 ~ −1.5%', shown   # outward: [−1.5, +1], not [−1.5, +0.5]
+assert mf.range_copy({'openBand': [-4.37, -2.07]})['ko'] == '예상 범위 −2 ~ −4.5%'
+mod = base.synthetic_row('down', 'moderate')
+mod['analog'] = {'days': 40, 'openSame': 30, 'closeSame': 25, 'period': '2024-11-06 ~ 2026-11-06', 'widened': False}
+assert '장중' not in mf.close_copy(mod, model)['closeNote']['ko'], 'a −0.5% call does not quote the 1.5%+ gap cohort'
+big = base.synthetic_row('down', 'strong')
+big['predicted']['openPct'] = -2.0
+big['analog'] = dict(mod['analog'])
+assert '장중 반등한 날' in mf.close_copy(big, model)['closeNote']['ko']
+
 print('polarmeter forecast honesty contract passed')
