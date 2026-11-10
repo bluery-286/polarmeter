@@ -194,6 +194,8 @@ jobs:
           set -euo pipefail
           history="$RUNNER_TEMP/data-history"
           test -d "$history"
+          # Kept outside the checkout: the push step may need to record again after the Pages publish.
+          cp tools/polarmeter_data_history.py "$RUNNER_TEMP/polarmeter_data_history.py"
           python3 tools/polarmeter_data_history.py archive \
             --snapshot "$RUNNER_TEMP/polarmeter-site/market-snapshot-latest.json" --history "$history"
           git -C "$history" add -A
@@ -218,12 +220,31 @@ jobs:
           git commit -m "Update PolarMeter cache ${GITHUB_RUN_ID}"
           git push --force origin HEAD:gh-pages
       - name: Push data history
-        # Fast-forward only (never --force). A failure is a warning: the next run retries with the same rows.
+        # Fast-forward only (never --force). On a rejected or failed push, fetch the branch again,
+        # record this snapshot on top of it and retry, so a slot row is not lost when the next run
+        # falls outside the slot. After 3 attempts it is a warning only.
         if: steps.cache_guard.outputs.should_build == 'true' && steps.data_history.outputs.changed == 'true'
         continue-on-error: true
         run: |
-          git -C "$RUNNER_TEMP/data-history" push origin HEAD:refs/heads/data-history \
-            || echo "::warning::data-history push failed; the next run records again"
+          history="$RUNNER_TEMP/data-history"
+          for attempt in 1 2 3; do
+            if git -C "$history" push origin HEAD:refs/heads/data-history; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+            git -C "$history" fetch --no-tags --depth=1 origin +refs/heads/data-history:refs/remotes/origin/data-history \
+              && git -C "$history" reset -q --hard origin/data-history || continue
+            python3 "$RUNNER_TEMP/polarmeter_data_history.py" archive \
+              --snapshot "$RUNNER_TEMP/polarmeter-site/market-snapshot-latest.json" --history "$history" || break
+            git -C "$history" add -A
+            if git -C "$history" diff --cached --quiet; then
+              exit 0
+            fi
+            git -C "$history" -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Record PolarMeter data ${GITHUB_RUN_ID} (retry ${attempt})"
+          done
+          echo "::warning::data-history push failed after retries; this snapshot's rows were not recorded"
       - name: Verify public cache publish without retry noise
         if: steps.cache_guard.outputs.should_build == 'true'
         env:
