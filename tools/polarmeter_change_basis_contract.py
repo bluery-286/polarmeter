@@ -7,6 +7,7 @@ Run: PYTHONPATH=tools python3 tools/polarmeter_change_basis_contract.py
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import polarmeter_free_provider_probe as probe
 
@@ -56,7 +57,7 @@ naver = {'result': [{'localTradedAt': '2026-11-10', 'closePrice': '1,344.70'},
 
 def fake(rows: dict | None, bars: dict):
     def fetch(url: str) -> dict:
-        if 'm.stock.naver.com' in url:
+        if urlparse(url).hostname == 'm.stock.naver.com':
             if rows is None:
                 raise TimeoutError('naver down')
             return rows
@@ -72,5 +73,18 @@ assert probe.fixed_basis_change('KRW=X', 1344.48, now, fake(far, result))[1] == 
 assert probe.fixed_basis_change('KRW=X', None, now, fake(naver, result)) is None
 assert probe.fixed_basis_change('SPY', 600.0, now, fake(naver, result)) is None, 'stocks keep regular_close'
 assert probe.FIXED_CHANGE_BASIS == {'KRW=X': 'seoul_1530', 'DX-Y.NYB': 'ny_1700', 'CL=F': 'ny_1700'}
+
+# 5. US holidays (review): Friday 2026-11-27 after Thanksgiving uses Wednesday 17:00 ET, and on Thanksgiving
+#    itself (no session) the anchor stays on Wednesday, so the reference is Tuesday 17:00 ET.
+assert kst(probe.fixed_basis_time('ny_1700', utc('2026-11-27T15:00:00Z'))) == '2026-11-26 07:00'  # Wed 17:00 ET
+assert kst(probe.fixed_basis_time('ny_1700', utc('2026-11-26T16:00:00Z'))) == '2026-11-25 07:00'  # Tue 17:00 ET
+assert probe.us_trading_day(datetime(2026, 11, 26).date()) is False
+
+# 6. A stale quote picks its basis at its own time (review): Tuesday wall clock, Monday 16:00 ET quote.
+quote = utc('2026-11-09T21:00:00Z').timestamp()
+assert probe.basis_clock(utc('2026-11-10T15:00:00Z'), quote) == utc('2026-11-09T21:00:00Z')
+assert kst(probe.fixed_basis_time('ny_1700', probe.basis_clock(utc('2026-11-10T15:00:00Z'), quote))) == '2026-11-07 07:00'
+assert probe.basis_clock(utc('2026-11-10T15:00:00Z'), None) == utc('2026-11-10T15:00:00Z')
+assert probe.basis_clock(utc('2026-11-10T15:00:00Z'), utc('2026-11-10T16:00:00Z').timestamp()) == utc('2026-11-10T15:00:00Z')
 
 print('polarmeter change basis contract passed')

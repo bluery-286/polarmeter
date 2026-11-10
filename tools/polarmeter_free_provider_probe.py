@@ -505,6 +505,22 @@ def kr_trading_day(day: Any) -> bool:
     return day.weekday() < 5 and day not in KR_MARKET_HOLIDAYS
 
 
+def us_trading_day(day: Any) -> bool:
+    from datetime import time as day_time
+    from polarmeter_market_calendar import us_market_closed_reason
+    return us_market_closed_reason(datetime.combine(day, day_time(12, 0), NEW_YORK)) is None
+
+
+def basis_clock(now: datetime, quote_time: Any) -> datetime:
+    """The moment the basis is chosen for: the quote's own time when it is older than the clock, so a stale quote is
+    never compared with a reference that came after it."""
+    if isinstance(quote_time, (int, float)) and quote_time > 0:
+        quoted = datetime.fromtimestamp(float(quote_time), timezone.utc)
+        if quoted < now:
+            return quoted
+    return now
+
+
 def fixed_basis_time(basis: str, now: datetime) -> datetime | None:
     """The moment whose value is the previous reference for `basis` at `now` (aware UTC result)."""
     from datetime import time as day_time, timedelta
@@ -520,14 +536,19 @@ def fixed_basis_time(basis: str, now: datetime) -> datetime | None:
         # at or before now). Reference: 17:00 ET of the weekday before it. Through the whole Korean day the
         # change therefore covers the last US session plus the overnight move, like SPY's regular_close,
         # and the basis moves only when the next US session opens (23:30 / 22:30 KST).
+        # US holidays count as closed days on both ends (a Thanksgiving reference has no 17:00 bar).
         local = now.astimezone(NEW_YORK)
         anchor = local.date() if local.time() >= day_time(9, 30) else local.date() - timedelta(days=1)
-        while anchor.weekday() >= 5:
+        for _ in range(15):
+            if us_trading_day(anchor):
+                break
             anchor -= timedelta(days=1)
         day = anchor - timedelta(days=1)
-        while day.weekday() >= 5:
+        for _ in range(15):
+            if us_trading_day(day):
+                return datetime.combine(day, day_time(17, 0), NEW_YORK).astimezone(timezone.utc)
             day -= timedelta(days=1)
-        return datetime.combine(day, day_time(17, 0), NEW_YORK).astimezone(timezone.utc)
+        return None
     return None
 
 
@@ -628,7 +649,7 @@ def yahoo_chart_probe() -> dict[str, Any]:
             )
             change_basis = 'regular_close'
             if symbol in FIXED_CHANGE_BASIS:
-                fixed = fixed_basis_change(symbol, price, datetime.now(timezone.utc))
+                fixed = fixed_basis_change(symbol, price, basis_clock(datetime.now(timezone.utc), meta.get('regularMarketTime')))
                 if fixed:
                     previous, change_basis, _ = fixed
                     change = price - previous
