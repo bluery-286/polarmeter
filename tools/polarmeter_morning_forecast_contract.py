@@ -528,7 +528,7 @@ def check_pause() -> None:
     # 20 scored rows, 12 calls, 6 hits (50% < 60%): paused. 10 calls with 6 hits (60%): not paused.
     sick = run('2026-09-01T07:00:00', make_rows(20, 6, 12))
     assert sick['status'] == 'paused' and sick['current']['paused'] is True, sick['status']
-    assert sick['current']['copy'] == {'title': {'ko': '최근 성적이 나빠 예보를 쉬어요', 'en': 'Forecast paused: recent record is weak'},
+    assert sick['current']['copy'] == {'title': {'ko': '요즘 신호가 잘 안 맞아 예보를 쉬어요', 'en': 'Forecast paused: the signal has been off lately'},
                                        'badge': {'ko': '예보 쉬는 중', 'en': 'Paused', 'tone': 'neutral'}}, sick['current']['copy']
     assert sick['current']['predicted'] is not None, 'a paused day is still computed and recorded'
     scored = run('2026-09-01T16:00:00', sick)
@@ -551,9 +551,9 @@ NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # SPEC §6.5 (2026-11-07)
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung', 'SPY', 'SOXX', 'EWY')
 EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold)\b|(?<!net )\b(buying|selling)\b|keep an eye|recommend', re.I)
 TITLE_KO = re.compile(r'^(오늘|[월화수목금토일]요일|\d+월 \d+일)'
-                      r'( 한국장, (크게 밀려서 시작해요|내려서 시작할 가능성이 높아요|크게 올라서 시작해요|올라서 시작할 가능성이 높아요)'
+                      r'( 한국장, (크게 밀려서 시작할 것으로 보여요|내려서 시작할 가능성이 높아요|크게 올라서 시작할 것으로 보여요|올라서 시작할 가능성이 높아요)'
                       r'|은 방향을 내지 않아요)$')
-FIXED_TITLES_KO = {'밤사이 미국장이 쉬어서 예보가 없어요', '최근 성적이 나빠 예보를 쉬어요'}
+FIXED_TITLES_KO = {'밤사이 미국장이 쉬어서 예보가 없어요', '요즘 신호가 잘 안 맞아 예보를 쉬어요'}
 DATA_TITLE_KO = re.compile(r'^자료가 덜 들어와 (오늘|[월화수목금토일]요일|\d+월 \d+일) 예보를 내지 못했어요$')
 
 
@@ -602,7 +602,7 @@ def check_copy_rules(copy: dict, label: str) -> None:
         for lang in ('ko', 'en'):
             assert re.search(r'\d', item[lang]), f'{label}: a number or time is required: {item[lang]!r}'
     for item in sentences:
-        assert re.search(r'요(\.|\(\d+%\)\.|\. \(\d{4}년 \d{1,2}월부터\))$', item['ko']), f"{label}: 해요체: {item['ko']!r}"
+        assert re.search(r'요(\.|\(\d+%\)\.|\. \((\d+일, )?\d{4}년 \d{1,2}월부터\))$', item['ko']), f"{label}: 해요체: {item['ko']!r}"
         assert len(item['ko']) <= 80, item['ko']
     for chip in copy.get('chips', []):
         assert chip['tone'] in ('minus', 'plus', 'neutral') and len(chip['ko']) <= 24, chip
@@ -713,9 +713,9 @@ def check_case11_copy() -> None:
     assert f"{rates['weakCloseHitPct']}%" in say(synthetic_row('none', 'weak'), real)['ko']
     # 2026-11-06 (SPEC examples): the numbers a reader sees.
     copy = run('2026-11-06T06:45:00')['current']['copy']
-    assert copy['title'] == {'ko': '오늘 한국장, 크게 밀려서 시작해요', 'en': 'Korea is set to open sharply lower'}
+    assert copy['title'] == {'ko': '오늘 한국장, 크게 밀려서 시작할 것으로 보여요', 'en': 'Korea looks set to open sharply lower'}
     assert copy['openStat']['ko'] == '−3% 안팎' and copy['openRange']['ko'] == '예상 범위 −2 ~ −4.5%', copy
-    assert copy['closeStat']['ko'] == '하락 쪽' and copy['closeNote']['ko'] == '비슷한 36일 중 28일', copy
+    assert copy['closeStat']['ko'] == '36일 중 28일' and copy['closeNote']['ko'] == '이만큼 내려 시작해 마이너스 마감 · 장중 반등한 날 46%(반반)', copy
     assert [c['ko'] for c in copy['chips']] == ['S&P500 −4.4%', '미국 반도체 −12.2%', '한국 ETF 코스피 대비 −8.2%p'], copy['chips']
     assert [c['en'] for c in copy['chips']] == ['S&P 500 −4.4%', 'US chips −12.2%', 'Korea ETF vs KOSPI −8.2pp'], copy['chips']
     assert [c['tone'] for c in copy['chips']] == ['minus', 'minus', 'minus']
@@ -723,7 +723,7 @@ def check_case11_copy() -> None:
     chips = mf.chips_copy({'spyPct': 0.3, 'soxxPct': 2.1, 'ewyPct': 5.4, 'kospiPrevPct': 5.7, 'ewyExcessPct': -0.3})
     assert chips[2] == {'ko': '한국 ETF 코스피 대비 −0.3%p', 'en': 'Korea ETF vs KOSPI −0.3pp', 'tone': 'neutral'}, chips
     assert mf.chips_copy({'spyPct': 0, 'soxxPct': 0, 'ewyPct': 0, 'kospiPrevPct': 0, 'ewyExcessPct': 6.0})[2]['tone'] == 'plus'
-    assert copy['past']['ko'] == '밤사이 신호가 이만큼 나빴던 36일 중 33일은 하락 출발했어요. (2024년 11월부터)', copy['past']
+    assert copy['past']['ko'] == '밤사이 신호가 이만큼 나빴던 날은 열에 아홉쯤 하락 출발했어요. (36일, 2024년 11월부터)', copy['past']
     assert copy['badge'] == {'ko': '신호 뚜렷', 'en': 'Strong signal', 'tone': 'minus'}
     check_copy_rules(copy, 'live 2026-11-06 06:45')
     # After the close: the result table.
@@ -732,16 +732,16 @@ def check_case11_copy() -> None:
     assert done['say']['id'] == 'H7' and done['resultTitle']['ko'] == '오늘 예보 결과', done  # -2.24 is inside -4.37..-2.07
     assert done['resultHeadline']['ko'] == '오늘은 예보대로였어요' and done['resultBadge']['ko'] == '방향 적중', done
     assert [r['key'] for r in done['resultRows']] == ['open', 'open_size', 'close'], 'the close size is not forecast, so it is not scored'
-    assert [r['hit'] for r in done['resultRows']] == [True, True, True]
+    assert [r['hit'] for r in done['resultRows']] == [True, True, None], 'the close is recorded, not scored on the card'
     # Titles for every table row, both languages (SPEC §4.3), with the weekday swap.
     def title(call, strength, target):
         return mf.title_copy(synthetic_row(call, strength, target=target), today)
-    assert title('down', 'strong', '2026-11-06') == {'ko': '오늘 한국장, 크게 밀려서 시작해요', 'en': 'Korea is set to open sharply lower'}
+    assert title('down', 'strong', '2026-11-06') == {'ko': '오늘 한국장, 크게 밀려서 시작할 것으로 보여요', 'en': 'Korea looks set to open sharply lower'}
     assert title('down', 'moderate', '2026-11-06')['ko'] == '오늘 한국장, 내려서 시작할 가능성이 높아요'
     assert title('none', 'weak', '2026-11-06') == {'ko': '오늘은 방향을 내지 않아요', 'en': 'No call today'}
     assert title('up', 'moderate', '2026-11-06')['en'] == 'Korea is likely to open higher'
-    assert title('up', 'strong', '2026-11-06') == {'ko': '오늘 한국장, 크게 올라서 시작해요', 'en': 'Korea is set to open sharply higher'}
-    assert title('down', 'strong', '2026-11-09')['ko'] == '월요일 한국장, 크게 밀려서 시작해요'
+    assert title('up', 'strong', '2026-11-06') == {'ko': '오늘 한국장, 크게 올라서 시작할 것으로 보여요', 'en': 'Korea looks set to open sharply higher'}
+    assert title('down', 'strong', '2026-11-09')['ko'] == '월요일 한국장, 크게 밀려서 시작할 것으로 보여요'
     assert title('none', 'weak', '2026-11-09')['ko'] == '월요일은 방향을 내지 않아요'
     assert mf.title_copy(synthetic_row('none', 'weak', 'no_forecast', reason='missed_window'), today)['en'] == 'No forecast: data arrived too late'
     # Numbers: 0.5 steps, flat band, no "-0".

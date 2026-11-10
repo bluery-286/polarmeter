@@ -451,10 +451,11 @@ def build_copy(row: Mapping[str, Any], events: list[dict[str, Any]]) -> dict[str
         if stats and call in ('up', 'down'):
             side_ko, side_en = ('플러스', 'above') if call == 'up' else ('마이너스', 'below')
             copy['hold'] = {
-                'ko': f"과거 비슷한 크기로 출발한 {stats['days']}번 중 {stats['held']}번은 마감까지 {side_ko}를 지켰어요"
-                      f" (보합 {stats['flat']}번).",
-                'en': f"Of {stats['days']} similar starts, {stats['held']} closed {side_en} the previous close"
-                      f" ({stats['flat']} flat)."}
+                # plan S7: the lead first, then how often a lead like it was still there at the close
+                'ko': f"선물이 이만큼 {'앞선' if call == 'up' else '밀린'} 날 {stats['days']}번 중 {stats['held']}번은"
+                      f" 그 {side_ko}가 마감까지 남았어요 (보합 {stats['flat']}번).",
+                'en': f"Of {stats['days']} days with futures this far {'ahead' if call == 'up' else 'behind'},"
+                      f" {stats['held']} still closed {side_en} the previous close ({stats['flat']} flat)."}
             share = stats.get('afterOpenSameShare')
             more_ko = '더 오를지는' if call == 'up' else '더 내릴지는'
             copy['caveat'] = {

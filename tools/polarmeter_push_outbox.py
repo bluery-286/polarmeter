@@ -67,6 +67,8 @@ TITLE_MISS = {'ko': '꽁치 예보 채점 · 빗나감', 'en': 'Ggongchi forecas
 # the card and the notification never say different things. "가능성이 높아요" is the one phrase §6.5 lets through, in the
 # title table and in this lead sentence.
 ALLOWED_PHRASE = '가능성이 높아요'
+# The coach card may hedge with 가능성 / 수 있어요 since plan S7; a notification keeps the stricter list.
+PUSH_KO_BANNED = cb.KO_BANNED + ('가능성', '수 있어요')
 KO_TITLE_SPLIT = '한국장, '
 EN_DAY_PREFIX = re.compile(r'^[A-Za-z]+: ')   # "Monday: Korea is set to..." when the card was made for a later day
 RECORD_MIN_LIVE_CALLS = 5   # the "so far" record needs at least this many real calls
@@ -345,7 +347,7 @@ def item_problems(item: Mapping[str, Any]) -> list[str]:
                 problems.append(f'exclamation or emoji {where}')
             if lang == 'ko':
                 checked = text.replace(ALLOWED_PHRASE, '')   # the one §6.5 exception; "가능성도" and the like still fail
-                problems += [f'banned {word} {where}' for word in cb.KO_BANNED + cb.KO_ACTION + cb.NAMES if word in checked]
+                problems += [f'banned {word} {where}' for word in PUSH_KO_BANNED + cb.KO_ACTION + cb.NAMES if word in checked]
                 if cb.NAKED_TRADE.search(text):
                     problems.append(f'banned 매수/매도 without 순 {where}')
                 if KO_FORMAL_ENDING.search(text):

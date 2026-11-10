@@ -29,7 +29,7 @@ import sys
 import time
 import urllib.parse
 from collections import Counter, defaultdict
-from datetime import date, datetime, time as dtime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -391,10 +391,18 @@ def analog_buckets(wf: list[dict], open_thr: float) -> list[dict]:
 
 def open_bands(wf: list[dict], open_thr: float) -> list[dict]:
     bands = []
+    recent_from = (date.fromisoformat(wf[-1]['T']) - timedelta(days=365)).isoformat() if wf else ''
     for strength, max_abs in (('weak', open_thr), ('moderate', STRONG_THRESHOLD), ('strong', None)):
-        errs = [abs(r['gap'] - r['pred']['openPct']) for r in wf if r['pred']['strength'] == strength]
+        rows = [r for r in wf if r['pred']['strength'] == strength]
+        errs = [abs(r['gap'] - r['pred']['openPct']) for r in rows]
+        # p80AbsErr (plan S7): the range shown on the card holds 8 of 10 past opens, not half of them.
+        p80 = round(statistics.quantiles(errs, n=10, method='inclusive')[7], 2) if len(errs) >= 10 else None
+        # The card says how often that range held in the last year, which is the honest number when the market got
+        # rougher than the long history (11-10: 54-75% instead of 80%).
+        recent = [abs(r['gap'] - r['pred']['openPct']) for r in rows if r['T'] >= recent_from]
+        cover = round(sum(e <= p80 for e in recent) / len(recent), 2) if p80 is not None and len(recent) >= 20 else None
         bands.append({'maxAbs': max_abs, 'p50AbsErr': round(statistics.median(errs), 2) if errs else None,
-                      'days': len(errs)})
+                      'p80AbsErr': p80, 'p80RecentCoverage': cover, 'recentDays': len(recent), 'days': len(errs)})
     return bands
 
 

@@ -29,16 +29,25 @@
     {
       "maxAbs": 0.3,
       "p50AbsErr": 0.36,
+      "p80AbsErr": 0.67,
+      "p80RecentCoverage": 0.54,
+      "recentDays": 68,
       "days": 305
     },
     {
       "maxAbs": 1.0,
       "p50AbsErr": 0.43,
+      "p80AbsErr": 0.97,
+      "p80RecentCoverage": 0.55,
+      "recentDays": 95,
       "days": 274
     },
     {
       "maxAbs": null,
       "p50AbsErr": 1.0,
+      "p80AbsErr": 2.22,
+      "p80RecentCoverage": 0.75,
+      "recentDays": 76,
       "days": 101
     }
   ],
