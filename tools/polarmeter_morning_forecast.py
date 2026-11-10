@@ -209,6 +209,8 @@ LEDGER_SESSIONS = 60
 BACKFILL_SESSIONS = 20
 RECENT_SESSIONS = 20
 MIN_ANALOG_DAYS = 20
+EXACT_COUNT_MIN_DAYS = 100   # plan S7: below this the past line says a rough share
+KO_COUNT_WORDS = ('', '하나', '둘', '셋', '넷', '다섯', '여섯', '일곱', '여덟', '아홉')
 SUSPECT_ABS_PCT = 15.0
 VOID_AFTER_TRADING_DAYS = 3
 PAUSE_MIN_CALLS = 10
@@ -355,7 +357,8 @@ def input_is_suspect(inputs: Mapping[str, float]) -> bool:
 def open_band(open_pct: float, strength: str, model: Mapping[str, Any]) -> list[float] | None:
     bands = model.get('openBands') or []
     index = {'weak': 0, 'moderate': 1, 'strong': 2}[strength]
-    err = bands[index].get('p50AbsErr') if index < len(bands) else None
+    band = bands[index] if index < len(bands) else {}
+    err = band.get('p80AbsErr') or band.get('p50AbsErr')   # plan S7: 8 of 10 past opens inside, not half
     if err is None:
         return None
     return [round(open_pct - err, 2), round(open_pct + err, 2)]
@@ -578,6 +581,12 @@ def is_paused(rows: Mapping[str, Mapping[str, Any]]) -> bool:
     return calls >= PAUSE_MIN_CALLS and marks.count('hit') / calls < PAUSE_BELOW_HIT_RATE
 
 
+def window_counts(window: list[Mapping[str, Any]]) -> dict[str, Any]:
+    marks = [row_mark(r) for r in window]
+    return {'sessions': len(window), 'calls': marks.count('hit') + marks.count('miss'), 'openHits': marks.count('hit'),
+            'marks': marks}
+
+
 def build_scorecard(rows: Mapping[str, Mapping[str, Any]], carried: Mapping[str, Any], model: Mapping[str, Any]) -> dict[str, Any]:
     window = recent_window(rows)
     marks = [row_mark(r) for r in window]
@@ -592,6 +601,9 @@ def build_scorecard(rows: Mapping[str, Mapping[str, Any]], carried: Mapping[str,
         'recent': {'sessions': len(window), 'calls': marks.count('hit') + marks.count('miss'), 'openHits': marks.count('hit'),
                    'closeCalls': sum(c is not None for c in close_results), 'closeHits': sum(c is True for c in close_results),
                    'liveSessions': sum(r.get('origin') == 'live' for r in window), 'marks': marks},
+        # plan S7: the same window split by origin, so no screen counts a recomputed day as a real forecast
+        'recentLive': window_counts([r for r in window if r.get('origin') == 'live']),
+        'recentBacktest': window_counts([r for r in window if r.get('origin') != 'live']),
         'live': {'since': min(since_candidates) if since_candidates else None,
                  'calls': carried_calls + live_marks.count('hit') + live_marks.count('miss'),
                  'openHits': carried_hits + live_marks.count('hit'),
@@ -695,17 +707,17 @@ def title_copy(row: Mapping[str, Any], today: date) -> dict[str, str]:
             return {'ko': '밤사이 미국장이 쉬어서 예보가 없어요', 'en': 'No forecast: US markets were closed'}
         return {'ko': f'자료가 덜 들어와 {ko_day} 예보를 내지 못했어요', 'en': 'No forecast: data arrived too late'}
     if row.get('paused'):
-        return {'ko': '최근 성적이 나빠 예보를 쉬어요', 'en': 'Forecast paused: recent record is weak'}
+        return {'ko': '요즘 신호가 잘 안 맞아 예보를 쉬어요', 'en': 'Forecast paused: the signal has been off lately'}
     pred = row['predicted']
     if pred['openCall'] == 'none':
         return {'ko': f'{ko_day}은 방향을 내지 않아요' if ko_day != '오늘' else '오늘은 방향을 내지 않아요',
                 'en': 'No call today' if en_day == 'today' else f'No call for {en_day}'}
     strong = pred['strength'] == 'strong'
     if pred['openCall'] == 'down':
-        return {'ko': f'{ko_day} 한국장, ' + ('크게 밀려서 시작해요' if strong else '내려서 시작할 가능성이 높아요'),
-                'en': prefix + ('Korea is set to open sharply lower' if strong else 'Korea is likely to open lower')}
-    return {'ko': f'{ko_day} 한국장, ' + ('크게 올라서 시작해요' if strong else '올라서 시작할 가능성이 높아요'),
-            'en': prefix + ('Korea is set to open sharply higher' if strong else 'Korea is likely to open higher')}
+        return {'ko': f'{ko_day} 한국장, ' + ('크게 밀려서 시작할 것으로 보여요' if strong else '내려서 시작할 가능성이 높아요'),
+                'en': prefix + ('Korea looks set to open sharply lower' if strong else 'Korea is likely to open lower')}
+    return {'ko': f'{ko_day} 한국장, ' + ('크게 올라서 시작할 것으로 보여요' if strong else '올라서 시작할 가능성이 높아요'),
+            'en': prefix + ('Korea looks set to open sharply higher' if strong else 'Korea is likely to open higher')}
 
 
 def badge_copy(row: Mapping[str, Any]) -> dict[str, str]:
@@ -745,6 +757,15 @@ def past_copy(row: Mapping[str, Any]) -> dict[str, str] | None:
         return None
     down = pred['openCall'] == 'down'
     days, same = int(analog['days']), int(analog['openSame'])
+    if days < EXACT_COUNT_MIN_DAYS:
+        # plan S7: a small sample reads as a rough share, so "57일 중 54일" does not sound more precise than it is
+        tenths = round(10 * same / days)
+        share_ko = '거의 매번' if tenths >= 10 else f'열에 {KO_COUNT_WORDS[tenths]}쯤' if tenths >= 1 else '열에 하나도 안 되게'
+        share_en = 'Nearly every one' if tenths >= 10 else f'About {tenths} in 10' if tenths >= 1 else 'Fewer than 1 in 10'
+        return {'ko': f"밤사이 신호가 이만큼 {'나빴던' if down else '좋았던'} 날은 {share_ko} "
+                      f"{'하락' if down else '상승'} 출발했어요. ({days}일, {year}년 {month}월부터)",
+                'en': f"{share_en} of the days with an overnight signal this {'negative' if down else 'positive'} opened "
+                      f"{'lower' if down else 'higher'} ({days} days since {MONTHS_EN[month - 1]} {year})."}
     return {'ko': f"밤사이 신호가 이만큼 {'나빴던' if down else '좋았던'} {days}일 중 {same}일은 "
                   f"{'하락' if down else '상승'} 출발했어요. ({year}년 {month}월부터)",
             'en': f"{same} of {days} days with an overnight signal this {'negative' if down else 'positive'} opened "
@@ -816,11 +837,30 @@ def say_after(row: Mapping[str, Any], today: date | None = None) -> dict[str, st
             'en': f"It moved {fmt_num(abs(intraday))}% {'further ' if further else ''}{en_verb} intraday. Intraday moves are the part I do not forecast."}
 
 
+def range_note_copy(pred: Mapping[str, Any], model: Mapping[str, Any]) -> dict[str, str] | None:
+    """How often the shown range held (plan S7). The last year's share when the model has it, because the market got
+    rougher than the long history and "8 of 10" would overstate it; the long-history 8 of 10 otherwise."""
+    bands = model.get('openBands') or []
+    index = {'weak': 0, 'moderate': 1, 'strong': 2}.get(pred.get('strength'), 9)
+    band = bands[index] if index < len(bands) else {}
+    shown = pred.get('openBand')
+    if not band.get('p80AbsErr') or not shown or abs((shown[1] - shown[0]) / 2 - band['p80AbsErr']) > 0.011:
+        return None   # a row frozen before the p80 range (or by another model) keeps its range without this note
+    cover = band.get('p80RecentCoverage')
+    if isinstance(cover, (int, float)) and 0 <= cover <= 1:
+        tens = int(cover * 10 + 0.5)
+        return {'ko': f'최근 1년 10번 중 {tens}번은 이 범위 안', 'en': f'{tens} of 10 opens fell inside in the last year'}
+    return {'ko': '과거 10번 중 8번은 이 범위 안', 'en': '8 of 10 past opens fell inside'}
+
+
 def range_copy(pred: Mapping[str, Any]) -> dict[str, str] | None:
     band = pred.get('openBand')
     if not band:
         return None
-    low, high = sorted((round_half(band[0]), round_half(band[1])), key=abs)
+    # Rounded outward to 0.5 steps (review on #59): the range a reader sees always contains the calibrated band,
+    # so the coverage note under it never overstates.
+    edge_lo, edge_hi = math.floor(min(band) * 2) / 2, math.ceil(max(band) * 2) / 2
+    low, high = sorted((edge_lo, edge_hi), key=abs)
     if low == high:
         text = fmt_half(low, True)
         return {'ko': f'예상 범위 {text}% 안팎', 'en': f'Likely around {text}%'}
@@ -835,18 +875,29 @@ def size_copy(value: float) -> dict[str, str]:
 
 
 def close_copy(row: Mapping[str, Any], model: Mapping[str, Any]) -> dict[str, dict[str, str]]:
-    pred = row['predicted']
-    stat = {'down': ('하락 쪽', 'Lower'), 'up': ('상승 쪽', 'Higher'), 'none': ('방향 없음', 'No call')}[pred['closeCall']]
-    out = {'closeStat': {'ko': stat[0], 'en': stat[1]}}
-    analog = row.get('analog')
-    threshold = float((model.get('close') or {}).get('callThreshold', 0.6))
-    if pred['closeCall'] == 'none':
-        out['closeNote'] = {'ko': f'예상 종가 변화가 {fmt_num(threshold)}% 미만이라 방향을 내지 않아요',
-                            'en': f'Expected close move is under {fmt_num(threshold)}%, so no direction'}
-    elif analog and pred['closeCall'] == pred['openCall'] and int(analog.get('days') or 0) >= MIN_ANALOG_DAYS:
-        out['closeNote'] = {'ko': f"비슷한 {analog['days']}일 중 {analog['closeSame']}일",
-                            'en': f"{analog['closeSame']} of {analog['days']} similar days"}
-    return out
+    """How often a start this size held to the close (plan S7). The close is not presented as a scored forecast:
+    `closeCall` and `closeHit` are still recorded, but the card only says what past days like this did."""
+    pred, analog = row['predicted'], row.get('analog')
+    if pred['openCall'] == 'none' or not analog or int(analog.get('days') or 0) < MIN_ANALOG_DAYS:
+        return {}
+    up = pred['openCall'] == 'up'
+    days, held = int(analog['days']), int(analog['closeSame'])
+    rates = model.get('baseRates') or {}
+    block = rates.get('gapUpIntradayExtend' if up else 'gapDownIntradayRebound') or {}
+    share = rate_pct(block.get('extended' if up else 'rebounded'), block.get('days'))
+    # The intraday rate comes from starts of at least the block's gap (1.5%); smaller calls do not get it (review on #59).
+    gap = block.get('gapAtLeast' if up else 'gapAtMost')
+    if share is not None and not (isinstance(gap, (int, float)) and (pred['openPct'] >= gap if up else pred['openPct'] <= gap)):
+        share = None
+    if share is None:
+        tail_ko, tail_en = f' ({days}일 기준)', f' ({days} days)'
+    else:
+        coin = '(반반)' if 40 <= share <= 60 else ''
+        tail_ko = f" · 장중 {'더 오른' if up else '반등한'} 날 {share}%{coin}"
+        tail_en = f" · {'rose further' if up else 'rebounded'} intraday {share}%"
+    return {'closeStat': {'ko': f'{days}일 중 {held}일', 'en': f'{held} of {days} days'},
+            'closeNote': {'ko': f"이만큼 {'올라' if up else '내려'} 시작해 {'플러스' if up else '마이너스'} 마감" + tail_ko,
+                          'en': f"Started like this, closed {'above' if up else 'below'}" + tail_en}}
 
 
 def open_result_copy(row: Mapping[str, Any]) -> dict[str, str]:
@@ -861,7 +912,7 @@ def open_result_copy(row: Mapping[str, Any]) -> dict[str, str]:
 
 def result_rows_copy(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     pred, actual, result = row['predicted'], row['actual'], row['result']
-    open_call, close_call = pred['openCall'], pred['closeCall']
+    open_call = pred['openCall']
     open_pct, close_pct = actual.get('openPct'), actual.get('closePct')
     dash = {'ko': '—', 'en': '—'}
 
@@ -876,9 +927,8 @@ def result_rows_copy(row: Mapping[str, Any]) -> list[dict[str, Any]]:
          'forecast': size_copy(pred['openPct']) if open_call != 'none' else dash,
          'actual': actual_pct(open_pct), 'hit': result.get('openInBand')},
         {'key': 'close', 'label': {'ko': '종가 방향', 'en': 'Close direction'},
-         'forecast': {'ko': {'down': '하락 쪽', 'up': '상승 쪽', 'none': '방향 없음'}[close_call],
-                      'en': {'down': 'Lower', 'up': 'Higher', 'none': 'No call'}[close_call]},
-         'actual': actual_pct(close_pct), 'hit': result.get('closeHit')},
+         'forecast': {'ko': '예보 안 함', 'en': 'Not forecast'},
+         'actual': actual_pct(close_pct), 'hit': None},   # plan S7: closeHit stays in `result`, the card does not score it
     ]
 
 
@@ -917,6 +967,9 @@ def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) ->
         band = range_copy(pred)
         if band:
             copy['openRange'] = band
+            note = range_note_copy(pred, model)
+            if note:
+                copy['openRangeNote'] = note
         copy.update(close_copy(row, model))
         past = past_copy(row)
         if past:

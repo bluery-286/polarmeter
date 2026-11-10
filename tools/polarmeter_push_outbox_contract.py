@@ -236,8 +236,8 @@ def check_copy_examples() -> None:
     # 방향 낸 날
     item = only(build(snapshot(current_row('down'), card=scorecard(14, 13)), '2026-11-06T06:00:00', 'call, strong down'))
     assert item['title'] == {'ko': '꽁치 예보 · 오늘 한국장', 'en': 'Ggongchi forecast · Korea today'}, item['title']
-    assert item['body']['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', item['body']['ko']
-    assert item['body']['en'] == 'Korea is set to open sharply lower. KOSPI open around −3% · 13 of last 14 calls right', item['body']['en']
+    assert item['body']['ko'] == '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', item['body']['ko']
+    assert item['body']['en'] == 'Korea looks set to open sharply lower. KOSPI open around −3% · 13 of last 14 calls right', item['body']['en']
     # 방향 없는 날
     item = only(build(snapshot(current_row('none', spy=0.21, soxx=-0.33)), '2026-11-06T06:00:00', 'no call'))
     assert item['body']['ko'] == '오늘은 방향을 내지 않아요. 밤사이 S&P500 +0.2%, 미국 반도체 −0.3%', item['body']
@@ -268,15 +268,15 @@ def check_copy_variants() -> None:
     up = only(build(snapshot(current_row('up', open_pct=0.8)), '2026-11-06T06:00:00', 'moderate up'))
     assert up['body']['ko'].startswith('올라서 시작할 가능성이 높아요.') and up['body']['en'].startswith('Korea is likely to open higher.'), up['body']
     big_up = only(build(snapshot(current_row('up', open_pct=2.4)), '2026-11-06T06:00:00', 'strong up'))
-    assert big_up['body']['ko'].startswith('크게 올라서 시작해요.') and big_up['body']['en'].startswith('Korea is set to open sharply higher.')
+    assert big_up['body']['ko'].startswith('크게 올라서 시작할 것으로 보여요.') and big_up['body']['en'].startswith('Korea looks set to open sharply higher.')
     # no real forecast yet: the clause is left out, the rest stays
     quiet = only(build(snapshot(current_row('down'), card=scorecard(0, 0, live_sessions=0)), '2026-11-06T06:00:00', 'no record'))
-    assert quiet['body']['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎', quiet['body']['ko']
-    assert quiet['body']['en'] == 'Korea is set to open sharply lower. KOSPI open around −3%', quiet['body']['en']
+    assert quiet['body']['ko'] == '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎', quiet['body']['ko']
+    assert quiet['body']['en'] == 'Korea looks set to open sharply lower. KOSPI open around −3%', quiet['body']['en']
     broken = only(build(snapshot(current_row('down'), card={'recent': {'calls': 3, 'openHits': 5}}), '2026-11-06T06:00:00', 'bad record'))
     assert '최근' not in broken['body']['ko'], 'a record that does not add up is not printed'
     gone = only(build(snapshot(current_row('down'), card=None), '2026-11-06T06:00:00', 'default card'))
-    assert gone['body']['ko'].startswith('크게 밀려서 시작해요'), gone
+    assert gone['body']['ko'].startswith('크게 밀려서 시작할 것으로 보여요'), gone
     # a call whose size reads "보합권" still prints
     flat = only(build(snapshot(current_row('down', open_pct=-0.35)), '2026-11-06T06:00:00', 'flat-sized call'))
     assert '보합권' in flat['body']['ko'], flat['body']
@@ -294,7 +294,7 @@ def check_record_piece() -> None:
     # 0 real forecasts (the recent window is all recomputed): no piece, no stray ' · ' or full stop
     zero = scorecard(14, 13, live_sessions=0, live_calls=0, live_hits=0)
     body = only(build(snapshot(down, card=zero), '2026-11-06T06:00:00', 'record: zero live'))['body']
-    assert body == {'ko': '크게 밀려서 시작해요. 코스피 시가 −3% 안팎', 'en': 'Korea is set to open sharply lower. KOSPI open around −3%'}, body
+    assert body == {'ko': '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎', 'en': 'Korea looks set to open sharply lower. KOSPI open around −3%'}, body
     body = only(build(snapshot(done, card=zero), '2026-11-06T15:50:00', 'record: zero live, hit'))['body']
     assert body == {'ko': '시가 −2.2%(예보 −3% 안팎), 종가 −6.0%', 'en': 'Open −2.2% (forecast around −3%), close −6.0%'}, body
     body = only(build(snapshot(miss, card=zero), '2026-11-06T15:50:00', 'record: zero live, miss'))['body']
@@ -305,8 +305,8 @@ def check_record_piece() -> None:
     # 5 or more live calls but the 20 days are not all live: "지금까지" (the recent window is NOT quoted)
     some = scorecard(14, 13, live_sessions=9, live_calls=6, live_hits=5)
     body = only(build(snapshot(down, card=some), '2026-11-06T06:00:00', 'record: so far'))['body']
-    assert body['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 지금까지 6번 중 5번 적중', body['ko']
-    assert body['en'] == 'Korea is set to open sharply lower. KOSPI open around −3% · 5 of 6 calls right so far', body['en']
+    assert body['ko'] == '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎 · 지금까지 6번 중 5번 적중', body['ko']
+    assert body['en'] == 'Korea looks set to open sharply lower. KOSPI open around −3% · 5 of 6 calls right so far', body['en']
     body = only(build(snapshot(done, card=some), '2026-11-06T15:50:00', 'record: so far, hit'))['body']
     assert body['ko'] == '시가 −2.2%(예보 −3% 안팎), 종가 −6.0%. 지금까지 6번 중 5번 적중', body['ko']
     assert body['en'] == 'Open −2.2% (forecast around −3%), close −6.0%. 5 of 6 calls right so far', body['en']
@@ -320,7 +320,7 @@ def check_record_piece() -> None:
     # all 20 recent sessions are real forecasts: "최근" with the recent window's numbers (not the running totals)
     full = scorecard(14, 13, live_sessions=20, live_calls=40, live_hits=35)
     body = only(build(snapshot(down, card=full), '2026-11-06T06:00:00', 'record: recent'))['body']
-    assert body['ko'] == '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', body['ko']
+    assert body['ko'] == '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중', body['ko']
     assert body['en'].endswith('13 of last 14 calls right'), body['en']
     # all live but nothing to count in the window (no call in 20 days): no piece
     empty = scorecard(0, 0, live_sessions=20, live_calls=0, live_hits=0)
@@ -382,14 +382,14 @@ def check_copy_rules_negative() -> None:
         return item
 
     bad = [
-        with_text('body', 'ko', '크게 밀려서 시작해요. 코스피 시가 −3% 안팎 · 다음 갱신에서 확인해요'),   # banned 확인 / 다음 갱신
-        with_text('body', 'ko', '크게 밀려서 시작해요. 지금 사세요 −3%'),                              # an instruction to trade
-        with_text('body', 'ko', '크게 밀려서 시작해요. 매도 −3% 안팎'),                                 # a bare 매도
-        with_text('body', 'ko', '크게 밀려서 시작해요. 삼성전자 −3% 안팎'),                              # a stock name
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 코스피 시가 −3% 안팎 · 다음 갱신에서 확인해요'),   # banned 확인 / 다음 갱신
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 지금 사세요 −3%'),                              # an instruction to trade
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 매도 −3% 안팎'),                                 # a bare 매도
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 삼성전자 −3% 안팎'),                              # a stock name
         with_text('body', 'ko', '크게 밀려서 시작할 가능성도 있어요. −3%'),                              # banned 가능성
-        with_text('body', 'ko', '크게 밀려서 시작해요! 코스피 시가 −3% 안팎'),                            # exclamation
-        with_text('body', 'ko', '크게 밀려서 시작해요. 코스피 시가가 크게 밀려서 시작한다고 봅니다 숫자 1' + '가' * 40),   # too long
-        with_text('body', 'ko', '크게 밀려서 시작해요. 코스피 시가는 하락합니다'),                         # no number, 합쇼체
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요! 코스피 시가 −3% 안팎'),                            # exclamation
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 코스피 시가가 크게 밀려서 시작한다고 봅니다 숫자 1' + '가' * 40),   # too long
+        with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 코스피 시가는 하락합니다'),                         # no number, 합쇼체
         with_text('body', 'ko', '밀려서 시작합니다. 코스피 시가 −3% 안팎입니다.'),                        # 합쇼체
         with_text('body', 'ko', '코스피 시가 −3% 안팎 · 최근 14번 중 13번 적중'),                          # lead is not a 해요체 sentence with a direction
         with_text('title', 'ko', '꽁치 예보 · 오늘 한국장은 크게 내려요 정말로'),                           # title over 20
@@ -403,7 +403,7 @@ def check_copy_rules_negative() -> None:
     for item in bad:
         assert po.item_problems(item), item
     # the net-flow words stay allowed, as in the coach brief
-    ok = with_text('body', 'ko', '크게 밀려서 시작해요. 외국인 순매도 2.8조 원')
+    ok = with_text('body', 'ko', '크게 밀려서 시작할 것으로 보여요. 외국인 순매도 2.8조 원')
     assert not po.item_problems(ok), po.item_problems(ok)
     # an item with a copy problem is dropped, the others are kept
     poisoned = current_row('down', state='closed_scored', actual_open=-2.24, actual_close=-6.02, hit=True)

@@ -64,7 +64,7 @@ LIMIT_NEXT = 26
 
 # ---------------------------------------------------------------- copy rules (SPEC §6.5)
 
-KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '가능성', '수 있어요', '다음 갱신')
+KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '다음 갱신')   # plan S7: 가능성 / 수 있어요 are allowed (softer, not banned)
 KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천')
 NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # 순매수 / 순매도 describe flows and pass; 매수하세요, 매도 추천 do not
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung',
@@ -333,8 +333,8 @@ def verdict(rule_id: str, tone: str, ko: str, en: str) -> dict[str, str]:
 
 PRE_TEXT = {
     # rule, down: (ko, en), up: (ko, en). The table in SPEC §4.6 plus the direction words §6.5 asks for.
-    'C1': ('C4', '미국 급락이 그대로 넘어오는 날이에요', 'The US plunge carries straight over to Korea',
-           '미국 급등이 그대로 넘어오는 날이에요', 'The US surge carries straight over to Korea'),
+    'C1': ('C4', '미국 급락이 크게 넘어올 것으로 보여요', 'The US plunge looks set to carry over to Korea',
+           '미국 급등이 크게 넘어올 것으로 보여요', 'The US surge looks set to carry over to Korea'),
     'C2': ('C5', '미국 반도체가 한국장을 끌어내리는 날이에요', 'US chips are pulling Korea lower',
            '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
     'C3': ('C6', '밤사이 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped overnight',
@@ -396,8 +396,8 @@ def weekend_forecast_verdict(ctx: Context) -> dict[str, str] | None:
         ko = f"{night_ko} 한국 주식만 따로 {'팔렸어요' if down else '샀어요'}"
         en = f"Korean stocks alone were {'dumped' if down else 'bid up'} {'on ' if len(sessions) == 1 else 'in '}{night_en}"
     elif key == 'C1':
-        ko = f"{target_ko}엔 미국 {'급락' if down else '급등'}이 그대로 넘어오는 날이에요"
-        en = f"{target_en}: the US {'plunge' if down else 'surge'} carries straight over to Korea"
+        ko = f"{target_ko}엔 미국 {'급락' if down else '급등'}이 크게 넘어올 것으로 보여요"
+        en = f"{target_en}: the US {'plunge' if down else 'surge'} looks set to carry over to Korea"
     elif key == 'C2':
         ko = f"{target_ko}엔 미국 반도체가 한국장을 {'끌어내리는' if down else '끌어올리는'} 날이에요"
         en = f"{target_en}: US chips are pulling Korea {'lower' if down else 'higher'}"

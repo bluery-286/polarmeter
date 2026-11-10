@@ -144,8 +144,8 @@ def pre_snap(call='down', **row_args) -> dict:
 def check_pre_open_rules() -> None:
     cases = [
         # (label, call, row args, rule, tone, ko, en)
-        ('C1 down, S&P500 leads', 'down', dict(), 'C1', 'minus', '미국 급락이 그대로 넘어오는 날이에요',
-         'The US plunge carries straight over to Korea'),
+        ('C1 down, S&P500 leads', 'down', dict(), 'C1', 'minus', '미국 급락이 크게 넘어올 것으로 보여요',
+         'The US plunge looks set to carry over to Korea'),
         ('C2 down, chips lead', 'down', dict(spy=-1.0, soxx=-3.0, excess=-1.0, top='soxxPct'), 'C2', 'minus',
          '미국 반도체가 한국장을 끌어내리는 날이에요', 'US chips are pulling Korea lower'),
         ('C3 down, Korea alone', 'down', dict(spy=-0.5, soxx=-1.0, excess=-5.0), 'C3', 'minus',
@@ -153,7 +153,7 @@ def check_pre_open_rules() -> None:
         ('C0 down', 'down', dict(spy=-0.5, soxx=-1.0, excess=-0.5, top='spyPct'), 'C0', 'minus',
          '밤사이 미국장 약세가 넘어오는 날이에요', 'US weakness carries over to Korea overnight'),
         ('C4 up, S&P500 leads', 'up', dict(spy=1.6, soxx=1.0, excess=1.0, top='spyPct'), 'C4', 'plus',
-         '미국 급등이 그대로 넘어오는 날이에요', 'The US surge carries straight over to Korea'),
+         '미국 급등이 크게 넘어올 것으로 보여요', 'The US surge looks set to carry over to Korea'),
         ('C5 up, chips lead', 'up', dict(spy=1.0, soxx=2.6, excess=1.0, top='soxxPct'), 'C5', 'plus',
          '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
         ('C6 up, Korea alone', 'up', dict(spy=0.5, soxx=1.0, excess=5.0), 'C6', 'plus',
@@ -333,9 +333,9 @@ def check_weekend_rules() -> None:
     cases = [
         # (label, row args, rule, tone, ko, en)
         ('weekend C4', dict(call='up', spy=1.6, soxx=1.0, excess=1.0), 'C4', 'plus',
-         '월요일엔 미국 급등이 그대로 넘어오는 날이에요', 'Monday: the US surge carries straight over to Korea'),
+         '월요일엔 미국 급등이 크게 넘어올 것으로 보여요', 'Monday: the US surge looks set to carry over to Korea'),
         ('weekend C1', dict(call='down', spy=-1.6, soxx=-1.0, excess=-1.0), 'C1', 'minus',
-         '월요일엔 미국 급락이 그대로 넘어오는 날이에요', 'Monday: the US plunge carries straight over to Korea'),
+         '월요일엔 미국 급락이 크게 넘어올 것으로 보여요', 'Monday: the US plunge looks set to carry over to Korea'),
         ('weekend C5', dict(call='up', spy=0.31, soxx=3.51, excess=10.09, top='ewyExcessPct'), 'C5', 'plus',
          '월요일엔 미국 반도체가 한국장을 끌어올리는 날이에요', 'Monday: US chips are pulling Korea higher'),
         ('weekend C2', dict(call='down', spy=-1.0, soxx=-3.0, excess=-1.0, top='soxxPct'), 'C2', 'minus',
@@ -367,7 +367,7 @@ def check_weekend_rules() -> None:
                                                        sessions=['2026-10-08', '2026-10-09'], spy=2.0, soxx=0.1, excess=0.0,
                                                        top='spyPct'), 'pre_open', next_issue='2026-10-12T21:45:00Z'),
                             morning_signals(), flows=flows_ledger('2026-10-08'))
-    assert ko(build(holiday_call, '2026-10-10T10:00:00', 'holiday call')) == '월요일엔 미국 급등이 그대로 넘어오는 날이에요'
+    assert ko(build(holiday_call, '2026-10-10T10:00:00', 'holiday call')) == '월요일엔 미국 급등이 크게 넘어올 것으로 보여요'
 
 
 # ---------------------------------------------------------------- 2. evidence
@@ -619,7 +619,6 @@ def check_copy_rules_negative() -> None:
     cases = {
         '금지 낱말 확인': (lambda b: b['evidence'][0].update(ko='미국 온도 48°를 확인해요'), 'banned 확인'),
         '금지 낱말 다음 갱신': (lambda b: b['next'][0].update(ko='다음 갱신에서 봐요'), 'banned 다음 갱신'),
-        '금지 낱말 수 있어요': (setv('내려갈 수 있어요'), 'banned 수 있어요'),
         '매도하세요': (lambda b: b['lines'][0].update(ko='1,345원 위에서 매도하세요'), 'banned 매수/매도'),
         '매수 추천': (lambda b: b['lines'][0].update(ko='1,345원 아래 매수 추천이에요'), 'banned'),
         '순 없는 매수': (lambda b: b['lines'][0].update(ko='외국인 매수 구간이에요 1,345원'), 'banned 매수/매도'),
@@ -627,7 +626,7 @@ def check_copy_rules_negative() -> None:
         '순매도하세요': (lambda b: b['lines'][0].update(ko='1,345원 위에서 매도하세요'), 'banned'),
         '비중': (lambda b: b['lines'][0].update(ko='비중을 줄여요'), 'banned 비중'),
         '종목 이름': (lambda b: b['evidence'][0].update(ko='삼성전자 -7.6%'), 'banned 삼성전자'),
-        '방향 낱말 없음': (setv('미국이 그대로 넘어오는 날이에요'), 'direction word'),
+        '방향 낱말 없음': (setv('미국이 크게 넘어올 것으로 보여요'), 'direction word'),
         '28자 넘음': (setv('밤사이 미국장이 크게 내려서 한국장도 많이 밀려요 정말로 그래요요'), 'verdict over 28'),
         '해요체 아님': (setv('미국 급락이 밀려옴'), '해요체'),
         '근거에 숫자 없음': (lambda b: b['evidence'][0].update(ko='미국 온도가 내려갔어요'), 'evidence needs a number'),
@@ -658,9 +657,11 @@ def check_copy_rules_negative() -> None:
         '나흘째': lambda b: b['evidence'][0].update(ko='외국인 나흘째 순매수'),
         '순매도 기준선': lambda b: b['lines'][0].update(level={'ko': '순매도 1.3조 원 넘으면', 'en': 'Net selling over 1.3T won'},
                                                   ko='평소보다 큰 규모예요', en='Bigger than a typical day'),
-        '급락': setv('미국 급락이 그대로 넘어오는 날이에요'), '급등': setv('미국 급등이 그대로 넘어오는 날이에요'),
+        '급락': setv('미국 급락이 크게 넘어올 것으로 보여요'), '급등': setv('미국 급등이 크게 넘어올 것으로 보여요'),
         '약세': setv('밤사이 미국장 약세가 넘어오는 날이에요'), '강세': setv('밤사이 미국장 강세가 넘어오는 날이에요'),
         '하락': setv('코스피 하락이 이어지는 날이에요'), '상승': setv('코스피 상승이 이어지는 날이에요'),
+        # plan S7 (11-10): a hedge is honest, not banned
+        '수 있어요': setv('미국 급락에 밀려 내려갈 수 있어요'), '가능성': setv('하락 출발 가능성이 높아요'),
         '반등': setv('반도체가 반등하는 날이에요'), '되돌': setv('시가에서 되돌려지는 날이에요'),
     }
     for name, edit in passing.items():
