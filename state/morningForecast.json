@@ -122,8 +122,8 @@
     }
    ],
    "resultTitle": {
-    "en": "Forecast result",
-    "ko": "오늘 예보 결과"
+    "en": "Nov 10 forecast result",
+    "ko": "11월 10일 예보 결과"
    },
    "say": {
     "en": "It moved 0.1% down intraday. Intraday moves are the part I do not forecast.",
@@ -131,8 +131,8 @@
     "ko": "장중에 0.1% 빠졌어요. 장중 움직임은 제가 예보하지 못하는 부분이에요."
    },
    "title": {
-    "en": "Korea looks set to open sharply higher",
-    "ko": "오늘 한국장, 크게 올라서 시작할 것으로 보여요"
+    "en": "Nov 10: Korea looks set to open sharply higher",
+    "ko": "11월 10일 한국장, 크게 올라서 시작할 것으로 보여요"
    }
   },
   "inputs": {
@@ -173,7 +173,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-10T07:01:54Z",
+ "generatedAt": "2026-11-10T15:02:03Z",
  "ledger": [
   {
    "actual": {
@@ -1111,7 +1111,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-10T21:45:00Z",
- "phase": "kr_closed",
+ "phase": "us_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
