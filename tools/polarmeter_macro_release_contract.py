@@ -135,6 +135,55 @@ def main() -> None:
     assert cpi['resultLabel'] == '물가 전월 대비 -0.4% · 전년 대비 +3.5%'
     assert isinstance(cpi['burdenScore'], int)
 
+    # October 2025 CPI was never published (federal shutdown): October 2026 has no year-ago index.
+    # The release still goes out with the month change only; a missing current month stays an error.
+    gap_payload = {
+        'status': 'REQUEST_SUCCEEDED',
+        'message': [],
+        'Results': {'series': [
+            {'seriesID': 'CUSR0000SA0', 'data': [
+                {'year': '2026', 'period': 'M10', 'value': '334.000'},
+                {'year': '2026', 'period': 'M09', 'value': '333.000'},
+            ]},
+            {'seriesID': 'CUUR0000SA0', 'data': [
+                {'year': '2026', 'period': 'M10', 'value': '334.500'},
+                {'year': '2025', 'period': 'M09', 'value': '324.000'},
+                {'year': '2025', 'period': 'M11', 'value': '324.100'},
+            ]},
+        ]},
+    }
+    gap = snapshot.parse_bls_cpi_release(
+        gap_payload,
+        label='10월 CPI',
+        released_at=datetime(2026, 11, 10, 13, 30, tzinfo=timezone.utc),
+        source_url='https://www.bls.gov/news.release/cpi.nr0.htm',
+    )
+    assert gap['resultLabel'] == '물가 전월 대비 +0.3%', gap
+    assert '전년 대비' in gap['detail'] and '2025년 10월' in gap['detail'] and '발표하지 않아' in gap['detail'], gap
+    assert gap['burdenScore'] == 56, gap
+    with patch.dict(
+        snapshot.SCHEDULED_MACRO_EVENTS,
+        {'us_cpi': snapshot.SCHEDULED_MACRO_EVENTS['us_cpi']},
+        clear=True,
+    ):
+        late = snapshot.build_macro_events(
+            now=datetime(2026, 11, 10, 16, 0, tzinfo=timezone.utc),
+            bls_fetcher=lambda _series, _start, _end: gap_payload,
+        )
+    assert late['us_cpi']['status'] == 'ok' and late['us_cpi']['lastRelease']['label'] == '10월 CPI', late
+    no_current = {'status': 'REQUEST_SUCCEEDED', 'message': [], 'Results': {'series': [
+        {**series, 'data': [row for row in series['data'] if not (row['year'] == '2026' and row['period'] == 'M10')]}
+        for series in gap_payload['Results']['series']
+    ]}}
+    try:
+        snapshot.parse_bls_cpi_release(no_current, label='10월 CPI',
+                                       released_at=datetime(2026, 11, 10, 13, 30, tzinfo=timezone.utc),
+                                       source_url='https://www.bls.gov/news.release/cpi.nr0.htm')
+    except ValueError as error:
+        assert 'missing period 2026-10' in str(error)
+    else:
+        raise AssertionError('a CPI release without its own month passed')
+
     jobs = snapshot.parse_bls_employment_release(
         SYNTHETIC_BLS_PAYLOAD,
         label='7월 고용',
