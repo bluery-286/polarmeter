@@ -1,0 +1,26 @@
+{
+  "day": "2026-11-10",
+  "kind": "us_rally_oil_drop",
+  "weekday": true,
+  "marketMoves": {
+    "us": {"sp500": 2.37, "nasdaq100": 3.54},
+    "kr": {"kospi": -0.81, "kosdaq": -0.82}
+  },
+  "labels": [
+    {"match": "나스닥 2.74% 급등", "tone": ["positive"], "why": "index rally; one stock falling does not flip the market"},
+    {"match": "3대 지수 급등…유가 하락에 투자심리 회복", "tone": ["positive"]},
+    {"match": "유가 급락에 3대 지수 반등", "tone": ["positive"], "why": "oil falling with indexes up is good news for stocks"},
+    {"match": "유가 급락에 美증시 2%대 반등", "tone": ["positive"]},
+    {"match": "이란戰 종식 모멘텀", "tone": ["positive"], "why": "de-escalation and an oil drop"},
+    {"match": "트럼프가 살린 증시", "tone": ["positive", "neutral"], "why": "market up, one stock down"},
+    {"match": "사우디 송유관 공격에도 차질 없어", "tone": ["neutral", "positive"], "why": "attack without supply loss, output recovering"},
+    {"match": "OPEC 산유량 전쟁 전 90% 회복", "tone": ["neutral", "positive"]},
+    {"match": "반도체 반등에도 엔비디아 장중 8%", "tone": ["neutral", "negative"], "why": "single stock"},
+    {"match": "고유가·고금리 완화가 연말 호재", "tone": ["positive"]},
+    {"match": "11월 저점 찍고 반등", "tone": ["positive", "neutral"]}
+  ],
+  "sameEvent": [
+    {"name": "us_close_wrap_2026-11-09", "match": ["나스닥 2.74% 급등", "3대 지수 급등…유가 하락에 투자심리 회복", "유가 급락에 3대 지수 반등", "유가 급락에 美증시 2%대 반등", "트럼프가 살린 증시"], "maxSelected": 2}
+  ],
+  "caps": {"maxNegativeShareOnRally": 0.5, "maxPerCategory": 8, "maxPerSource": 3, "minKrMarket": 2}
+}
