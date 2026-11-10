@@ -13,8 +13,8 @@
    },
    "events": [],
    "hold": {
-    "en": "Of 55 similar starts, 42 closed above the previous close (6 flat).",
-    "ko": "과거 비슷한 크기로 출발한 55번 중 42번은 마감까지 플러스를 지켰어요 (보합 6번)."
+    "en": "Of 55 days with futures this far ahead, 42 still closed above the previous close (6 flat).",
+    "ko": "선물이 이만큼 앞선 날 55번 중 42번은 그 플러스가 마감까지 남았어요 (보합 6번)."
    },
    "kospi": {
     "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
@@ -58,7 +58,7 @@
   "en": "Past record only; it does not promise future results. Not a trading recommendation.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
  },
- "generatedAt": "2026-11-10T00:47:16Z",
+ "generatedAt": "2026-11-10T01:30:31Z",
  "ledger": [
   {
    "actual": {
