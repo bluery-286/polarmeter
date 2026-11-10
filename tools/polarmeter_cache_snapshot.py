@@ -437,19 +437,33 @@ def parse_bls_cpi_release(
     current_sa = _required_bls_value(points, BLS_SERIES['cpi_sa'], current)
     previous_sa = _required_bls_value(points, BLS_SERIES['cpi_sa'], previous)
     current_nsa = _required_bls_value(points, BLS_SERIES['cpi_nsa'], current)
-    year_ago_nsa = _required_bls_value(points, BLS_SERIES['cpi_nsa'], year_ago)
     month_change = (current_sa / previous_sa - 1.0) * 100.0
-    year_change = (current_nsa / year_ago_nsa - 1.0) * 100.0
-    burden_score = int(max(0, min(100, round(50 + month_change * 20 + (year_change - 2.0) * 3))))
-    return {
-        'label': label,
-        'releasedAt': released_at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
-        'resultLabel': f'물가 전월 대비 {_signed_percent(month_change)} · 전년 대비 {_signed_percent(year_change)}',
-        'detail': (
+    # BLS never published some months (October 2025, lost to the federal shutdown). The current and
+    # previous month stay required: a missing current month means the release is not out yet. A missing
+    # year-ago month is permanent, so the year-over-year figure is left out instead of failing every run.
+    year_ago_nsa = (points.get(BLS_SERIES['cpi_nsa']) or {}).get(year_ago)
+    if year_ago_nsa is None:
+        burden_score = int(max(0, min(100, round(50 + month_change * 20))))
+        result_label = f'물가 전월 대비 {_signed_percent(month_change)}'
+        detail = (
+            f'{label} 공식 지수는 전월 대비 {_signed_percent(month_change)}였습니다. '
+            f'1년 전({year_ago[0]}년 {year_ago[1]}월) 지수는 BLS가 발표하지 않아 전년 대비는 싣지 않았습니다. '
+            '금리 부담이 낮아지는지와 달러·환율 반응을 함께 봅니다.'
+        )
+    else:
+        year_change = (current_nsa / year_ago_nsa - 1.0) * 100.0
+        burden_score = int(max(0, min(100, round(50 + month_change * 20 + (year_change - 2.0) * 3))))
+        result_label = f'물가 전월 대비 {_signed_percent(month_change)} · 전년 대비 {_signed_percent(year_change)}'
+        detail = (
             f'{label} 공식 지수는 전월 대비 {_signed_percent(month_change)}, '
             f'전년 대비 {_signed_percent(year_change)}였습니다. '
             '금리 부담이 낮아지는지와 달러·환율 반응을 함께 봅니다.'
-        ),
+        )
+    return {
+        'label': label,
+        'releasedAt': released_at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'resultLabel': result_label,
+        'detail': detail,
         'sourceLabel': f'BLS CPI · {released_at.date().isoformat()}',
         'sourceUrl': source_url,
         'burdenScore': burden_score,
