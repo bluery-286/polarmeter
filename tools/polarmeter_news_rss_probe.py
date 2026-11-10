@@ -9,6 +9,7 @@ Contract:
 from __future__ import annotations
 
 import argparse
+import copy
 import email.utils
 import hashlib
 import ipaddress
@@ -1028,12 +1029,26 @@ def critical_market_event(headline: str) -> tuple[bool, str | None]:
     return False, None
 
 
+# The probe's clock. Live runs use the wall clock; a stored-feed replay (--replay-feed, the news-day
+# regression contract) pins it so 24-hour freshness and preview expiry match the day the feed was saved.
+_CLOCK_OVERRIDE: datetime | None = None
+
+
+def current_time() -> datetime:
+    return _CLOCK_OVERRIDE if _CLOCK_OVERRIDE is not None else datetime.now(timezone.utc)
+
+
+def set_clock(now: datetime | None) -> None:
+    global _CLOCK_OVERRIDE
+    _CLOCK_OVERRIDE = now.astimezone(timezone.utc) if now is not None else None
+
+
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    return current_time().isoformat().replace('+00:00', 'Z')
 
 
 def utc_in(minutes: int) -> str:
-    return (datetime.now(timezone.utc) + timedelta(minutes=max(1, minutes))).isoformat().replace('+00:00', 'Z')
+    return (current_time() + timedelta(minutes=max(1, minutes))).isoformat().replace('+00:00', 'Z')
 
 
 def google_news_url(query: str, *, hl: str = 'ko', gl: str = 'KR', ceid: str = 'KR:ko') -> str:
@@ -1615,7 +1630,7 @@ def parse_utc(value: str | None) -> datetime | None:
 
 
 def expired_macro_event_preview(headline: str, published_at: str | None, now: datetime | None = None) -> bool:
-    return expired_us_cpi_preview(headline, published_at, now or datetime.now(timezone.utc))
+    return expired_us_cpi_preview(headline, published_at, now or current_time())
 
 
 def mixed_major_index_signal(text: str) -> bool:
@@ -2312,7 +2327,7 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     published_dt = parse_utc(published_at)
     if not published_dt:
         return None, 'MISSING_PUBLISHED_AT'
-    age_hours = (datetime.now(timezone.utc) - published_dt).total_seconds() / 3600.0
+    age_hours = (current_time() - published_dt).total_seconds() / 3600.0
     if age_hours > MAX_NEWS_AGE_HOURS:
         return None, 'STALE_OVER_24H'
 
@@ -3143,8 +3158,10 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
     return [item for item in items if id(item) in selected_ids]
 
 
-def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes: int) -> dict[str, Any]:
-    feed_results = [fetch_feed(feed, timeout=timeout, limit=per_feed_limit) for feed in DEFAULT_FEEDS]
+def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes: int,
+                 feed_results: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    if feed_results is None:
+        feed_results = [fetch_feed(feed, timeout=timeout, limit=per_feed_limit) for feed in DEFAULT_FEEDS]
     items, filter_summary = normalize_items(feed_results, max_items=max_items)
     generated_at = utc_now()
     return {
@@ -3166,6 +3183,28 @@ def build_report(timeout: int, per_feed_limit: int, max_items: int, ttl_minutes:
     }
 
 
+def replay_report(stored: dict[str, Any], *, max_items: int = 30, ttl_minutes: int = DEFAULT_NEWS_TTL_MINUTES,
+                  now: datetime | None = None) -> dict[str, Any]:
+    """Rebuild the selected news from a stored report's raw feedResults, offline, at the time it was saved.
+
+    The stored file is a previous probe output (or a news-day fixture): only feedResults and
+    generatedAt/capturedAt are read. No network call is made.
+    """
+    feed_results = stored.get('feedResults')
+    if not isinstance(feed_results, list):
+        raise ValueError('stored report has no feedResults')
+    pinned = now or parse_utc(stored.get('capturedAt') or stored.get('generatedAt'))
+    if pinned is None:
+        raise ValueError('stored report has no capturedAt/generatedAt and no --now was given')
+    previous = _CLOCK_OVERRIDE
+    set_clock(pinned)
+    try:
+        return build_report(timeout=0, per_feed_limit=0, max_items=max_items, ttl_minutes=ttl_minutes,
+                            feed_results=copy.deepcopy(feed_results))
+    finally:
+        set_clock(previous)
+
+
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=path.parent, delete=False) as tmp:
@@ -3183,9 +3222,19 @@ def main() -> int:
     parser.add_argument('--max-items', type=int, default=30)
     parser.add_argument('--ttl-minutes', type=int, default=DEFAULT_NEWS_TTL_MINUTES)
     parser.add_argument('--json', action='store_true')
+    parser.add_argument('--replay-feed', type=Path,
+                        help='Rebuild items offline from a stored report or news-day fixture (its feedResults), no network')
+    parser.add_argument('--now', help='Clock for --replay-feed (ISO time); default: the stored capturedAt/generatedAt')
     args = parser.parse_args()
 
-    report = build_report(timeout=args.timeout, per_feed_limit=args.per_feed_limit, max_items=args.max_items, ttl_minutes=args.ttl_minutes)
+    if args.replay_feed:
+        stored = json.loads(args.replay_feed.read_text(encoding='utf-8'))
+        replay_now = parse_utc(args.now) if args.now else None
+        if args.now and replay_now is None:
+            parser.error(f'--now is not an ISO time: {args.now!r}')
+        report = replay_report(stored, max_items=args.max_items, ttl_minutes=args.ttl_minutes, now=replay_now)
+    else:
+        report = build_report(timeout=args.timeout, per_feed_limit=args.per_feed_limit, max_items=args.max_items, ttl_minutes=args.ttl_minutes)
     atomic_write_json(args.output, report)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
