@@ -485,6 +485,135 @@ def yahoo_intraday_session_close(symbol: str, session_timestamp: Any, meta: dict
         return None
 
 
+# Plan S6 (2026-11-10): 24-hour instruments change their daily bar at midnight (KRW=X London, DXY/CL New
+# York), so "previous close" used to jump mid-day and the change restarted from zero at 09:00 / 14:00 KST.
+# Each now has a fixed basis taken from 30-minute bars:
+#   seoul_notice KRW=X  Naver's last Hana Bank notice of the day before today (the Naver/bank convention);
+#   seoul_1530   KRW=X  fallback: the 15:30 KST Yahoo bar of the last Seoul trading day before today
+#   ny_1700     DXY, WTI  17:00 New York (end of the futures trading day) of the weekday before the US
+#               regular session that is open now or closed most recently
+# Stocks, ETFs, indexes, ^VIX and ^TNX keep the regular-session close (regular_close).
+# If the fixed basis cannot be read the old daily-bar result stays, labelled midnight_bar.
+FIXED_CHANGE_BASIS = {'KRW=X': 'seoul_1530', 'DX-Y.NYB': 'ny_1700', 'CL=F': 'ny_1700'}
+SEOUL = ZoneInfo('Asia/Seoul')
+NEW_YORK = ZoneInfo('America/New_York')
+FIXED_BASIS_BAR_SECONDS = 30 * 60
+
+
+def kr_trading_day(day: Any) -> bool:
+    from polarmeter_market_calendar import KR_MARKET_HOLIDAYS
+    return day.weekday() < 5 and day not in KR_MARKET_HOLIDAYS
+
+
+def us_trading_day(day: Any) -> bool:
+    from datetime import time as day_time
+    from polarmeter_market_calendar import us_market_closed_reason
+    return us_market_closed_reason(datetime.combine(day, day_time(12, 0), NEW_YORK)) is None
+
+
+def basis_clock(now: datetime, quote_time: Any) -> datetime:
+    """The moment the basis is chosen for: the quote's own time when it is older than the clock, so a stale quote is
+    never compared with a reference that came after it."""
+    if isinstance(quote_time, (int, float)) and quote_time > 0:
+        quoted = datetime.fromtimestamp(float(quote_time), timezone.utc)
+        if quoted < now:
+            return quoted
+    return now
+
+
+def fixed_basis_time(basis: str, now: datetime) -> datetime | None:
+    """The moment whose value is the previous reference for `basis` at `now` (aware UTC result)."""
+    from datetime import time as day_time, timedelta
+    if basis == 'seoul_1530':
+        day = now.astimezone(SEOUL).date() - timedelta(days=1)
+        for _ in range(15):
+            if kr_trading_day(day):
+                return datetime.combine(day, day_time(15, 30), SEOUL).astimezone(timezone.utc)
+            day -= timedelta(days=1)
+        return None
+    if basis == 'ny_1700':
+        # Anchor: the US regular session that is open now or closed most recently (latest weekday 09:30 ET
+        # at or before now). Reference: 17:00 ET of the weekday before it. Through the whole Korean day the
+        # change therefore covers the last US session plus the overnight move, like SPY's regular_close,
+        # and the basis moves only when the next US session opens (23:30 / 22:30 KST).
+        # US holidays count as closed days on both ends (a Thanksgiving reference has no 17:00 bar).
+        local = now.astimezone(NEW_YORK)
+        anchor = local.date() if local.time() >= day_time(9, 30) else local.date() - timedelta(days=1)
+        for _ in range(15):
+            if us_trading_day(anchor):
+                break
+            anchor -= timedelta(days=1)
+        day = anchor - timedelta(days=1)
+        for _ in range(15):
+            if us_trading_day(day):
+                return datetime.combine(day, day_time(17, 0), NEW_YORK).astimezone(timezone.utc)
+            day -= timedelta(days=1)
+        return None
+    return None
+
+
+def value_at(result: dict[str, Any], moment: datetime, bar_seconds: int = FIXED_BASIS_BAR_SECONDS) -> float | None:
+    """Close of the intraday bar that ends at `moment` (starts bar_seconds before it); else the last close
+    of a bar that ended within the hour before it (a thin market may skip a bar). Never a later bar."""
+    target = moment.timestamp()
+    closes = ((result.get('indicators', {}).get('quote') or [{}])[0]).get('close') or []
+    best = None
+    for ts, close in zip(result.get('timestamp') or [], closes):
+        value = as_float(close)
+        if value in (None, 0) or not isinstance(ts, (int, float)):
+            continue
+        end = float(ts) + bar_seconds
+        if end == target:
+            return value
+        if target - 3600 <= end < target and (best is None or end > best[0]):
+            best = (end, value)
+    return best[1] if best else None
+
+
+NAVER_USDKRW_DAILY_URL = ('https://m.stock.naver.com/front-api/marketIndex/prices'
+                          '?category=exchange&reutersCode=FX_USDKRW&page=1&pageSize=10')
+
+
+def naver_previous_usdkrw(now: datetime, fetch: Callable[[str], dict[str, Any]] | None = None) -> float | None:
+    """The last Hana Bank notice of the most recent day before today (KST): the base Naver and banks quote."""
+    today = now.astimezone(SEOUL).date().isoformat()
+    try:
+        rows = ((fetch or fetch_json)(NAVER_USDKRW_DAILY_URL) or {}).get('result') or []
+    except Exception:  # pragma: no cover - network diagnostic; Yahoo's 15:30 bar is the fallback
+        return None
+    for row in rows:
+        day = str((row or {}).get('localTradedAt') or '')[:10]
+        if day and day < today:
+            return as_float(str(row.get('closePrice') or '').replace(',', ''))
+    return None
+
+
+def fixed_basis_change(symbol: str, price: float | None, now: datetime,
+                       fetch: Callable[[str], dict[str, Any]] | None = None) -> tuple[float | None, str, float | None] | None:
+    """(previous, basis, reference time as epoch) for a fixed-basis symbol, or None when it cannot be read.
+
+    USD/KRW: Naver's previous-day closing notice first (basis seoul_notice), Yahoo's 15:30 KST bar second.
+    """
+    basis = FIXED_CHANGE_BASIS.get(symbol)
+    moment = fixed_basis_time(basis, now) if basis else None
+    if not basis or moment is None or price is None:
+        return None
+    if symbol == 'KRW=X':
+        notice = naver_previous_usdkrw(now, fetch)
+        # A notice more than 3% away from the live quote is a parsing or source error, not a base.
+        if notice and abs(price / notice - 1) <= 0.03:
+            return notice, 'seoul_notice', None
+    url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=5d&interval=30m'
+    try:
+        result = ((fetch or fetch_json)(url).get('chart', {}).get('result') or [{}])[0]
+    except Exception:  # pragma: no cover - network diagnostic; the daily-bar result stays
+        return None
+    previous = value_at(result, moment)
+    if previous in (None, 0):
+        return None
+    return previous, basis, moment.timestamp()
+
+
 def yahoo_chart_probe() -> dict[str, Any]:
     """Worker-side public delayed Yahoo chart probe for non-keyed macro/index gaps.
 
@@ -518,6 +647,16 @@ def yahoo_chart_probe() -> dict[str, Any]:
                 timestamps=timestamps,
                 recover_session_close=lambda ts, symbol=symbol, meta=meta: yahoo_intraday_session_close(symbol, ts, meta),
             )
+            change_basis = 'regular_close'
+            if symbol in FIXED_CHANGE_BASIS:
+                fixed = fixed_basis_change(symbol, price, basis_clock(datetime.now(timezone.utc), meta.get('regularMarketTime')))
+                if fixed:
+                    previous, change_basis, _ = fixed
+                    change = price - previous
+                    change_pct = change / previous * 100
+                    change_source = f'fixed_basis_{change_basis}'
+                else:
+                    change_basis = 'midnight_bar'
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
             data_as_of = normalized_as_of_time(meta.get('regularMarketTime'))
@@ -532,6 +671,7 @@ def yahoo_chart_probe() -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - network diagnostic
             price = change = change_pct = previous = None
             change_source = 'error'
+            change_basis = None
             meta = {}
             status = 'error'
             reason = safe_network_error(exc)
@@ -554,6 +694,7 @@ def yahoo_chart_probe() -> dict[str, Any]:
             'changePct': change_pct,
             'previousClose': previous,
             'changeSource': change_source,
+            'changeBasis': change_basis,
             'asOf': meta.get('regularMarketTime'),
             'reason': reason,
             'history': history,

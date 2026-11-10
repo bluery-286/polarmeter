@@ -1004,7 +1004,7 @@ def sanitize_public_signal(signal: dict[str, Any], *, as_of: datetime | None = N
     secret names, raw provider diagnostics, or probe errors.
     """
     allowed = {
-        'key', 'label', 'value', 'change', 'changePct', 'previousClose', 'status', 'freshnessStatus',
+        'key', 'label', 'value', 'change', 'changePct', 'previousClose', 'changeBasis', 'status', 'freshnessStatus',
         'provider', 'sourceId', 'fetchedAt', 'dataAsOf', 'ttlMinutes', 'valuePolicy',
         'licenseNote', 'coreSignal', 'qualityStatus', 'dataAgeHours', 'freshnessRank',
         'reliability', 'lastSuccessfulAt',

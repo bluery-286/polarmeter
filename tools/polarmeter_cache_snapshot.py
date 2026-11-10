@@ -1021,6 +1021,7 @@ def normalize_signal(signal: dict[str, Any], provider: str, item: dict[str, Any]
         'change': item.get('change'),
         'changePct': item.get('changePct'),
         'previousClose': item.get('previousClose'),
+        'changeBasis': item.get('changeBasis'),
         'status': 'ok' if status == 'ok' else status,
         'freshnessStatus': 'stale' if status == 'stale' else ('delayed' if showable else status),
         'provider': provider,
