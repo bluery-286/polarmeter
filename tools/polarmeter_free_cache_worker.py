@@ -29,6 +29,7 @@ from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_
 from polarmeter_market_source_diagnostics import emit_market_source_diagnostics, emit_market_freshness_failure
 from polarmeter_news_rss_probe import safe_public_news_url
 from polarmeter_data_history import restore as restore_from_history
+from polarmeter_signal_tiers import AUX_SIGNAL_KEYS, PARTIAL_STREAK_LIMIT
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -221,6 +222,36 @@ def run(cmd: list[str], *, stdout_path: Path | None = None) -> subprocess.Comple
                           'step': step if step in safe_steps else 'unknown', 'exitCode': error.returncode,
                           'errorType': classes[-1] if classes and classes[-1] in safe_errors else 'unknown'}), file=sys.stderr)
         raise
+
+
+def apply_partial_signal_streaks(snapshot: dict[str, Any], previous_public_snapshot: dict[str, Any]) -> list[str]:
+    """Record auxiliary signals that have a value but no change, counting consecutive publishes.
+
+    The freshness audit tolerates such a signal (it is published without a change) until the streak
+    reaches its limit. A previous snapshot that could not be read restarts the count at 1.
+    """
+    signals = snapshot.get('signals') if isinstance(snapshot.get('signals'), dict) else {}
+    previous = ((previous_public_snapshot or {}).get('dataQuality') or {}).get('partialSignals') or {}
+    partial: dict[str, Any] = {}
+    for key in sorted(AUX_SIGNAL_KEYS):
+        signal = signals.get(key)
+        if not isinstance(signal, dict):
+            continue
+        has_value = isinstance(signal.get('value'), (int, float)) and not isinstance(signal.get('value'), bool)
+        has_change = isinstance(signal.get('changePct'), (int, float)) and not isinstance(signal.get('changePct'), bool)
+        if not has_value or has_change:
+            continue
+        before = previous.get(key) if isinstance(previous.get(key), dict) else {}
+        streak = before.get('streak') if isinstance(before.get('streak'), int) and not isinstance(before.get('streak'), bool) else 0
+        partial[key] = {'streak': min(streak + 1, 99), 'missing': ['changePct'], 'limit': PARTIAL_STREAK_LIMIT}
+    quality = snapshot.setdefault('dataQuality', {})
+    if partial:
+        quality['partialSignals'] = partial
+    else:
+        quality.pop('partialSignals', None)
+    for key, item in partial.items():
+        print(f"::warning::{key} published without changePct (partial {item['streak']}/{PARTIAL_STREAK_LIMIT})", file=sys.stderr)
+    return sorted(partial)
 
 
 def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
@@ -1230,7 +1261,7 @@ def sanitize_public_news_title(value: Any) -> str:
 def sanitize_public_data_quality(data_quality: dict[str, Any]) -> dict[str, Any]:
     allowed = {
         'policy', 'coreSignals', 'coreGroups', 'coreOkSignals', 'coreCoverageRatio',
-        'normalTemperatureAllowed', 'displayMode', 'groupStatus', 'displayBadge',
+        'normalTemperatureAllowed', 'displayMode', 'groupStatus', 'displayBadge', 'partialSignals',
     }
     return {key: value for key, value in data_quality.items() if key in allowed}
 
@@ -1412,6 +1443,7 @@ def main() -> int:
     snapshot_for_history['previousCloseChecks'] = corrected
     apply_temperature_history(snapshot_for_history, previous_public_snapshot, temperature_history_seed)
     apply_v3_layers(snapshot_for_history, previous_public_snapshot)
+    apply_partial_signal_streaks(snapshot_for_history, previous_public_snapshot)
     atomic_write_json(args.snapshot, snapshot_for_history)
     run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:

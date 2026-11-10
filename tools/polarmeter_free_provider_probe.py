@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from polarmeter_http_retry import with_retry
+
 SECRETS_DIR = Path.home() / '.openclaw/secrets'
 
 REQUIRED_SIGNALS = [
@@ -54,10 +56,12 @@ def utc_now() -> str:
 
 
 def fetch_json(url: str, timeout: int = 12) -> dict[str, Any]:
-    req = urllib.request.Request(url, headers={'User-Agent': 'PolarMeter-free-cache-poc/0.1'})
-    with urllib.request.urlopen(req, timeout=timeout) as res:  # nosec - user-requested public API probe
-        raw = res.read().decode('utf-8')
-    return json.loads(raw)
+    def once() -> dict[str, Any]:
+        req = urllib.request.Request(url, headers={'User-Agent': 'PolarMeter-free-cache-poc/0.1'})
+        with urllib.request.urlopen(req, timeout=timeout) as res:  # nosec - user-requested public API probe
+            raw = res.read().decode('utf-8')
+        return json.loads(raw)
+    return with_retry(once)
 
 
 def safe_network_error(error: BaseException) -> str:

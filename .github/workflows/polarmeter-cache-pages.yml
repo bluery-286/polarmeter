@@ -173,6 +173,7 @@ jobs:
           PYTHONPATH=tools python3 tools/polarmeter_news_selection_quality_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_worker_error_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_data_history_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_partial_degrade_contract.py
           python3 tools/polarmeter_github_pages_prepare.py \
             --output "$RUNNER_TEMP/polarmeter-site" \
             --news-shortfall-retries 1 \

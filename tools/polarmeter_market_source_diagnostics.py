@@ -160,6 +160,12 @@ def summarize_market_freshness_failure(output: object) -> dict:
             reason = 'active_market_stale'
         elif detail.startswith('fresher public chart candidate exists but selected provider is '):
             reason = 'public_candidate_rank'
+        elif detail.startswith('critical signal missing changePct'):
+            reason = 'missing_change_pct'
+        elif detail.startswith('critical signal missing'):
+            reason = 'missing_field'
+        elif detail.startswith('critical signal too old') or detail.startswith('too-old data'):
+            reason = 'too_old'
         reasons_by_key.setdefault(key, set()).add(reason)
     return {'reportStatus': 'freshness_audit_failed',
             'signals': [{'key': key, 'reasons': sorted(reasons)} for key, reasons in sorted(reasons_by_key.items())],
@@ -167,4 +173,6 @@ def summarize_market_freshness_failure(output: object) -> dict:
 
 
 def emit_market_freshness_failure(output: object) -> None:
+    # stderr carries JSON lines only (the worker error contract parses every line); the reasons below are the
+    # readable summary: missing_change_pct, missing_field, too_old, provider_recency_gap, ...
     print(json.dumps({'marketSourceDiagnostics': summarize_market_freshness_failure(output)}), file=sys.stderr)
