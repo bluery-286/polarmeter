@@ -3229,8 +3229,10 @@ def main() -> int:
 
     if args.replay_feed:
         stored = json.loads(args.replay_feed.read_text(encoding='utf-8'))
-        report = replay_report(stored, max_items=args.max_items, ttl_minutes=args.ttl_minutes,
-                               now=parse_utc(args.now) if args.now else None)
+        replay_now = parse_utc(args.now) if args.now else None
+        if args.now and replay_now is None:
+            parser.error(f'--now is not an ISO time: {args.now!r}')
+        report = replay_report(stored, max_items=args.max_items, ttl_minutes=args.ttl_minutes, now=replay_now)
     else:
         report = build_report(timeout=args.timeout, per_feed_limit=args.per_feed_limit, max_items=args.max_items, ttl_minutes=args.ttl_minutes)
     atomic_write_json(args.output, report)
