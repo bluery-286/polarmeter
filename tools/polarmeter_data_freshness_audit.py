@@ -16,6 +16,7 @@ from datetime import datetime, time as day_time, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from polarmeter_last_close_policy import session_date_reference
+from polarmeter_signal_tiers import AUX_SIGNAL_KEYS, CORE_SIGNAL_KEYS, PARTIAL_STREAK_LIMIT  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT
@@ -224,6 +225,22 @@ def field_missing(signal: dict[str, Any], field: str) -> bool:
     return value is None or str(value).strip() == ''
 
 
+def partial_streak(snapshot: dict[str, Any], key: str) -> int | None:
+    partial = ((snapshot.get('dataQuality') or {}).get('partialSignals') or {}).get(key)
+    streak = partial.get('streak') if isinstance(partial, dict) else None
+    return streak if isinstance(streak, int) and not isinstance(streak, bool) and streak >= 1 else None
+
+
+def audit_warnings(snapshot: dict[str, Any]) -> list[str]:
+    signals = snapshot.get('signals') if isinstance(snapshot.get('signals'), dict) else {}
+    warnings = []
+    for key in sorted(AUX_SIGNAL_KEYS):
+        streak = partial_streak(snapshot, key)
+        if streak is not None and streak < PARTIAL_STREAK_LIMIT and isinstance(signals.get(key), dict):
+            warnings.append(f'{key}: auxiliary signal published without changePct (partial, streak={streak})')
+    return warnings
+
+
 def audit(snapshot: dict[str, Any], probe: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     signals = snapshot.get('signals') if isinstance(snapshot.get('signals'), dict) else {}
@@ -238,6 +255,13 @@ def audit(snapshot: dict[str, Any], probe: dict[str, Any]) -> list[str]:
             errors.append(f'{key}: critical signal status is not displayable: {status or "missing"}')
         for field in fields:
             if field_missing(signal, field):
+                if field == 'changePct' and key in AUX_SIGNAL_KEYS and not field_missing(signal, 'value'):
+                    streak = partial_streak(snapshot, key)
+                    if streak is not None and streak < PARTIAL_STREAK_LIMIT:
+                        continue
+                    if streak is not None:
+                        errors.append(f'{key}: critical signal missing {field} for {streak} publishes in a row')
+                        continue
                 errors.append(f'{key}: critical signal missing {field}')
         age = selected_age(signal, as_of)
         max_age = CRITICAL_SIGNAL_MAX_AGE_HOURS.get(key)
@@ -306,15 +330,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    errors = audit(load_json(args.snapshot), load_json(args.probe))
+    snapshot = load_json(args.snapshot)
+    errors = audit(snapshot, load_json(args.probe))
+    warnings = audit_warnings(snapshot)
     if args.json:
-        print(json.dumps({'ok': not errors, 'errors': errors}, ensure_ascii=False, indent=2))
+        print(json.dumps({'ok': not errors, 'errors': errors, 'warnings': warnings}, ensure_ascii=False, indent=2))
         return 1 if errors else 0
     if errors:
         print('PolarMeter data freshness audit: FAIL')
         for error in errors:
             print(f'- {error}')
         return 1
+    for warning in warnings:
+        print(f'- warning: {warning}')
     print('PolarMeter data freshness audit: PASS')
     return 0
 

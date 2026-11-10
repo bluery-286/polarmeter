@@ -18,6 +18,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import polarmeter_coach_brief as coach_brief
+from polarmeter_http_retry import with_retry
 import polarmeter_evening_brief as evening_brief
 import polarmeter_morning_forecast as morning_forecast
 import polarmeter_push_outbox as push_outbox
@@ -42,9 +43,12 @@ Fetch = Callable[[str], Any]
 
 
 def fetch_json(url: str, timeout: int = 15) -> Any:
-    request = urllib.request.Request(url, headers=REQUEST_HEADERS)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode('utf-8'))
+    def once() -> Any:
+        request = urllib.request.Request(url, headers=REQUEST_HEADERS)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode('utf-8'))
+    # One retry only: about 45 symbols are fetched in a row, so a dead endpoint must not add minutes.
+    return with_retry(once, delays=(1.0,))
 
 
 def number(value: Any) -> float | None:
