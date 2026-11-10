@@ -128,9 +128,26 @@ jobs:
         if: steps.cache_guard.outputs.should_build == 'true'
         with:
           python-version: '3.12'
+      - name: Fetch data history
+        # Plan S3: scores, forecast ledgers and news cards live on the orphan branch data-history
+        # (append-only). The worker restores a ledger block from it when the previous public
+        # snapshot cannot be read. Never blocks the publish.
+        if: steps.cache_guard.outputs.should_build == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if git fetch --no-tags --depth=1 origin +refs/heads/data-history:refs/remotes/origin/data-history; then
+            git worktree add --detach "$RUNNER_TEMP/data-history" origin/data-history
+          else
+            echo "::notice::data-history branch not found; this run starts it"
+            git worktree add --detach "$RUNNER_TEMP/data-history"
+            git -C "$RUNNER_TEMP/data-history" checkout -q --orphan data-history-start
+            git -C "$RUNNER_TEMP/data-history" rm -rf -q . || true
+          fi
       - name: Build Pages payload
         if: steps.cache_guard.outputs.should_build == 'true'
         env:
+          POLARMETER_HISTORY_DIR: ${{ runner.temp }}/data-history
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
@@ -155,6 +172,7 @@ jobs:
           PYTHONPATH=tools python3 tools/polarmeter_news_issue_cluster_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_selection_quality_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_worker_error_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_data_history_contract.py
           python3 tools/polarmeter_github_pages_prepare.py \
             --output "$RUNNER_TEMP/polarmeter-site" \
             --news-shortfall-retries 1 \
@@ -166,6 +184,26 @@ jobs:
         if: steps.cache_guard.outputs.should_build == 'true'
         with:
           path: ${{ runner.temp }}/polarmeter-site
+      - name: Record data history
+        # Runs before the Pages publish because that step empties this checkout (tools included).
+        if: steps.cache_guard.outputs.should_build == 'true'
+        id: data_history
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          history="$RUNNER_TEMP/data-history"
+          test -d "$history"
+          python3 tools/polarmeter_data_history.py archive \
+            --snapshot "$RUNNER_TEMP/polarmeter-site/market-snapshot-latest.json" --history "$history"
+          git -C "$history" add -A
+          if git -C "$history" diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git -C "$history" -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Record PolarMeter data ${GITHUB_RUN_ID}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish Pages branch
         if: steps.cache_guard.outputs.should_build == 'true'
         run: |
@@ -178,6 +216,13 @@ jobs:
           git add -A
           git commit -m "Update PolarMeter cache ${GITHUB_RUN_ID}"
           git push --force origin HEAD:gh-pages
+      - name: Push data history
+        # Fast-forward only (never --force). A failure is a warning: the next run retries with the same rows.
+        if: steps.cache_guard.outputs.should_build == 'true' && steps.data_history.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          git -C "$RUNNER_TEMP/data-history" push origin HEAD:refs/heads/data-history \
+            || echo "::warning::data-history push failed; the next run records again"
       - name: Verify public cache publish without retry noise
         if: steps.cache_guard.outputs.should_build == 'true'
         env:

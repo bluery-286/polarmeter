@@ -28,6 +28,7 @@ from polarmeter_market_calendar import KR_CALENDAR_YEARS, KST_ZONE, kr_market_cl
 from polarmeter_last_close_policy import MAX_STALE_SIGNAL_AGE_HOURS, valid_last_close, session_close_reference
 from polarmeter_market_source_diagnostics import emit_market_source_diagnostics, emit_market_freshness_failure
 from polarmeter_news_rss_probe import safe_public_news_url
+from polarmeter_data_history import restore as restore_from_history
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 PROJECT = WORKSPACE
@@ -1397,6 +1398,10 @@ def main() -> int:
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
     emit_market_source_diagnostics(args.snapshot, args.report)
     previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
+    history_dir = os.environ.get('POLARMETER_HISTORY_DIR')
+    previous_public_snapshot, restored = restore_from_history(previous_public_snapshot, Path(history_dir) if history_dir else None)
+    for key in restored:
+        print(f'::warning::previous public snapshot had no {key}; restored it from data-history', file=sys.stderr)
     temperature_history_seed = load_temperature_history_seed(args.temperature_history_seed)
     snapshot_for_history = load_json(args.snapshot)
     try:
