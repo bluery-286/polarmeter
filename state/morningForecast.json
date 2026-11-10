@@ -1,0 +1,1104 @@
+{
+ "current": {
+  "actual": {
+   "closePct": null,
+   "intradayPct": null,
+   "openPct": 4.55,
+   "source": "naver_index_price"
+  },
+  "analog": {
+   "bucket": "open_ge_1.0",
+   "closeSame": 50,
+   "days": 57,
+   "openSame": 54,
+   "period": "2023-12 ~ 2026-11",
+   "widened": false
+  },
+  "basisKrSession": "2026-11-09",
+  "copy": {
+   "badge": {
+    "en": "Strong signal",
+    "ko": "신호 뚜렷",
+    "tone": "plus"
+   },
+   "chips": [
+    {
+     "en": "S&P 500 +2.4%",
+     "ko": "S&P500 +2.4%",
+     "tone": "plus"
+    },
+    {
+     "en": "US chips +7.5%",
+     "ko": "미국 반도체 +7.5%",
+     "tone": "plus"
+    },
+    {
+     "en": "Korea ETF vs KOSPI +4.5pp",
+     "ko": "한국 ETF 코스피 대비 +4.5%p",
+     "tone": "plus"
+    }
+   ],
+   "closeNote": {
+    "en": "50 of 57 similar days",
+    "ko": "비슷한 57일 중 50일"
+   },
+   "closeStat": {
+    "en": "Higher",
+    "ko": "상승 쪽"
+   },
+   "openRange": {
+    "en": "Likely +1.5% to +3.5%",
+    "ko": "예상 범위 +1.5 ~ +3.5%"
+   },
+   "openResult": {
+    "en": "Open +4.5%: call was right",
+    "ko": "시가 +4.5%, 예보 적중"
+   },
+   "openStat": {
+    "en": "around +2.5%",
+    "ko": "+2.5% 안팎"
+   },
+   "past": {
+    "en": "54 of 57 days with an overnight signal this positive opened higher (since Dec 2023).",
+    "ko": "밤사이 신호가 이만큼 좋았던 57일 중 54일은 상승 출발했어요. (2023년 12월부터)"
+   },
+   "say": {
+    "en": "After a sharp gap up the index rose further 52% of the time. I do not call direction once the market opens.",
+    "id": "H2",
+    "ko": "급등 출발 뒤 더 오른 날은 과거 52%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
+   },
+   "title": {
+    "en": "Korea is set to open sharply higher",
+    "ko": "오늘 한국장, 크게 올라서 시작해요"
+   }
+  },
+  "inputs": {
+   "ewyExcessPct": 4.53,
+   "ewyPct": 3.72,
+   "kospiPrevPct": -0.81,
+   "soxxPct": 7.49,
+   "spyPct": 2.37
+  },
+  "issuedAt": "2026-11-09T22:50:44Z",
+  "modelVersion": "kospi-overnight-v1",
+  "noForecastReason": null,
+  "origin": "live",
+  "predicted": {
+   "closeCall": "up",
+   "closePct": 2.71,
+   "openBand": [
+    1.34,
+    3.34
+   ],
+   "openCall": "up",
+   "openPct": 2.34,
+   "strength": "strong",
+   "topDriver": "soxxPct"
+  },
+  "result": {
+   "closeHit": null,
+   "openHit": true,
+   "openInBand": false
+  },
+  "state": "open_scored",
+  "targetSession": "2026-11-10",
+  "usSessions": [
+   "2026-11-09"
+  ]
+ },
+ "disclaimer": {
+  "en": "Past record only; it does not guarantee future results. This is not investment advice.",
+  "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
+ },
+ "generatedAt": "2026-11-10T00:47:16Z",
+ "ledger": [
+  {
+   "actual": {
+    "closePct": -3.65,
+    "intradayPct": -2.95,
+    "openPct": -0.72,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_-1.0_-0.6",
+    "closeSame": 32,
+    "days": 42,
+    "openSame": 38,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-08",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -1.0,
+    "openBand": [
+     -1.11,
+     -0.25
+    ],
+    "openCall": "down",
+    "openPct": -0.68,
+    "strength": "moderate",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-12",
+   "usSessions": [
+    "2026-10-08",
+    "2026-10-09"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -5.46,
+    "intradayPct": -2.44,
+    "openPct": -3.1,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_-0.6_-0.3",
+    "closeSame": 39,
+    "days": 64,
+    "openSame": 45,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-12",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": -0.56,
+    "openBand": [
+     -0.81,
+     0.05
+    ],
+    "openCall": "down",
+    "openPct": -0.38,
+    "strength": "moderate",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-13",
+   "usSessions": [
+    "2026-10-12"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -0.44,
+    "intradayPct": -0.88,
+    "openPct": 0.44,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_0.6_1.0",
+    "closeSame": 49,
+    "days": 65,
+    "openSame": 61,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-13",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 1.05,
+    "openBand": [
+     0.31,
+     1.17
+    ],
+    "openCall": "up",
+    "openPct": 0.74,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-14",
+   "usSessions": [
+    "2026-10-13"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -7.57,
+    "intradayPct": -2.09,
+    "openPct": -5.59,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-14",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -1.84,
+    "openBand": [
+     -2.4,
+     -0.4
+    ],
+    "openCall": "down",
+    "openPct": -1.4,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-15",
+   "usSessions": [
+    "2026-10-14"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 2.05,
+    "intradayPct": 0.25,
+    "openPct": 1.8,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-15",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 1.49,
+    "openBand": [
+     0.04,
+     2.04
+    ],
+    "openCall": "up",
+    "openPct": 1.04,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-16",
+   "usSessions": [
+    "2026-10-15"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 1.76,
+    "intradayPct": 5.09,
+    "openPct": -3.17,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-16",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -2.43,
+    "openBand": [
+     -2.78,
+     -0.78
+    ],
+    "openCall": "down",
+    "openPct": -1.78,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-19",
+   "usSessions": [
+    "2026-10-16"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -3.73,
+    "intradayPct": -3.15,
+    "openPct": -0.6,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_0.6_1.0",
+    "closeSame": 49,
+    "days": 65,
+    "openSame": 61,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-19",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 1.06,
+    "openBand": [
+     0.43,
+     1.29
+    ],
+    "openCall": "up",
+    "openPct": 0.86,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": false,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-20",
+   "usSessions": [
+    "2026-10-19"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 3.29,
+    "intradayPct": 1.22,
+    "openPct": 2.05,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_0.3_0.6",
+    "closeSame": 67,
+    "days": 103,
+    "openSame": 88,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-20",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": 0.59,
+    "openBand": [
+     0.05,
+     0.91
+    ],
+    "openCall": "up",
+    "openPct": 0.48,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-21",
+   "usSessions": [
+    "2026-10-20"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -3.52,
+    "intradayPct": -2.4,
+    "openPct": -1.14,
+    "source": "naver_index_price"
+   },
+   "analog": null,
+   "basisKrSession": "2026-10-21",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": -0.02,
+    "openBand": [
+     -0.18,
+     0.54
+    ],
+    "openCall": "none",
+    "openPct": 0.18,
+    "strength": "weak",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": null,
+    "openInBand": null
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-22",
+   "usSessions": [
+    "2026-10-21"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 0.3,
+    "intradayPct": 2.72,
+    "openPct": -2.36,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-22",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -1.61,
+    "openBand": [
+     -2.33,
+     -0.33
+    ],
+    "openCall": "down",
+    "openPct": -1.33,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-23",
+   "usSessions": [
+    "2026-10-22"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -1.46,
+    "intradayPct": -0.54,
+    "openPct": -0.92,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_0.3_0.6",
+    "closeSame": 67,
+    "days": 103,
+    "openSame": 88,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-23",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": 0.55,
+    "openBand": [
+     -0.06,
+     0.8
+    ],
+    "openCall": "up",
+    "openPct": 0.37,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": false,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-26",
+   "usSessions": [
+    "2026-10-23"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 3.09,
+    "intradayPct": -0.36,
+    "openPct": 3.46,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-26",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 1.29,
+    "openBand": [
+     0.08,
+     2.08
+    ],
+    "openCall": "up",
+    "openPct": 1.08,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-27",
+   "usSessions": [
+    "2026-10-26"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 6.63,
+    "intradayPct": 4.31,
+    "openPct": 2.23,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_0.6_1.0",
+    "closeSame": 49,
+    "days": 65,
+    "openSame": 61,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-27",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 0.76,
+    "openBand": [
+     0.31,
+     1.17
+    ],
+    "openCall": "up",
+    "openPct": 0.74,
+    "strength": "moderate",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-28",
+   "usSessions": [
+    "2026-10-27"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -1.24,
+    "intradayPct": -1.32,
+    "openPct": 0.08,
+    "source": "naver_index_price"
+   },
+   "analog": null,
+   "basisKrSession": "2026-10-28",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": 0.05,
+    "openBand": [
+     -0.16,
+     0.56
+    ],
+    "openCall": "none",
+    "openPct": 0.2,
+    "strength": "weak",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": null,
+    "openInBand": null
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-29",
+   "usSessions": [
+    "2026-10-28"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -3.48,
+    "intradayPct": -0.51,
+    "openPct": -2.99,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_-0.6_-0.3",
+    "closeSame": 39,
+    "days": 64,
+    "openSame": 45,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-29",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "none",
+    "closePct": -0.59,
+    "openBand": [
+     -0.85,
+     0.01
+    ],
+    "openCall": "down",
+    "openPct": -0.42,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-10-30",
+   "usSessions": [
+    "2026-10-29"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 2.24,
+    "intradayPct": 3.93,
+    "openPct": -1.62,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-10-30",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -2.03,
+    "openBand": [
+     -2.72,
+     -0.72
+    ],
+    "openCall": "down",
+    "openPct": -1.72,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-02",
+   "usSessions": [
+    "2026-10-30"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -3.59,
+    "intradayPct": -1.16,
+    "openPct": -2.46,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-02",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -1.58,
+    "openBand": [
+     -2.13,
+     -0.13
+    ],
+    "openCall": "down",
+    "openPct": -1.13,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-03",
+   "usSessions": [
+    "2026-11-02"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": 0.62,
+    "intradayPct": -1.77,
+    "openPct": 2.43,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-03",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 2.3,
+    "openBand": [
+     0.67,
+     2.67
+    ],
+    "openCall": "up",
+    "openPct": 1.67,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-04",
+   "usSessions": [
+    "2026-11-03"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -5.28,
+    "intradayPct": -3.52,
+    "openPct": -1.82,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_-1.0_-0.6",
+    "closeSame": 32,
+    "days": 42,
+    "openSame": 38,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-04",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -1.44,
+    "openBand": [
+     -1.18,
+     -0.32
+    ],
+    "openCall": "down",
+    "openPct": -0.75,
+    "strength": "moderate",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-05",
+   "usSessions": [
+    "2026-11-04"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -6.02,
+    "intradayPct": -3.87,
+    "openPct": -2.24,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-05",
+   "issuedAt": null,
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "backfill",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -4.47,
+    "openBand": [
+     -4.76,
+     -2.76
+    ],
+    "openCall": "down",
+    "openPct": -3.76,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": true,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-06",
+   "usSessions": [
+    "2026-11-05"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": -0.81,
+    "intradayPct": -0.3,
+    "openPct": -0.5,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-06",
+   "issuedAt": "2026-11-06T22:15:37Z",
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "live",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 3.79,
+    "openBand": [
+     1.67,
+     3.67
+    ],
+    "openCall": "up",
+    "openPct": 2.67,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": {
+    "closeHit": false,
+    "openHit": false,
+    "openInBand": false
+   },
+   "state": "closed_scored",
+   "targetSession": "2026-11-09",
+   "usSessions": [
+    "2026-11-06"
+   ]
+  },
+  {
+   "actual": {
+    "closePct": null,
+    "intradayPct": null,
+    "openPct": 4.55,
+    "source": "naver_index_price"
+   },
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-09",
+   "issuedAt": "2026-11-09T22:50:44Z",
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "live",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 2.71,
+    "openBand": [
+     1.34,
+     3.34
+    ],
+    "openCall": "up",
+    "openPct": 2.34,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": {
+    "closeHit": null,
+    "openHit": true,
+    "openInBand": false
+   },
+   "state": "open_scored",
+   "targetSession": "2026-11-10",
+   "usSessions": [
+    "2026-11-09"
+   ]
+  }
+ ],
+ "modelVersion": "kospi-overnight-v1",
+ "nextIssueAt": "2026-11-10T21:45:00Z",
+ "phase": "kr_open",
+ "schemaVersion": "polarmeter-morning-forecast-v1",
+ "scorecard": {
+  "backtest": {
+   "calls": 375,
+   "days": 680,
+   "from": "2023-12-15",
+   "noCallDays": 305,
+   "openHits": 327,
+   "to": "2026-11-06"
+  },
+  "live": {
+   "calls": 2,
+   "carried": {
+    "calls": 0,
+    "openHits": 0,
+    "since": null
+   },
+   "openHits": 1,
+   "since": "2026-11-09"
+  },
+  "recent": {
+   "calls": 18,
+   "closeCalls": 14,
+   "closeHits": 8,
+   "liveSessions": 2,
+   "marks": [
+    "hit",
+    "hit",
+    "hit",
+    "hit",
+    "miss",
+    "hit",
+    "none",
+    "hit",
+    "miss",
+    "hit",
+    "hit",
+    "none",
+    "hit",
+    "hit",
+    "hit",
+    "hit",
+    "hit",
+    "hit",
+    "miss",
+    "hit"
+   ],
+   "openHits": 15,
+   "sessions": 20
+  }
+ },
+ "status": "ok"
+}

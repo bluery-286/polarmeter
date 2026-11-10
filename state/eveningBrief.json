@@ -1,0 +1,587 @@
+{
+ "current": {
+  "actual": {
+   "afterOpenPct": 1.72,
+   "closePct": 2.35,
+   "source": "yahoo_gspc"
+  },
+  "call": "up",
+  "copy": {
+   "caveat": {
+    "en": "After the open it is about a coin flip (56%). Not a signal to chase.",
+    "ko": "다만 장이 열린 뒤 더 오를지는 반반이에요(56%). 따라 사거나 팔라는 신호가 아니에요."
+   },
+   "events": [],
+   "hold": {
+    "en": "Of 55 similar starts, 42 closed above the previous close (6 flat).",
+    "ko": "과거 비슷한 크기로 출발한 55번 중 42번은 마감까지 플러스를 지켰어요 (보합 6번)."
+   },
+   "kospi": {
+    "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
+    "ko": "밤사이 반도체와 한국 관련 ETF 흐름은 내일 아침 8:05 꽁치 예보에 이어서 반영돼요."
+   },
+   "result": {
+    "en": "S&P 500 closed +2.35% · start held",
+    "ko": "S&P 500 +2.35% 마감 · 출발 방향을 지켰어요"
+   },
+   "start": {
+    "en": "S&P futures +0.91% · Nasdaq futures +1.00% (22:39 KST, vs previous close)",
+    "ko": "S&P 선물 +0.91% · 나스닥 선물 +1.00% (22:39 기준, 전날 마감 대비)"
+   },
+   "title": {
+    "en": "US tonight: starting strong",
+    "ko": "오늘 밤 미국장, 강세 출발 구간이에요"
+   }
+  },
+  "inputs": {
+   "esPct": 0.91,
+   "nqPct": 1.0
+  },
+  "issuedAt": "2026-11-09T13:39:37Z",
+  "origin": "live",
+  "outcome": "held",
+  "prevSession": "2026-11-06",
+  "restReason": null,
+  "state": "scored",
+  "stats": {
+   "afterOpenSameShare": 0.555,
+   "band": "0.8+",
+   "days": 55,
+   "flat": 6,
+   "flipped": 7,
+   "held": 42,
+   "period": "2024-06 ~ 2026-11"
+  },
+  "targetSession": "2026-11-09"
+ },
+ "disclaimer": {
+  "en": "Past record only; it does not promise future results. Not a trading recommendation.",
+  "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
+ },
+ "generatedAt": "2026-11-10T00:47:16Z",
+ "ledger": [
+  {
+   "actual": {
+    "afterOpenPct": -0.07,
+    "closePct": -0.06,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.03,
+    "nqPct": -0.17
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-09",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-12"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.13,
+    "closePct": -0.02,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": -0.09,
+    "nqPct": -0.76
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-12",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-13"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.71,
+    "closePct": -1.11,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.15,
+    "nqPct": -0.09
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-13",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-14"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.74,
+    "closePct": 0.33,
+    "source": "yahoo_gspc"
+   },
+   "call": "down",
+   "inputs": {
+    "esPct": -0.36,
+    "nqPct": -1.22
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "flipped",
+   "prevSession": "2026-10-14",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-15"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -1.11,
+    "closePct": -1.09,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.1,
+    "nqPct": -0.15
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-15",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-16"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.16,
+    "closePct": 0.41,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 0.44,
+    "nqPct": 1.17
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-10-16",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-19"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.44,
+    "closePct": 0.28,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": -0.24,
+    "nqPct": -0.66
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-19",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-20"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.27,
+    "closePct": 0.58,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.2,
+    "nqPct": 0.61
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-20",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-21"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.41,
+    "closePct": -1.21,
+    "source": "yahoo_gspc"
+   },
+   "call": "down",
+   "inputs": {
+    "esPct": -0.97,
+    "nqPct": -1.61
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-10-21",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.8+",
+    "days": 55,
+    "flat": 6,
+    "flipped": 7,
+    "held": 42,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-22"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.18,
+    "closePct": -0.52,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": -0.24,
+    "nqPct": -0.04
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-22",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-23"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.49,
+    "closePct": 0.7,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 0.31,
+    "nqPct": 0.49
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-10-23",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-26"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.3,
+    "closePct": 0.6,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.26,
+    "nqPct": 0.36
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-26",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-10-27"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.11,
+    "closePct": 0.28,
+    "source": "yahoo_gspc"
+   },
+   "call": null,
+   "inputs": null,
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-10-27",
+   "restReason": "fomc",
+   "state": "rest",
+   "stats": null,
+   "targetSession": "2026-10-28"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.27,
+    "closePct": -0.3,
+    "source": "yahoo_gspc"
+   },
+   "call": "down",
+   "inputs": {
+    "esPct": -0.42,
+    "nqPct": -1.2
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-10-28",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-29"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.67,
+    "closePct": -1.82,
+    "source": "yahoo_gspc"
+   },
+   "call": "down",
+   "inputs": {
+    "esPct": -1.12,
+    "nqPct": -2.6
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-10-29",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.8+",
+    "days": 55,
+    "flat": 6,
+    "flipped": 7,
+    "held": 42,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-10-30"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.91,
+    "closePct": -0.51,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 0.48,
+    "nqPct": 0.79
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "flipped",
+   "prevSession": "2026-10-30",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-11-02"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.21,
+    "closePct": 0.36,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": -0.2,
+    "nqPct": 0.16
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-11-02",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-11-03"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 0.69,
+    "closePct": 1.58,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 1.17,
+    "nqPct": 0.96
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-11-03",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.8+",
+    "days": 55,
+    "flat": 6,
+    "flipped": 7,
+    "held": 42,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-11-04"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -4.23,
+    "closePct": -4.36,
+    "source": "yahoo_gspc"
+   },
+   "call": "none",
+   "inputs": {
+    "esPct": 0.18,
+    "nqPct": -0.43
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": null,
+   "prevSession": "2026-11-04",
+   "restReason": null,
+   "state": "scored",
+   "stats": null,
+   "targetSession": "2026-11-05"
+  },
+  {
+   "actual": {
+    "afterOpenPct": -0.01,
+    "closePct": 0.31,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 0.3,
+    "nqPct": 1.6
+   },
+   "issuedAt": null,
+   "origin": "backfill",
+   "outcome": "held",
+   "prevSession": "2026-11-05",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.3-0.5",
+    "days": 116,
+    "flat": 20,
+    "flipped": 18,
+    "held": 78,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-11-06"
+  },
+  {
+   "actual": {
+    "afterOpenPct": 1.72,
+    "closePct": 2.35,
+    "source": "yahoo_gspc"
+   },
+   "call": "up",
+   "inputs": {
+    "esPct": 0.91,
+    "nqPct": 1.0
+   },
+   "issuedAt": "2026-11-09T13:39:37Z",
+   "origin": "live",
+   "outcome": "held",
+   "prevSession": "2026-11-06",
+   "restReason": null,
+   "state": "scored",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.8+",
+    "days": 55,
+    "flat": 6,
+    "flipped": 7,
+    "held": 42,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-11-09"
+  }
+ ],
+ "modelVersion": "us-start-hold-v1",
+ "nextIssueAt": "2026-11-10T12:00:00Z",
+ "phase": "scored",
+ "schemaVersion": "polarmeter-evening-brief-v1",
+ "scorecard": {
+  "carried": {
+   "calls": 0,
+   "flat": 0,
+   "flipped": 0,
+   "held": 0
+  },
+  "liveTotal": {
+   "calls": 1,
+   "flat": 0,
+   "flipped": 0,
+   "held": 1
+  },
+  "recent": {
+   "calls": 10,
+   "flat": 0,
+   "flipped": 2,
+   "held": 8,
+   "liveCalls": 1
+  }
+ },
+ "status": "ok"
+}

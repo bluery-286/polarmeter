@@ -1,0 +1,1211 @@
+{
+ "fetchErrors": 0,
+ "items": [
+  {
+   "date": "2026-07-13",
+   "fetchedAt": "2026-11-04T06:57:29.069883Z",
+   "kosdaq": {
+    "foreign": -3878.0,
+    "institution": 1843.0,
+    "personal": 1833.0
+   },
+   "kospi": {
+    "foreign": -16705.0,
+    "institution": -22338.0,
+    "personal": 38869.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-14",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2471.0,
+    "institution": 1587.0,
+    "personal": 698.0
+   },
+   "kospi": {
+    "foreign": 9565.0,
+    "institution": 32117.0,
+    "personal": -41411.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-15",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 231.0,
+    "institution": 1086.0,
+    "personal": -1542.0
+   },
+   "kospi": {
+    "foreign": 23031.0,
+    "institution": 1992.0,
+    "personal": -24666.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-16",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2919.0,
+    "institution": -1553.0,
+    "personal": 4184.0
+   },
+   "kospi": {
+    "foreign": -13665.0,
+    "institution": -23831.0,
+    "personal": 36647.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-20",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -518.0,
+    "institution": -1330.0,
+    "personal": 1907.0
+   },
+   "kospi": {
+    "foreign": 5198.0,
+    "institution": -9235.0,
+    "personal": 3490.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-21",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -1360.0,
+    "institution": -129.0,
+    "personal": 1474.0
+   },
+   "kospi": {
+    "foreign": 2952.0,
+    "institution": 13744.0,
+    "personal": -16421.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-22",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -815.0,
+    "institution": -1914.0,
+    "personal": 2636.0
+   },
+   "kospi": {
+    "foreign": 26211.0,
+    "institution": -13963.0,
+    "personal": -12176.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-23",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 1675.0,
+    "institution": 643.0,
+    "personal": -2373.0
+   },
+   "kospi": {
+    "foreign": 21359.0,
+    "institution": 976.0,
+    "personal": -22077.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-24",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -1315.0,
+    "institution": -3580.0,
+    "personal": 4881.0
+   },
+   "kospi": {
+    "foreign": -32683.0,
+    "institution": -19514.0,
+    "personal": 51782.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-27",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -1422.0,
+    "institution": 2731.0,
+    "personal": -1550.0
+   },
+   "kospi": {
+    "foreign": -28811.0,
+    "institution": 8595.0,
+    "personal": 19788.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-28",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 860.0,
+    "institution": -1345.0,
+    "personal": 480.0
+   },
+   "kospi": {
+    "foreign": -45009.0,
+    "institution": 1830.0,
+    "personal": 43152.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-29",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 3082.0,
+    "institution": 1474.0,
+    "personal": -4579.0
+   },
+   "kospi": {
+    "foreign": -12502.0,
+    "institution": 31769.0,
+    "personal": -19701.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-30",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 2483.0,
+    "institution": -1435.0,
+    "personal": -1108.0
+   },
+   "kospi": {
+    "foreign": 13280.0,
+    "institution": 805.0,
+    "personal": -14309.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-07-31",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 1697.0,
+    "institution": 2985.0,
+    "personal": -4715.0
+   },
+   "kospi": {
+    "foreign": 72410.0,
+    "institution": 11503.0,
+    "personal": -82840.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-03",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2092.0,
+    "institution": 1669.0,
+    "personal": 302.0
+   },
+   "kospi": {
+    "foreign": -28220.0,
+    "institution": -19516.0,
+    "personal": 46523.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-04",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2775.0,
+    "institution": 5438.0,
+    "personal": -2587.0
+   },
+   "kospi": {
+    "foreign": -3716.0,
+    "institution": -5385.0,
+    "personal": 8187.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-05",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2979.0,
+    "institution": -1101.0,
+    "personal": 3941.0
+   },
+   "kospi": {
+    "foreign": 14464.0,
+    "institution": -2838.0,
+    "personal": -11844.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-06",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2481.0,
+    "institution": 1615.0,
+    "personal": 863.0
+   },
+   "kospi": {
+    "foreign": -32893.0,
+    "institution": -1214.0,
+    "personal": 33367.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-07",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -2522.0,
+    "institution": -1044.0,
+    "personal": 3402.0
+   },
+   "kospi": {
+    "foreign": -8651.0,
+    "institution": 5854.0,
+    "personal": 2675.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-10",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 1027.0,
+    "institution": 5667.0,
+    "personal": -6729.0
+   },
+   "kospi": {
+    "foreign": -14909.0,
+    "institution": 5692.0,
+    "personal": 9003.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-11",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -3562.0,
+    "institution": -954.0,
+    "personal": 4351.0
+   },
+   "kospi": {
+    "foreign": 535.0,
+    "institution": 212.0,
+    "personal": -708.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-12",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -1623.0,
+    "institution": -1459.0,
+    "personal": 3127.0
+   },
+   "kospi": {
+    "foreign": 28354.0,
+    "institution": 5279.0,
+    "personal": -31911.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-13",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -1362.0,
+    "institution": -1132.0,
+    "personal": 2565.0
+   },
+   "kospi": {
+    "foreign": 21102.0,
+    "institution": 6834.0,
+    "personal": -27410.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-14",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": -659.0,
+    "institution": -2524.0,
+    "personal": 3145.0
+   },
+   "kospi": {
+    "foreign": 30387.0,
+    "institution": -10298.0,
+    "personal": -19820.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-18",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 366.0,
+    "institution": -4176.0,
+    "personal": 3905.0
+   },
+   "kospi": {
+    "foreign": 914.0,
+    "institution": -7951.0,
+    "personal": 7420.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-19",
+   "fetchedAt": "2026-11-04T06:55:30.952397Z",
+   "kosdaq": {
+    "foreign": 147.0,
+    "institution": 500.0,
+    "personal": -664.0
+   },
+   "kospi": {
+    "foreign": -34726.0,
+    "institution": -13390.0,
+    "personal": 46357.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-20",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -1328.0,
+    "institution": 1194.0,
+    "personal": 16.0
+   },
+   "kospi": {
+    "foreign": 17068.0,
+    "institution": -4895.0,
+    "personal": -22712.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-21",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -2837.0,
+    "institution": -3462.0,
+    "personal": 6236.0
+   },
+   "kospi": {
+    "foreign": -1760.0,
+    "institution": 2481.0,
+    "personal": -11652.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-24",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 2416.0,
+    "institution": 249.0,
+    "personal": -2604.0
+   },
+   "kospi": {
+    "foreign": -36691.0,
+    "institution": -12901.0,
+    "personal": 33217.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-25",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 1327.0,
+    "institution": 156.0,
+    "personal": -1375.0
+   },
+   "kospi": {
+    "foreign": -38140.0,
+    "institution": 11711.0,
+    "personal": 10509.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-26",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -918.0,
+    "institution": -1054.0,
+    "personal": 1931.0
+   },
+   "kospi": {
+    "foreign": -1148.0,
+    "institution": 7615.0,
+    "personal": -22461.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-27",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 2955.0,
+    "institution": -1192.0,
+    "personal": -1752.0
+   },
+   "kospi": {
+    "foreign": 1333.0,
+    "institution": 1835.0,
+    "personal": -19116.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-28",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -942.0,
+    "institution": -30.0,
+    "personal": 979.0
+   },
+   "kospi": {
+    "foreign": -8525.0,
+    "institution": -11876.0,
+    "personal": 4194.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-08-31",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -552.0,
+    "institution": -2005.0,
+    "personal": 2530.0
+   },
+   "kospi": {
+    "foreign": -6434.0,
+    "institution": -7891.0,
+    "personal": -1464.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-01",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -1531.0,
+    "institution": -2787.0,
+    "personal": 4389.0
+   },
+   "kospi": {
+    "foreign": -4968.0,
+    "institution": -6286.0,
+    "personal": -5402.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-02",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 618.0,
+    "institution": -2322.0,
+    "personal": 1727.0
+   },
+   "kospi": {
+    "foreign": -19173.0,
+    "institution": -20361.0,
+    "personal": 23029.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-03",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -1082.0,
+    "institution": -1838.0,
+    "personal": 2950.0
+   },
+   "kospi": {
+    "foreign": 414.0,
+    "institution": 9143.0,
+    "personal": -9552.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-04",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 2599.0,
+    "institution": 1609.0,
+    "personal": -4125.0
+   },
+   "kospi": {
+    "foreign": 4796.0,
+    "institution": 16694.0,
+    "personal": -37229.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-07",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -717.0,
+    "institution": -1292.0,
+    "personal": 1896.0
+   },
+   "kospi": {
+    "foreign": 25532.0,
+    "institution": 26491.0,
+    "personal": -68374.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-08",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 1583.0,
+    "institution": -2135.0,
+    "personal": 479.0
+   },
+   "kospi": {
+    "foreign": 6316.0,
+    "institution": 6427.0,
+    "personal": -30329.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-09",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 2646.0,
+    "institution": -190.0,
+    "personal": -2548.0
+   },
+   "kospi": {
+    "foreign": -4348.0,
+    "institution": 9422.0,
+    "personal": -22879.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-10",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -11253.0,
+    "institution": 13996.0,
+    "personal": -2698.0
+   },
+   "kospi": {
+    "foreign": -26217.0,
+    "institution": 5744.0,
+    "personal": 3802.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-11",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -3123.0,
+    "institution": -2159.0,
+    "personal": 5120.0
+   },
+   "kospi": {
+    "foreign": -22984.0,
+    "institution": -12184.0,
+    "personal": 18675.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-14",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -923.0,
+    "institution": -238.0,
+    "personal": 1029.0
+   },
+   "kospi": {
+    "foreign": -33363.0,
+    "institution": -11869.0,
+    "personal": 30351.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-15",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": 272.0,
+    "institution": 1149.0,
+    "personal": -1478.0
+   },
+   "kospi": {
+    "foreign": -15458.0,
+    "institution": -9585.0,
+    "personal": 8596.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-16",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -272.0,
+    "institution": 222.0,
+    "personal": 62.0
+   },
+   "kospi": {
+    "foreign": -16726.0,
+    "institution": 12251.0,
+    "personal": -12061.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-17",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -329.0,
+    "institution": 455.0,
+    "personal": -250.0
+   },
+   "kospi": {
+    "foreign": -22546.0,
+    "institution": 2480.0,
+    "personal": 3020.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-18",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -511.0,
+    "institution": 250.0,
+    "personal": 162.0
+   },
+   "kospi": {
+    "foreign": 4486.0,
+    "institution": 15322.0,
+    "personal": -36359.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-21",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -995.0,
+    "institution": -285.0,
+    "personal": 1416.0
+   },
+   "kospi": {
+    "foreign": 117.0,
+    "institution": 15162.0,
+    "personal": -31850.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-22",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -545.0,
+    "institution": -953.0,
+    "personal": 1548.0
+   },
+   "kospi": {
+    "foreign": 494.0,
+    "institution": -1295.0,
+    "personal": -15643.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-23",
+   "fetchedAt": "2026-11-04T05:36:52.995755Z",
+   "kosdaq": {
+    "foreign": -462.0,
+    "institution": 76.0,
+    "personal": 275.0
+   },
+   "kospi": {
+    "foreign": -4942.0,
+    "institution": 3189.0,
+    "personal": -14649.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-28",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 469.0,
+    "institution": -747.0,
+    "personal": 223.0
+   },
+   "kospi": {
+    "foreign": -32682.0,
+    "institution": -10169.0,
+    "personal": 26467.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-29",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1305.0,
+    "institution": 66.0,
+    "personal": 1469.0
+   },
+   "kospi": {
+    "foreign": -29922.0,
+    "institution": 1041.0,
+    "personal": 12447.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-09-30",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -713.0,
+    "institution": 482.0,
+    "personal": 188.0
+   },
+   "kospi": {
+    "foreign": -20646.0,
+    "institution": -7993.0,
+    "personal": 12109.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-01",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 2280.0,
+    "institution": 5684.0,
+    "personal": -7770.0
+   },
+   "kospi": {
+    "foreign": -5558.0,
+    "institution": 3239.0,
+    "personal": -14102.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-02",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1767.0,
+    "institution": 936.0,
+    "personal": 841.0
+   },
+   "kospi": {
+    "foreign": -1080.0,
+    "institution": 4155.0,
+    "personal": -17897.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-06",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 1073.0,
+    "institution": 1047.0,
+    "personal": -2111.0
+   },
+   "kospi": {
+    "foreign": -17575.0,
+    "institution": -39.0,
+    "personal": 7441.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-07",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -2495.0,
+    "institution": -2102.0,
+    "personal": 4871.0
+   },
+   "kospi": {
+    "foreign": -26188.0,
+    "institution": -7101.0,
+    "personal": 26183.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-08",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 625.0,
+    "institution": -1075.0,
+    "personal": 483.0
+   },
+   "kospi": {
+    "foreign": -20704.0,
+    "institution": -16789.0,
+    "personal": 29972.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-12",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -130.0,
+    "institution": -2196.0,
+    "personal": 2316.0
+   },
+   "kospi": {
+    "foreign": -20103.0,
+    "institution": -1345.0,
+    "personal": 14857.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-13",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 1339.0,
+    "institution": 459.0,
+    "personal": -1908.0
+   },
+   "kospi": {
+    "foreign": -45789.0,
+    "institution": 16685.0,
+    "personal": 23169.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-14",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -2128.0,
+    "institution": -1787.0,
+    "personal": 3835.0
+   },
+   "kospi": {
+    "foreign": -11614.0,
+    "institution": 7876.0,
+    "personal": -3203.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-15",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 2228.0,
+    "institution": -1614.0,
+    "personal": -748.0
+   },
+   "kospi": {
+    "foreign": -37637.0,
+    "institution": 17176.0,
+    "personal": 13967.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-16",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -945.0,
+    "institution": 1689.0,
+    "personal": -908.0
+   },
+   "kospi": {
+    "foreign": 3637.0,
+    "institution": -6815.0,
+    "personal": -5126.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-19",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1618.0,
+    "institution": 686.0,
+    "personal": 783.0
+   },
+   "kospi": {
+    "foreign": 947.0,
+    "institution": 5302.0,
+    "personal": -11767.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-20",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1697.0,
+    "institution": -1087.0,
+    "personal": 2778.0
+   },
+   "kospi": {
+    "foreign": -4884.0,
+    "institution": -9901.0,
+    "personal": 8475.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-21",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1752.0,
+    "institution": 1051.0,
+    "personal": 553.0
+   },
+   "kospi": {
+    "foreign": 6462.0,
+    "institution": -781.0,
+    "personal": -11159.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-22",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1124.0,
+    "institution": -957.0,
+    "personal": 2081.0
+   },
+   "kospi": {
+    "foreign": 505.0,
+    "institution": -4599.0,
+    "personal": 3667.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-23",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -401.0,
+    "institution": -292.0,
+    "personal": 659.0
+   },
+   "kospi": {
+    "foreign": -9811.0,
+    "institution": 8682.0,
+    "personal": 422.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-26",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 442.0,
+    "institution": -1268.0,
+    "personal": 801.0
+   },
+   "kospi": {
+    "foreign": -6827.0,
+    "institution": 6131.0,
+    "personal": 331.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-27",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": 257.0,
+    "institution": 1507.0,
+    "personal": -1723.0
+   },
+   "kospi": {
+    "foreign": 5826.0,
+    "institution": 2824.0,
+    "personal": -9407.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-28",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1904.0,
+    "institution": 2246.0,
+    "personal": -273.0
+   },
+   "kospi": {
+    "foreign": 7677.0,
+    "institution": 9131.0,
+    "personal": -17037.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-29",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -1210.0,
+    "institution": -740.0,
+    "personal": 2058.0
+   },
+   "kospi": {
+    "foreign": 1221.0,
+    "institution": -4132.0,
+    "personal": -429.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-10-30",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -211.0,
+    "institution": -1391.0,
+    "personal": 1649.0
+   },
+   "kospi": {
+    "foreign": -16149.0,
+    "institution": 7540.0,
+    "personal": 6028.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-02",
+   "fetchedAt": "2026-11-04T04:19:43.966275Z",
+   "kosdaq": {
+    "foreign": -366.0,
+    "institution": 627.0,
+    "personal": -223.0
+   },
+   "kospi": {
+    "foreign": -3845.0,
+    "institution": 12257.0,
+    "personal": -13303.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-03",
+   "fetchedAt": "2026-11-05T00:12:36.903524Z",
+   "kosdaq": {
+    "foreign": -713.0,
+    "institution": -2359.0,
+    "personal": 3180.0
+   },
+   "kospi": {
+    "foreign": -15086.0,
+    "institution": -4941.0,
+    "personal": 16388.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-04",
+   "fetchedAt": "2026-11-06T00:15:42.115207Z",
+   "kosdaq": {
+    "foreign": 114.0,
+    "institution": 704.0,
+    "personal": -706.0
+   },
+   "kospi": {
+    "foreign": -24528.0,
+    "institution": 11334.0,
+    "personal": 9629.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-05",
+   "fetchedAt": "2026-11-06T03:15:38.908690Z",
+   "kosdaq": {
+    "foreign": -585.0,
+    "institution": -1024.0,
+    "personal": 1568.0
+   },
+   "kospi": {
+    "foreign": -33733.0,
+    "institution": 8819.0,
+    "personal": 22087.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-06",
+   "fetchedAt": "2026-11-10T00:15:52.254992Z",
+   "kosdaq": {
+    "foreign": -896.0,
+    "institution": 2069.0,
+    "personal": -1222.0
+   },
+   "kospi": {
+    "foreign": -26892.0,
+    "institution": 17092.0,
+    "personal": 5207.0
+   },
+   "settled": true
+  },
+  {
+   "date": "2026-11-10",
+   "fetchedAt": "2026-11-10T00:47:16.898641Z",
+   "kosdaq": {
+    "foreign": -861.0,
+    "institution": 633.0,
+    "personal": 372.0
+   },
+   "kospi": {
+    "foreign": 1091.0,
+    "institution": 3045.0,
+    "personal": -4849.0
+   },
+   "settled": false
+  }
+ ],
+ "sourceId": "public-investor-flow-delayed",
+ "sourceLabel": "네이버 증권 (지연)",
+ "status": "ok",
+ "unit": "KRW_100M",
+ "updatedAt": "2026-11-10T00:47:16.898641Z",
+ "version": "investor-flows-v1"
+}
