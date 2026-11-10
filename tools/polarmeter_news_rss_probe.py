@@ -14,6 +14,7 @@ import email.utils
 import hashlib
 import ipaddress
 import json
+import os
 import re
 import sys
 import tempfile
@@ -1620,24 +1621,65 @@ def split_google_news_source(title: str, fallback_source: str) -> tuple[str, str
     return headline.strip() or title, source.strip() or fallback_source
 
 
-def looks_suspicious_headline(title: str) -> bool:
-    # Keep the QA feed useful but avoid obviously implausible market-index glitches.
-    if re.search(r'코스피[^\d]{0,12}[7-9][,\d]{3,}', title):
-        return True
-    if re.search(r'코스닥[^\d]{0,12}[3-9][,\d]{3,}', title):
-        return True
-    # A single RSS headline claiming a domestic broad index moved 5%+ is too risky
-    # for a small preview card unless we add source consensus later.
-    if re.search(r'(코스피|코스닥)[^\n]{0,24}([5-9](?:\.\d+)?)%[^\n]{0,12}(급등|급락|폭등|폭락)', title):
-        return True
-    if any(token in title for token in ['8천피', '8천선', '8000선', '8,000선', '9천피', '9천선', '9000선', '9,000선', '1만피', '1만선', '1만 시대', '1만시대', '10000선', '10,000선', '7% 넘게 급등']):
-        return True
-    if re.search(r'코스피.{0,28}(1\s*만|10,000|10000|[89]\s*천|[89],000)|(?:1\s*만|10,000|10000|[89]\s*천|[89],000).{0,28}코스피', title):
-        return True
-    # Avoid user-facing wording that our investment-action text guard flags.
-    if any(token in title for token in ['매수', '매도', '추격매수']):
-        return True
-    return False
+INDEX_REFERENCE_ENV = 'POLARMETER_NEWS_INDEX_REFERENCE'
+INDEX_REFERENCE_BAND = 0.30
+# 매수/매도 in a headline is trading advice only beside an advice cue ("지금 매수할 종목 5선", "매도 타이밍").
+# Flow and market-mechanism reports (외국인 매도, 매수 사이드카, 저가매수, 순매수) pass.
+TRADE_ADVICE_CUE = re.compile(r'(?:매수|매도)\s*(?:할|하라|해야|하세요|해라|추천|타이밍|적기|기회|전략|신호|포인트|리스트)|'
+                              r'(?:지금|당장|추천|노려|담아|사라|팔아|종목\s*\d+\s*선|(?<![\d,.])[1-9]\s*선(?!\s*(?:돌파|회복|탈환|붕괴|마감|턱걸이)))'
+                              r'.{0,12}(?:매수|매도)|추격\s*매수')
+
+
+def index_reference_levels(raw: str | None = None) -> dict[str, float]:
+    """Previous public KOSPI/KOSDAQ levels, passed by the worker as 'kospi=5018.9,kosdaq=1102.3'."""
+    text = os.environ.get(INDEX_REFERENCE_ENV, '') if raw is None else raw
+    levels: dict[str, float] = {}
+    for part in str(text or '').split(','):
+        name, _, value = part.partition('=')
+        try:
+            number = float(value)
+        except ValueError:
+            continue
+        if name.strip() in ('kospi', 'kosdaq') and number > 0:
+            levels[name.strip()] = number
+        elif name.strip() in ('kospi_pct', 'kosdaq_pct'):
+            levels[name.strip()] = number
+    return levels
+
+
+def headline_index_levels(title: str, name: str) -> list[float]:
+    """Index levels a headline states for KOSPI/KOSDAQ: '코스피 5,020선', '5천피', '코스피 7100선 회복'."""
+    korean = '코스피' if name == 'kospi' else '코스닥'
+    values = []
+    for match in re.finditer(korean + r'[^\d\n]{0,12}(\d{1,2},?\d{3}(?:\.\d+)?)', title):
+        values.append(float(match.group(1).replace(',', '')))
+    if name == 'kospi':
+        for match in re.finditer(r'(\d{1,2})\s*천\s*(?:피|선|시대)|(\d{1,2})\s*만\s*(?:피|시대)', title):
+            values.append(float(match.group(1)) * 1000 if match.group(1) else float(match.group(2)) * 10000)
+    return [value for value in values if value >= 300]
+
+
+def looks_suspicious_headline(title: str, reference: dict[str, float] | None = None) -> bool:
+    """Implausible index numbers and trading advice, dropped before relevance (counted as SUSPICIOUS_HEADLINE).
+
+    Plan S5 (2026-11-10): the fixed KOSPI 7,000 / KOSDAQ 3,000 ceilings were replaced by a band of
+    +-30% around the previous public level (no reference -> no number check), and market-flow reports
+    (외국인 순매수, 매도세) are no longer dropped as trading advice.
+    """
+    levels = index_reference_levels() if reference is None else reference
+    for name in ('kospi', 'kosdaq'):
+        level = levels.get(name)
+        if level and any(abs(value / level - 1) > INDEX_REFERENCE_BAND for value in headline_index_levels(title, name)):
+            return True
+    # A headline claiming a domestic index moved 5%+ needs the previous public move to back it: on a real
+    # 5% day (11-10: 매수 사이드카) the previous snapshot already shows a 3%+ move.
+    big_move = re.search(r'(코스피|코스닥)[^\n]{0,24}([5-9](?:\.\d+)?)\s*[%％][^\n]{0,12}(급등|급락|폭등|폭락|급반등|↑|↓)|'
+                         r'([5-9](?:\.\d+)?)\s*[%％]\s*(?:대\s*)?(?:급등|급락|폭등|폭락|급반등)', title)
+    if big_move and re.search(r'코스피|코스닥|kospi|kosdaq', title, re.I):
+        backed = any(abs(levels.get(f'{name}_pct') or 0) >= 3 for name in ('kospi', 'kosdaq'))
+        if not backed:
+            return True
+    return bool(TRADE_ADVICE_CUE.search(title))
 
 
 def parse_utc(value: str | None) -> datetime | None:
@@ -2519,7 +2561,7 @@ def _fetch_feed_once(feed: dict[str, str], *, timeout: int, limit: int) -> dict[
                 title, source_name = split_google_news_source(title, 'Google News RSS')
             else:
                 source_name = feed.get('label', 'RSS').split('—')[0].strip()
-            if not title or not link or looks_suspicious_headline(title):
+            if not title or not link:
                 continue
             dedupe_key = title.lower()
             if dedupe_key in seen:
@@ -2713,6 +2755,9 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     for result in feed_results:
         for item in result.get('items', []):
             headline = item['headline']
+            if looks_suspicious_headline(headline):
+                filtered_reasons['SUSPICIOUS_HEADLINE'] = filtered_reasons.get('SUSPICIOUS_HEADLINE', 0) + 1
+                continue
             safe_url = safe_public_news_url(item.get('url'))
             if not safe_url:
                 filtered_reasons['UNSAFE_OR_INVALID_URL'] = filtered_reasons.get('UNSAFE_OR_INVALID_URL', 0) + 1
@@ -2895,19 +2940,29 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         if candidates:
             anchors.append(max(candidates, key=lambda item: (item.get('publishedAt') or '', sort_key(item))))
     seen_issues: set[str] = set()
-    def add_item(item: dict[str, Any], distinct_issue: bool = False) -> bool:
+    category_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    def add_item(item: dict[str, Any], distinct_issue: bool = False, capped: bool = True) -> bool:
         key = str(item.get('url') or item.get('headline')).lower()
         issue = str(item.get('issueClusterKey') or key)
         if key in seen_balanced or (distinct_issue and issue in seen_issues):
             return False
+        category = str(item.get('category') or '')
+        source = str(item.get('sourceName') or '')
+        # Plan S5: no topic or source fills the page (critical cards are exempt from the topic cap).
+        if capped and ((category_counts.get(category, 0) >= MAX_CARDS_PER_CATEGORY and not item.get('critical'))
+                       or source_counts.get(source, 0) >= MAX_CARDS_PER_SOURCE):
+            return False
         balanced.append(item)
         seen_balanced.add(key)
         seen_issues.add(issue)
+        category_counts[category] = category_counts.get(category, 0) + 1
+        source_counts[source] = source_counts.get(source, 0) + 1
         return True
     # Critical events should lead. Translated overseas cards get a minimum
     # presence, but the quota must not override stronger market triggers.
     critical_lead_limit = min(len(critical_items), max(4, max_items // 4))
-    for bucket, limit, distinct_issue in [
+    buckets = [
         (critical_items, critical_lead_limit, True),
         (anchors, len(topic_patterns), False),
         (macro_release_items, min(3, max(1, max_items // 5)), True),
@@ -2916,13 +2971,22 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         (overseas_items, target_overseas, True),
         (out, max_items, True),
         (out, max_items, False),
-    ]:
-        count = 0
-        for item in bucket:
-            if add_item(item, distinct_issue):
-                count += 1
-            if len(balanced) >= max_items or count >= limit:
+    ]
+    # Pass 1 keeps the topic/source caps. The caps are a preference, not a reason to show fewer cards:
+    # pass 2 repeats the same priority order without them only while the page is short (CAPPED_REFILL).
+    for capped in (True, False):
+        before = len(balanced)
+        for bucket, limit, distinct_issue in buckets:
+            count = sum(1 for item in balanced if any(item is other for other in bucket)) if not capped else 0
+            for item in bucket:
+                if len(balanced) >= max_items or count >= limit:
+                    break
+                if add_item(item, distinct_issue, capped=capped):
+                    count += 1
+            if len(balanced) >= max_items:
                 break
+        if not capped and len(balanced) > before:
+            filtered_reasons['CAPPED_REFILL'] = filtered_reasons.get('CAPPED_REFILL', 0) + len(balanced) - before
         if len(balanced) >= max_items:
             break
     if balanced and not any(item.get('impactTarget') == 'kr' for item in balanced):
@@ -2961,8 +3025,16 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     }
 
 
+HEADLINE_TAG = re.compile(r'\[[^\[\]]{1,16}\]|【[^【】]{1,16}】|\((?:종합|속보|1보|2보|상보|마감|뉴욕마감|일문일답)\d?\)')
+
+
+def strip_headline_tags(text: str) -> str:
+    """[속보], [종합], [뉴욕마감], [글로벌 마켓시황], (종합) carry no fact: never part of a topic key."""
+    return HEADLINE_TAG.sub(' ', text)
+
+
 def normalized_news_topic_text(item: dict[str, Any]) -> str:
-    text = ' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline')]).lower()
+    text = strip_headline_tags(' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline')])).lower()
     text = re.sub(r'["“”\'‘’….,!?|()\[\]{}<>:;·・~\-_/\\]', ' ', text)
     text = re.sub(r'\b(nyt|new york times|뉴욕타임스|美|미국|韓|한국)\b', ' ', text, flags=re.I)
     text = re.sub(r'삼전닉스', '삼성 하이닉스', text)
@@ -2998,7 +3070,9 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
     raw = ' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline'), item.get('sourceName')])
     if re.search(r'(이란|중동|호르무즈|iran|hormuz|u\s*s\s*iran|us\s*iran)', raw, re.I) and re.search(r'(유가|원유|oil|wti|협상|negotiation|talks|strait|긴장|완화)', raw, re.I):
         return 'issue:iran_oil_risk'
-    if re.search(r'(s&p|s\s*p\s*500|sp500|나스닥|nasdaq|다우|dow|wall street|미국\s*주요\s*지수|뉴욕증시)', raw, re.I) and re.search(r'(선물|futures|상승|하락|약세|강세|반등|rally|slip|edge|higher|lower|mixed|혼조|개장|premarket)', raw, re.I):
+    if re.search(r'(s&p|s\s*p\s*500|sp500|나스닥|nasdaq|다우|dow|wall street|미국\s*주요\s*지수|뉴욕\s*증시|뉴욕\s*마감|'
+                 r'3대\s*지수|美\s*증시|미국\s*증시|미\s*증시|월가|필라델피아\s*반도체)', raw, re.I) \
+            and re.search(r'(선물|futures|상승|하락|약세|강세|반등|급등|급락|rally|slip|edge|higher|lower|mixed|혼조|개장|마감|premarket|살린|살아)', raw, re.I):
         return 'issue:us_index_market_wrap'
     if re.search(r'(sk\s*하이닉스|하이닉스|삼성전자|삼성)', raw, re.I) and re.search(r'(시총|1위|대장주|왕좌|반도체\s*랠리)', raw, re.I):
         return 'issue:kr_semiconductor_leadership'
@@ -3131,6 +3205,11 @@ def russia_ukraine_ceasefire_issue_key(item: dict[str, Any]) -> str | None:
     return f'issue:related:ru_ua_ceasefire:{place}:{qualifier}:rolling_24h'
 
 
+MAX_CARDS_PER_CATEGORY = 8
+MAX_CARDS_PER_SOURCE = 3
+MARKET_WRAP_KEYS = {'issue:us_index_market_wrap', 'issue:kr_market_flow'}
+
+
 def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in items:
@@ -3155,10 +3234,16 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
                     ),
                 )
                 selected = [representative]
+        elif group_key in MARKET_WRAP_KEYS:
+            # Plan S5: one card per tone for the same close (7 reports of one US close -> 1 or 2 cards).
+            # Each tone keeps its latest report, so the newest close update always survives.
+            tones = list(dict.fromkeys(item.get('impactTone') for item in group))[:min(2, group_limit)]
+            selected = [max((item for item in group if item.get('impactTone') == tone),
+                            key=lambda item: item.get('publishedAt') or '') for tone in tones]
         else:
             selected = group[:group_limit]
         if selected:
-            if not is_ru_ua_ceasefire:
+            if not is_ru_ua_ceasefire and group_key not in MARKET_WRAP_KEYS:
                 latest = max(group, key=lambda item: item.get('publishedAt') or '')
                 if not any(item is latest for item in selected):
                     selected[-1] = latest
@@ -3219,12 +3304,19 @@ def replay_report(stored: dict[str, Any], *, max_items: int = 30, ttl_minutes: i
     if pinned is None:
         raise ValueError('stored report has no capturedAt/generatedAt and no --now was given')
     previous = _CLOCK_OVERRIDE
+    previous_reference = os.environ.get(INDEX_REFERENCE_ENV)
     set_clock(pinned)
+    # The index levels the live run had (a fixture stores them as indexReference); none -> no number check.
+    os.environ[INDEX_REFERENCE_ENV] = str(stored.get('indexReference') or '')
     try:
         return build_report(timeout=0, per_feed_limit=0, max_items=max_items, ttl_minutes=ttl_minutes,
                             feed_results=copy.deepcopy(feed_results))
     finally:
         set_clock(previous)
+        if previous_reference is None:
+            os.environ.pop(INDEX_REFERENCE_ENV, None)
+        else:
+            os.environ[INDEX_REFERENCE_ENV] = previous_reference
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

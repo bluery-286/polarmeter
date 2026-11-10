@@ -254,6 +254,46 @@ def apply_partial_signal_streaks(snapshot: dict[str, Any], previous_public_snaps
     return sorted(partial)
 
 
+def news_index_reference(previous_public_snapshot: dict[str, Any]) -> str:
+    """'kospi=5018.9,kosdaq=1102.3' from the previous public snapshot, or '' (no number check)."""
+    signals = (previous_public_snapshot or {}).get('signals') or {}
+    parts = []
+    for key in ('kospi', 'kosdaq'):
+        signal = signals.get(key) or {}
+        value, pct = signal.get('value'), signal.get('changePct')
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            parts.append(f'{key}={float(value):.2f}')
+        if isinstance(pct, (int, float)) and not isinstance(pct, bool):
+            parts.append(f'{key}_pct={float(pct):.2f}')
+    return ','.join(parts)
+
+
+NEWS_FILTER_REASON_KEYS = ('SUSPICIOUS_HEADLINE', 'STALE_OVER_24H', 'DUPLICATE', 'DUPLICATE_DISPLAY_HEADLINE',
+                           'NEAR_DUPLICATE_HEADLINE', 'UNTRANSLATED_ENGLISH_HEADLINE', 'TRANSLATION_CONTRADICTS_SOURCE',
+                           'TONE_EXPLANATION_CONFLICT', 'MARKET_IMPACT_LOW', 'CAPPED_REFILL')
+
+
+def news_quality_summary(snapshot: dict[str, Any], news_report_path: Path) -> dict[str, Any]:
+    """Public news diagnostics (plan S5): card count, tone mix, sources, direct-RSS count, main filter reasons."""
+    items = [item for item in ((snapshot.get('news') or {}).get('items') or []) if isinstance(item, dict)]
+    tones = {tone: sum(1 for item in items if item.get('impactTone') == tone) for tone in ('positive', 'neutral', 'negative')}
+    summary: dict[str, Any] = {
+        'cards': len(items), 'tones': tones,
+        'sources': len({item.get('sourceName') for item in items}),
+        'critical': sum(1 for item in items if item.get('critical')),
+        'directRss': sum(1 for item in items if not str(item.get('sourceId') or '').startswith('rss:google-news')),
+    }
+    try:
+        report = json.loads(news_report_path.read_text(encoding='utf-8'))
+    except Exception:
+        return summary
+    reasons = report.get('filteredReasons') if isinstance(report.get('filteredReasons'), dict) else {}
+    summary['filtered'] = {key: int(reasons[key]) for key in NEWS_FILTER_REASON_KEYS if isinstance(reasons.get(key), int)}
+    summary['feeds'] = {'ok': sum(1 for feed in report.get('feedResults') or [] if feed.get('status') == 'ok'),
+                        'total': len(report.get('feedResults') or [])}
+    return summary
+
+
 def run_freshness_audit(snapshot_path: Path, report_path: Path) -> None:
     """Fail the worker before fixture/public publishing when selected data is stale."""
     try:
@@ -1261,7 +1301,7 @@ def sanitize_public_news_title(value: Any) -> str:
 def sanitize_public_data_quality(data_quality: dict[str, Any]) -> dict[str, Any]:
     allowed = {
         'policy', 'coreSignals', 'coreGroups', 'coreOkSignals', 'coreCoverageRatio',
-        'normalTemperatureAllowed', 'displayMode', 'groupStatus', 'displayBadge', 'partialSignals',
+        'normalTemperatureAllowed', 'displayMode', 'groupStatus', 'displayBadge', 'partialSignals', 'news',
     }
     return {key: value for key, value in data_quality.items() if key in allowed}
 
@@ -1424,11 +1464,13 @@ def main() -> int:
     args = parser.parse_args()
 
     run([sys.executable, str(TOOLS / 'polarmeter_free_provider_probe.py'), '--json'], stdout_path=args.report)
+    # Loaded before the news probe: its KOSPI/KOSDAQ levels bound implausible index numbers in headlines.
+    previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
+    os.environ['POLARMETER_NEWS_INDEX_REFERENCE'] = news_index_reference(previous_public_snapshot)
     news_ttl_minutes = recommended_news_ttl_minutes()
     run([sys.executable, str(TOOLS / 'polarmeter_news_rss_probe.py'), '--output', str(args.news_report), '--ttl-minutes', str(news_ttl_minutes)])
     run([sys.executable, str(TOOLS / 'polarmeter_cache_snapshot.py'), '--probe', str(args.report), '--news-probe', str(args.news_report), '--output', str(args.snapshot), '--last-known-good', str(args.last_known_good)])
     emit_market_source_diagnostics(args.snapshot, args.report)
-    previous_public_snapshot = load_previous_public_snapshot(args.previous_public_snapshot, args.public_dir, args.public_snapshot_name, args.previous_public_url)
     history_dir = os.environ.get('POLARMETER_HISTORY_DIR')
     previous_public_snapshot, restored = restore_from_history(previous_public_snapshot, Path(history_dir) if history_dir else None)
     for key in restored:
@@ -1444,6 +1486,7 @@ def main() -> int:
     apply_temperature_history(snapshot_for_history, previous_public_snapshot, temperature_history_seed)
     apply_v3_layers(snapshot_for_history, previous_public_snapshot)
     apply_partial_signal_streaks(snapshot_for_history, previous_public_snapshot)
+    snapshot_for_history.setdefault('dataQuality', {})['news'] = news_quality_summary(snapshot_for_history, args.news_report)
     atomic_write_json(args.snapshot, snapshot_for_history)
     run_freshness_audit(args.snapshot, args.report)
     if not args.skip_fixture:
