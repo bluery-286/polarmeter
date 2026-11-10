@@ -49,6 +49,10 @@ def factual_market_tone(headline: str) -> str | None:
     down = bool(re.search(index + qualifiers + r'(?:하락|급락|폭락|약세|↓|falls?|fell|drops?|dropped|lower|slump|plunge|tumble)', headline, re.I))
     up = bool(re.search(index + qualifiers + r'(?:상승|급등|반등|강세|랠리|↑|rise|rises|rose|gain|gains|higher|jump|jumps|surge|surges|rall(?:y|ies)|rebound)', headline, re.I))
     up = up or bool(re.search(r'(?:살린|살아난|되살아난|회복한)\s*증시|증시\s*(?:회복|살아나)', headline, re.I))
+    rebound_after_fall = re.search(r'(?:급락|하락|약세|폭락).{0,8}(?:딛고|뒤|후|이후|만에).{0,20}(?:반등|회복|상승)', headline, re.I)
+    if down and rebound_after_fall:
+        # "코스피 급락 딛고 반등할까": the fall is the past, the rebound a question or a fact.
+        return 'neutral' if re.search(r'할까|될까|일까|\?', headline) else 'positive'
     if down and not up:
         return 'negative'
     de_escalation = (r'(?:이란|중동|iran|트럼프|trump).{0,24}(?:긴장\s*완화|종식|종전|휴전|공격\s*(?:자제|보류|연기|철회)|'

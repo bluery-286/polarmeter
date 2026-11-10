@@ -1,0 +1,51 @@
+{
+  "day": "2026-11-10-kr-rally",
+  "kind": "kr_rally_sidecar",
+  "weekday": true,
+  "marketMoves": {
+    "kr": {
+      "kospi": 4.67,
+      "kosdaq": 3.76
+    },
+    "us": {
+      "sp500": 2.37,
+      "nasdaq100": 3.54
+    }
+  },
+  "labels": [
+    {
+      "match": "매수 사이드카",
+      "tone": [
+        "positive"
+      ],
+      "why": "index up 4-5%; a sidecar is a market mechanism, not advice"
+    },
+    {
+      "match": "반도체주 급등",
+      "tone": [
+        "positive"
+      ]
+    },
+    {
+      "match": "외국인 6586억 매도 코스피 사흘째 하락",
+      "tone": [
+        "negative"
+      ]
+    }
+  ],
+  "sameEvent": [
+    {
+      "name": "kr_open_sidecar_2026-11-10",
+      "match": [
+        "매수 사이드카"
+      ],
+      "maxSelected": 2
+    }
+  ],
+  "caps": {
+    "maxNegativeShareOnRally": 0.5,
+    "maxPerCategory": 8,
+    "maxPerSource": 3,
+    "minKrMarket": 2
+  }
+}

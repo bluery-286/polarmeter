@@ -16,7 +16,7 @@ Checks per day
 
 Run: PYTHONPATH=tools python3 tools/polarmeter_news_day_regression_contract.py [--report-only] [--day 2026-11-10]
 Without --report-only a failed check exits 1. Plan S2: this starts red on 2026-11-10 (tone inverted,
-one US close in 5 cards, 1 domestic market card); S4/S5 turn it green, then it joins the Pages workflow.
+one US close in 5 cards, 1 domestic market card); S4/S5 made it green and it runs in the Pages workflow.
 """
 from __future__ import annotations
 
