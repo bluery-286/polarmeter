@@ -42,14 +42,26 @@ def factual_market_tone(headline: str) -> str | None:
     if has_divergent_index_moves(headline):
         return 'neutral'
     # Attach final stock moves to stock names, never to a preceding bond move.
-    index = r'(?:3대\s*지수|코스피|코스닥|나스닥|다우|S&P\s*500|nasdaq|dow|stocks?)'
-    qualifiers = r'\s*(?:지수\s*)?(?:(?:동반|일제히|모두|함께|일제|전부|역시|again|all|jointly)\s*)*(?:\d+(?:\.\d+)?\s*%\s*)?'
-    down = bool(re.search(index + qualifiers + r'(?:하락|급락|약세|↓|falls?|drops?|lower)', headline, re.I))
-    up = bool(re.search(index + qualifiers + r'(?:상승|반등|강세|↑|rise|rises|gain|gains|higher)', headline, re.I))
+    index = (r'(?:3대\s*지수|코스피|코스닥|나스닥|다우|S&P\s*500|뉴욕\s*증시|미국\s*증시|美\s*증시|미\s*증시|국내\s*증시|'
+             r'nasdaq|dow|stocks?|wall\s+street)')
+    qualifiers = (r'\s*(?:지수\s*)?(?:(?:동반|일제히|모두|함께|일제|전부|역시|again|all|jointly)\s*)*'
+                  r'(?:\d+(?:\.\d+)?\s*%\s*(?:대\s*)?)?')
+    down = bool(re.search(index + qualifiers + r'(?:하락|급락|폭락|약세|↓|falls?|fell|drops?|dropped|lower|slump|plunge|tumble)', headline, re.I))
+    up = bool(re.search(index + qualifiers + r'(?:상승|급등|반등|강세|랠리|↑|rise|rises|rose|gain|gains|higher|jump|jumps|surge|surges|rall(?:y|ies)|rebound)', headline, re.I))
+    up = up or bool(re.search(r'(?:살린|살아난|되살아난|회복한)\s*증시|증시\s*(?:회복|살아나)', headline, re.I))
     if down and not up:
         return 'negative'
-    if mask_negated_moves(headline) == headline and re.search(r'(?:이란|중동|iran).{0,16}(?:긴장\s*완화|tensions?\s+ease)', headline, re.I) and re.search(r'(?:유가|oil).{0,12}(?:하락|falls?|drops?)', headline, re.I):
+    de_escalation = (r'(?:이란|중동|iran|트럼프|trump).{0,24}(?:긴장\s*완화|종식|종전|휴전|공격\s*(?:자제|보류|연기|철회)|'
+                     r'tensions?\s+ease|holds?\s+off|ceasefire|end\s+of\s+(?:the\s+)?war)')
+    if mask_negated_moves(headline) == headline and re.search(de_escalation, headline, re.I) and re.search(r'(?:유가|oil|crude).{0,40}(?:\d+(?:\.\d+)?\s*%\s*)?(?:하락|급락|falls?|drops?|slides?|tumbles?)', headline, re.I):
         return 'positive'
+    # Good falls (plan S4): yields falling with stocks or a sector rising is relief, not burden.
+    rate_down = re.search(r'(?:금리|국채|10년물|수익률|yields?).{0,10}(?:하락|급락|내림|뚝|falls?|drops?|eases?|slides?)', headline, re.I)
+    equity_up = up or re.search(r'(?:기술주|성장주|반도체|빅테크|tech(?:\s+stocks?)?|chip\s*stocks?).{0,8}(?:강세|상승|급등|랠리|rall(?:y|ies)|jumps?|surges?|gains?)', headline, re.I)
+    if rate_down and equity_up and not down and not re.search(r'반납|pares?\s+gains', headline, re.I):
+        return 'positive'
+    if re.search(r'급등락|등락\s*반복|출렁|whipsaw|seesaw', headline, re.I) and not (up or down):
+        return 'neutral'  # swings both ways: no direction to report
     release = inflation_release(headline)
     if release and release['deniedComparison']:
         return 'neutral'
@@ -62,6 +74,12 @@ def factual_market_tone(headline: str) -> str | None:
         return 'neutral' if up else 'negative'
     if mask_negated_moves(headline) != headline and re.search(r'이란|중동|iran|hormuz|제재|sanction', headline, re.I):
         return 'neutral' if up or has_supply_recovery_fact(headline) else 'negative'
+    # Symmetric to "index down only -> negative" (plan S4, 2026-11-10): a reported broad-index rise with no
+    # index fall is positive, even when one company or an oil/war word appears beside it. A single stock
+    # falling never flips the market's own move.
+    giveback = re.search(r'반납|상승폭\s*(?:축소|줄)|상승분|pares?\s+gains|gives?\s+back', headline, re.I)
+    if up and not down and not giveback:
+        return 'positive'
     return None
 
 

@@ -890,9 +890,12 @@ def energy_supply_state(headline: str) -> str:
     if not energy:
         return 'unknown'
     states = []
-    for clause in re.split(r'에도|지만|반면|\bbut\b|\bwhile\b|\bhowever\b|[;…]', re.sub(r'struck\s+a\s+deal', 'agreement', text)):
+    for clause in re.split(r'에도|지만|반면|\bbut\b|\bwhile\b|\bhowever\b|\bas\b|[;…]', re.sub(r'struck\s+a\s+deal', 'agreement', text)):
+        # Plan S4: holding off / calling off an attack is de-escalation, not a disruption.
         denied = re.search(
-            r'사실무근|부인|오보|공격.{0,8}없|차질.{0,8}없|den(?:y|ies|ied)|no\s+(?:attack|disruption)',
+            r'사실무근|부인|오보|공격.{0,8}없|차질.{0,8}없|den(?:y|ies|ied)|no\s+(?:attack|disruption)|'
+            r'(?:공격|타격|보복|공습).{0,8}(?:자제|보류|연기|철회|유예|중단\s*시사)|'
+            r'(?:holds?|held)\s+off|refrain(?:s|ed)?|call(?:s|ed)?\s+off|cease-?fire|휴전',
             clause,
         )
         recovery_in_progress = re.search(
@@ -922,7 +925,10 @@ def energy_supply_state(headline: str) -> str:
             r'(?:restored|reopened|resumed).{0,12}(?:operation|operations|supply|flow)?|'
             r'repairs?\s+(?:are\s+)?complet(?:e|ed)\b|'
             r'resumes\s+(?:oil\s+)?(?:loadings?|shipments?|exports?|operations?)\b|'
-            r'supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b',
+            r'supply\s+disruptions?\s+(?:eases?|easing|ends?|ended|subsides?)\b|'
+            r'(?:output|production|exports?)\s+(?:climbs?|rises?|recover(?:s|ed)?|rebounds?)|'
+            r'(?:산유량|생산량|수출량).{0,16}회복|'
+            r'tankers?\s+(?:pass|passed|transit(?:s|ed)?)\b|통항\s*(?:지속|계속|이어)',
             clause,
         )
         explicit_disruption = re.search(
@@ -971,6 +977,16 @@ def energy_supply_recovery_in_progress(headline: str) -> bool:
 
 def energy_supply_risk(headline: str) -> bool:
     return energy_supply_state(headline) == 'active'
+
+
+def energy_warning_only(headline: str) -> bool:
+    """A warning or risk of a disruption, not a reported one (plan S4): shown as a concern, never CRITICAL."""
+    return bool(re.search(r'warn(?:s|ed|ing)?\b|risk\s+of|\bmay\b|\bcould\b|threat(?:en)?s?|경고|우려|가능성', headline, re.I)) \
+        and not re.search(r'(?:attack(?:ed|s)?|struck|hit)\b|피격|공격(?:받|당|으로|에)', headline, re.I)
+
+
+def energy_critical(headline: str) -> bool:
+    return energy_supply_risk(headline) and not energy_warning_only(headline)
 
 
 def active_energy_display_key(headline: str) -> str:
@@ -1340,6 +1356,8 @@ def english_market_context_translation(headline: str) -> str | None:
         return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
     if has_oil_geo:
         return '중동 긴장은 유가와 대표 지수 반응 확인'
+    if has_inflation and re.search(r'watch(?:ing)?|this\s+week|week\s+ahead|ahead\s+of|preview|calendar', lower):
+        return '이번 주 미국 물가 발표 앞두고 금리 반응 확인'  # a schedule preview, not a result
     if has_inflation:
         return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
     if has_dollar and has_fed:
@@ -1453,6 +1471,8 @@ def koreanize_english_headline(headline: str) -> str | None:
         countries = {'saudi': '사우디', 'libyan': '리비아', 'russian': '러시아', 'iranian': '이란', 'iraqi': '이라크', 'canadian': '캐나다', 'norwegian': '노르웨이'}
         place = next((ko for en, ko in countries.items() if re.search(rf'\b{en}\s+(?:oil\s+)?(?:pipeline|refiner|oilfield)', text, re.I)), '')
         event = '가동 중단 소식' if re.search(r'shutdown|shut\s*down|offline|outage', text, re.I) else '공격 소식' if re.search(r'attack|struck', text, re.I) else '공급 차질 우려'
+        if energy_warning_only(text) and event == '가동 중단 소식':
+            event = '가동 중단 우려'  # a warning is not an event that happened
         subject = identity if identity and any(word in identity for word in ('송유관', '정유시설', '유전')) else f'{identity or place} {facility}'.strip()
         if subject.endswith('원유 공급') and event == '공급 차질 우려':
             subject = subject.removesuffix(' 공급')
@@ -2767,6 +2787,8 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             elif energy_supply_risk(headline):
                 final_impact_tone = 'negative'
                 final_why = '에너지 공급 차질 우려는 물가와 기업 비용 부담을 키울 수 있습니다. 실제 공급량과 유가 반응은 별도로 확인합니다.'
+            elif energy_state == 'denied' and fact_tone == 'positive':
+                pass  # de-escalation with a reported oil fall or index rise (fact lock above) stays positive
             elif energy_state == 'denied':
                 final_impact_tone = 'neutral'
                 final_why = '시설 피격 또는 공급 차질 주장이 부인·사실무근으로 전해졌습니다. 실제 가동과 공급량은 별도로 확인합니다.'
@@ -2823,9 +2845,9 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 'qualityScore': relevance['qualityScore'],
                 'marketImpactScore': relevance.get('marketImpactScore'),
                 'marketImpactComponents': relevance.get('marketImpactComponents'),
-                'critical': relevance.get('critical') is True or energy_supply_risk(headline),
-                'criticalReason': 'energy_transport_disruption' if energy_supply_risk(headline) else relevance.get('criticalReason'),
-                'priorityTier': 'CRITICAL' if energy_supply_risk(headline) else relevance.get('priorityTier') or ('CRITICAL' if relevance.get('critical') else 'STANDARD'),
+                'critical': relevance.get('critical') is True or energy_critical(headline),
+                'criticalReason': 'energy_transport_disruption' if energy_critical(headline) else relevance.get('criticalReason'),
+                'priorityTier': 'CRITICAL' if energy_critical(headline) else relevance.get('priorityTier') or ('CRITICAL' if relevance.get('critical') else 'STANDARD'),
                 'sourceId': item.get('sourceId') or result.get('sourceId'),
                 'region': item.get('region') or result.get('region') or ('US' if relevance['impactTarget'] == 'us' else 'KR'),
                 'provider': 'public-rss',
