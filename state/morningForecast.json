@@ -1,6 +1,11 @@
 {
  "current": {
-  "actual": null,
+  "actual": {
+   "closePct": null,
+   "intradayPct": null,
+   "openPct": -0.56,
+   "source": "naver_index_price"
+  },
   "analog": {
    "bucket": "open_le_-1.0",
    "closeSame": 33,
@@ -49,6 +54,10 @@
     "en": "8 of 10 opens fell inside in the last year",
     "ko": "최근 1년 10번 중 8번은 이 범위 안"
    },
+   "openResult": {
+    "en": "Open −0.6%: call was right",
+    "ko": "시가 −0.6%, 예보 적중"
+   },
    "openStat": {
     "en": "around −1%",
     "ko": "−1% 안팎"
@@ -90,8 +99,12 @@
    "strength": "strong",
    "topDriver": "ewyExcessPct"
   },
-  "result": null,
-  "state": "issued",
+  "result": {
+   "closeHit": null,
+   "openHit": true,
+   "openInBand": true
+  },
+  "state": "open_scored",
   "targetSession": "2026-11-11",
   "usSessions": [
    "2026-11-10"
@@ -101,7 +114,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-10T22:16:36Z",
+ "generatedAt": "2026-11-11T00:16:07Z",
  "ledger": [
   {
    "actual": {
@@ -1037,7 +1050,12 @@
    ]
   },
   {
-   "actual": null,
+   "actual": {
+    "closePct": null,
+    "intradayPct": null,
+    "openPct": -0.56,
+    "source": "naver_index_price"
+   },
    "analog": {
     "bucket": "open_le_-1.0",
     "closeSame": 33,
@@ -1063,8 +1081,12 @@
     "strength": "strong",
     "topDriver": "ewyExcessPct"
    },
-   "result": null,
-   "state": "issued",
+   "result": {
+    "closeHit": null,
+    "openHit": true,
+    "openInBand": true
+   },
+   "state": "open_scored",
    "targetSession": "2026-11-11",
    "usSessions": [
     "2026-11-10"
@@ -1073,7 +1095,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-11T21:45:00Z",
- "phase": "pre_open",
+ "phase": "kr_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
@@ -1085,25 +1107,24 @@
    "to": "2026-11-06"
   },
   "live": {
-   "calls": 2,
+   "calls": 3,
    "carried": {
     "calls": 0,
     "openHits": 0,
     "since": null
    },
-   "openHits": 1,
+   "openHits": 2,
    "since": "2026-11-09"
   },
   "recent": {
    "calls": 18,
-   "closeCalls": 15,
+   "closeCalls": 14,
    "closeHits": 9,
-   "liveSessions": 2,
+   "liveSessions": 3,
    "marks": [
     "hit",
     "hit",
     "hit",
-    "hit",
     "miss",
     "hit",
     "none",
@@ -1119,15 +1140,15 @@
     "hit",
     "hit",
     "miss",
+    "hit",
     "hit"
    ],
    "openHits": 15,
    "sessions": 20
   },
   "recentBacktest": {
-   "calls": 16,
+   "calls": 15,
    "marks": [
-    "hit",
     "hit",
     "hit",
     "hit",
@@ -1146,17 +1167,18 @@
     "hit",
     "hit"
    ],
-   "openHits": 14,
-   "sessions": 18
+   "openHits": 13,
+   "sessions": 17
   },
   "recentLive": {
-   "calls": 2,
+   "calls": 3,
    "marks": [
     "miss",
+    "hit",
     "hit"
    ],
-   "openHits": 1,
-   "sessions": 2
+   "openHits": 2,
+   "sessions": 3
   }
  },
  "status": "ok"
