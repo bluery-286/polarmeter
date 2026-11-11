@@ -115,10 +115,10 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-11T18:16:55.488640Z",
+   "asOf": "2026-11-11T18:31:58.219853Z",
    "dateKst": "2026-11-12",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-11T18:16:55.488640Z",
+   "krAsOf": "2026-11-11T18:31:58.219853Z",
    "krLabel": "온기 · 긍정 우위",
    "krScore": 65,
    "krSettled": true,
@@ -131,6 +131,6 @@
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-11T18:16:55.488640Z",
+ "updatedAt": "2026-11-11T18:31:58.219853Z",
  "version": "temperature-history-v1"
 }
