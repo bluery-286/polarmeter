@@ -1,8 +1,8 @@
 {
  "current": {
   "actual": {
-   "closePct": null,
-   "intradayPct": null,
+   "closePct": 2.6,
+   "intradayPct": 3.18,
    "openPct": -0.56,
    "source": "naver_index_price"
   },
@@ -66,10 +66,73 @@
     "en": "About 9 in 10 of the days with an overnight signal this negative opened lower (44 days since Dec 2023).",
     "ko": "밤사이 신호가 이만큼 나빴던 날은 열에 아홉쯤 하락 출발했어요. (44일, 2023년 12월부터)"
    },
+   "resultBadge": {
+    "en": "Direction right",
+    "ko": "방향 적중",
+    "tone": "plus"
+   },
+   "resultHeadline": {
+    "en": "Today went as forecast",
+    "ko": "오늘은 예보대로였어요"
+   },
+   "resultRows": [
+    {
+     "actual": {
+      "en": "−0.6%",
+      "ko": "−0.6%"
+     },
+     "forecast": {
+      "en": "Lower",
+      "ko": "하락"
+     },
+     "hit": true,
+     "key": "open",
+     "label": {
+      "en": "Open direction",
+      "ko": "시가 방향"
+     }
+    },
+    {
+     "actual": {
+      "en": "−0.6%",
+      "ko": "−0.6%"
+     },
+     "forecast": {
+      "en": "around −1%",
+      "ko": "−1% 안팎"
+     },
+     "hit": true,
+     "key": "open_size",
+     "label": {
+      "en": "Open size",
+      "ko": "시가 크기"
+     }
+    },
+    {
+     "actual": {
+      "en": "+2.6%",
+      "ko": "+2.6%"
+     },
+     "forecast": {
+      "en": "Not forecast",
+      "ko": "예보 안 함"
+     },
+     "hit": null,
+     "key": "close",
+     "label": {
+      "en": "Close direction",
+      "ko": "종가 방향"
+     }
+    }
+   ],
+   "resultTitle": {
+    "en": "Forecast result",
+    "ko": "오늘 예보 결과"
+   },
    "say": {
-    "en": "After a sharp gap down the index rebounded intraday 45% of the time. I do not call direction once the market opens.",
-    "id": "H1",
-    "ko": "급락 출발 뒤 장중 반등은 과거 45%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
+    "en": "Today went as forecast. The open was −0.6%, inside the expected range.",
+    "id": "H7",
+    "ko": "오늘은 예보대로였어요. 시가 −0.6%, 예상 범위 안이에요."
    },
    "title": {
     "en": "Korea looks set to open sharply lower",
@@ -100,11 +163,11 @@
    "topDriver": "ewyExcessPct"
   },
   "result": {
-   "closeHit": null,
+   "closeHit": false,
    "openHit": true,
    "openInBand": true
   },
-  "state": "open_scored",
+  "state": "closed_scored",
   "targetSession": "2026-11-11",
   "usSessions": [
    "2026-11-10"
@@ -114,7 +177,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-11T00:16:07Z",
+ "generatedAt": "2026-11-11T07:00:14Z",
  "ledger": [
   {
    "actual": {
@@ -1051,8 +1114,8 @@
   },
   {
    "actual": {
-    "closePct": null,
-    "intradayPct": null,
+    "closePct": 2.6,
+    "intradayPct": 3.18,
     "openPct": -0.56,
     "source": "naver_index_price"
    },
@@ -1082,11 +1145,11 @@
     "topDriver": "ewyExcessPct"
    },
    "result": {
-    "closeHit": null,
+    "closeHit": false,
     "openHit": true,
     "openInBand": true
    },
-   "state": "open_scored",
+   "state": "closed_scored",
    "targetSession": "2026-11-11",
    "usSessions": [
     "2026-11-10"
@@ -1095,7 +1158,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-11T21:45:00Z",
- "phase": "kr_open",
+ "phase": "kr_closed",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
@@ -1118,7 +1181,7 @@
   },
   "recent": {
    "calls": 18,
-   "closeCalls": 14,
+   "closeCalls": 15,
    "closeHits": 9,
    "liveSessions": 3,
    "marks": [
