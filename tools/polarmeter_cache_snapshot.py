@@ -408,6 +408,10 @@ def _required_bls_value(
     return value
 
 
+# Months BLS never published. Only these may be missing as a year-ago CPI point; any other gap is an error.
+BLS_UNPUBLISHED_PERIODS = frozenset({(2025, 10)})  # October 2025: federal shutdown
+
+
 def _signed_percent(value: float) -> str:
     rounded = round(value, 1)
     if rounded == 0:
@@ -440,8 +444,12 @@ def parse_bls_cpi_release(
     month_change = (current_sa / previous_sa - 1.0) * 100.0
     # BLS never published some months (October 2025, lost to the federal shutdown). The current and
     # previous month stay required: a missing current month means the release is not out yet. A missing
-    # year-ago month is permanent, so the year-over-year figure is left out instead of failing every run.
-    year_ago_nsa = (points.get(BLS_SERIES['cpi_nsa']) or {}).get(year_ago)
+    # year-ago month that BLS never published is permanent, so the year-over-year figure is left out instead of
+    # failing every run. Any other missing year-ago month is still an error.
+    if year_ago in BLS_UNPUBLISHED_PERIODS and (points.get(BLS_SERIES['cpi_nsa']) or {}).get(year_ago) is None:
+        year_ago_nsa = None
+    else:
+        year_ago_nsa = _required_bls_value(points, BLS_SERIES['cpi_nsa'], year_ago)
     if year_ago_nsa is None:
         burden_score = int(max(0, min(100, round(50 + month_change * 20))))
         result_label = f'물가 전월 대비 {_signed_percent(month_change)}'
