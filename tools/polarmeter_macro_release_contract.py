@@ -184,6 +184,25 @@ def main() -> None:
     else:
         raise AssertionError('a CPI release without its own month passed')
 
+    # Review on #60: only a month BLS never published may be missing. A gap anywhere else stays an error.
+    other_gap = {'status': 'REQUEST_SUCCEEDED', 'message': [], 'Results': {'series': [
+        {'seriesID': 'CUSR0000SA0', 'data': [
+            {'year': '2026', 'period': 'M09', 'value': '333.000'},
+            {'year': '2026', 'period': 'M08', 'value': '332.000'},
+        ]},
+        {'seriesID': 'CUUR0000SA0', 'data': [
+            {'year': '2026', 'period': 'M09', 'value': '334.000'},
+        ]},
+    ]}}
+    try:
+        snapshot.parse_bls_cpi_release(other_gap, label='9월 CPI',
+                                       released_at=datetime(2026, 10, 14, 12, 30, tzinfo=timezone.utc),
+                                       source_url='https://www.bls.gov/news.release/cpi.nr0.htm')
+    except ValueError as error:
+        assert 'missing period 2025-09' in str(error)
+    else:
+        raise AssertionError('an unexpected year-ago gap was published without YoY')
+
     jobs = snapshot.parse_bls_employment_release(
         SYNTHETIC_BLS_PAYLOAD,
         label='7월 고용',
