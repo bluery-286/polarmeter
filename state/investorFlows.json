@@ -2,21 +2,6 @@
  "fetchErrors": 0,
  "items": [
   {
-   "date": "2026-07-13",
-   "fetchedAt": "2026-11-11T00:16:07.101876Z",
-   "kosdaq": {
-    "foreign": -3878.0,
-    "institution": 1843.0,
-    "personal": 1833.0
-   },
-   "kospi": {
-    "foreign": -16705.0,
-    "institution": -22338.0,
-    "personal": 38869.0
-   },
-   "settled": true
-  },
-  {
    "date": "2026-07-14",
    "fetchedAt": "2026-11-04T06:55:30.952397Z",
    "kosdaq": {
@@ -1200,12 +1185,27 @@
     "personal": -6886.0
    },
    "settled": true
+  },
+  {
+   "date": "2026-11-11",
+   "fetchedAt": "2026-11-11T00:41:11.458068Z",
+   "kosdaq": {
+    "foreign": 144.0,
+    "institution": 190.0,
+    "personal": -336.0
+   },
+   "kospi": {
+    "foreign": -928.0,
+    "institution": -139.0,
+    "personal": 486.0
+   },
+   "settled": false
   }
  ],
  "sourceId": "public-investor-flow-delayed",
  "sourceLabel": "네이버 증권 (지연)",
  "status": "ok",
  "unit": "KRW_100M",
- "updatedAt": "2026-11-11T00:16:07.101876Z",
+ "updatedAt": "2026-11-11T00:41:11.458068Z",
  "version": "investor-flows-v1"
 }
