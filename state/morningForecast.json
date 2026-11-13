@@ -41,8 +41,8 @@
     "tone": "neutral"
    },
    "resultHeadline": {
-    "en": "No call today",
-    "ko": "오늘은 방향을 내지 않았어요"
+    "en": "No call for Nov 13",
+    "ko": "11월 13일은 방향을 내지 않았어요"
    },
    "resultRows": [
     {
@@ -95,8 +95,8 @@
     }
    ],
    "resultTitle": {
-    "en": "Forecast result",
-    "ko": "오늘 예보 결과"
+    "en": "Nov 13 forecast result",
+    "ko": "11월 13일 예보 결과"
    },
    "say": {
     "en": "On days with a signal this weak the close direction was right only 56% of the time. I will not pretend to call it.",
@@ -104,8 +104,8 @@
     "ko": "신호가 이 정도로 약한 날은 종가 방향이 56%만 맞았어요. 맞히는 척하지 않을게요."
    },
    "title": {
-    "en": "No call today",
-    "ko": "오늘은 방향을 내지 않아요"
+    "en": "No call for Nov 13",
+    "ko": "11월 13일은 방향을 내지 않아요"
    }
   },
   "inputs": {
@@ -146,7 +146,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-13T07:01:04Z",
+ "generatedAt": "2026-11-13T15:16:56Z",
  "ledger": [
   {
    "actual": {
@@ -1206,7 +1206,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-13T21:45:00Z",
- "phase": "kr_closed",
+ "phase": "us_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
