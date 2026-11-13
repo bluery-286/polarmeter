@@ -1,6 +1,11 @@
 {
  "current": {
-  "actual": null,
+  "actual": {
+   "closePct": null,
+   "intradayPct": null,
+   "openPct": 2.05,
+   "source": "naver_index_price"
+  },
   "analog": null,
   "basisKrSession": "2026-11-12",
   "copy": {
@@ -26,6 +31,10 @@
      "tone": "minus"
     }
    ],
+   "openResult": {
+    "en": "Open +2.0%: no call made",
+    "ko": "시가 +2.0%, 방향 예보 없음"
+   },
    "say": {
     "en": "On days with a signal this weak the close direction was right only 56% of the time. I will not pretend to call it.",
     "id": "H4",
@@ -59,8 +68,12 @@
    "strength": "weak",
    "topDriver": "ewyExcessPct"
   },
-  "result": null,
-  "state": "issued",
+  "result": {
+   "closeHit": null,
+   "openHit": null,
+   "openInBand": null
+  },
+  "state": "open_scored",
   "targetSession": "2026-11-13",
   "usSessions": [
    "2026-11-12"
@@ -70,7 +83,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-12T22:16:40Z",
+ "generatedAt": "2026-11-13T00:13:28Z",
  "ledger": [
   {
    "actual": {
@@ -1092,7 +1105,12 @@
    ]
   },
   {
-   "actual": null,
+   "actual": {
+    "closePct": null,
+    "intradayPct": null,
+    "openPct": 2.05,
+    "source": "naver_index_price"
+   },
    "analog": null,
    "basisKrSession": "2026-11-12",
    "issuedAt": "2026-11-12T22:16:40Z",
@@ -1111,8 +1129,12 @@
     "strength": "weak",
     "topDriver": "ewyExcessPct"
    },
-   "result": null,
-   "state": "issued",
+   "result": {
+    "closeHit": null,
+    "openHit": null,
+    "openInBand": null
+   },
+   "state": "open_scored",
    "targetSession": "2026-11-13",
    "usSessions": [
     "2026-11-12"
@@ -1121,7 +1143,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-13T21:45:00Z",
- "phase": "pre_open",
+ "phase": "kr_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
@@ -1143,13 +1165,12 @@
    "since": "2026-11-09"
   },
   "recent": {
-   "calls": 18,
-   "closeCalls": 15,
-   "closeHits": 8,
-   "liveSessions": 4,
+   "calls": 17,
+   "closeCalls": 14,
+   "closeHits": 7,
+   "liveSessions": 5,
    "marks": [
     "hit",
-    "hit",
     "miss",
     "hit",
     "none",
@@ -1167,15 +1188,15 @@
     "miss",
     "hit",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
-   "openHits": 15,
+   "openHits": 14,
    "sessions": 20
   },
   "recentBacktest": {
-   "calls": 14,
+   "calls": 13,
    "marks": [
-    "hit",
     "hit",
     "miss",
     "hit",
@@ -1192,8 +1213,8 @@
     "hit",
     "hit"
    ],
-   "openHits": 12,
-   "sessions": 16
+   "openHits": 11,
+   "sessions": 15
   },
   "recentLive": {
    "calls": 4,
@@ -1201,10 +1222,11 @@
     "miss",
     "hit",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
    "openHits": 3,
-   "sessions": 4
+   "sessions": 5
   }
  },
  "status": "ok"
