@@ -1188,7 +1188,7 @@
   },
   {
    "date": "2026-11-13",
-   "fetchedAt": "2026-11-14T09:26:00.948505Z",
+   "fetchedAt": "2026-11-14T10:26:08.449272Z",
    "kosdaq": {
     "foreign": -806.0,
     "institution": 1259.0,
@@ -1206,6 +1206,6 @@
  "sourceLabel": "네이버 증권 (지연)",
  "status": "ok",
  "unit": "KRW_100M",
- "updatedAt": "2026-11-14T09:26:00.948505Z",
+ "updatedAt": "2026-11-14T10:26:08.449272Z",
  "version": "investor-flows-v1"
 }
