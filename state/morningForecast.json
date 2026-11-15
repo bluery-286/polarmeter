@@ -63,8 +63,8 @@
     "ko": "이 정도 신호면 시가 방향은 85% 맞았어요. 종가까지는 덜 맞아요(68%)."
    },
    "title": {
-    "en": "Monday: Korea is likely to open lower",
-    "ko": "월요일 한국장, 내려서 시작할 가능성이 높아요"
+    "en": "Korea is likely to open lower",
+    "ko": "오늘 한국장, 내려서 시작할 가능성이 높아요"
    }
   },
   "inputs": {
@@ -101,7 +101,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-13T22:16:35Z",
+ "generatedAt": "2026-11-15T15:26:06Z",
  "ledger": [
   {
    "actual": {

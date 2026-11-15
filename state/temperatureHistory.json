@@ -1,13 +1,13 @@
 {
  "anchorTimeKst": "00:00",
  "basis": "kst_calendar_day_latest_settled_market_session",
- "comparisonDateKst": "2026-11-14",
- "currentDateKst": "2026-11-15",
+ "comparisonDateKst": "2026-11-15",
+ "currentDateKst": "2026-11-16",
  "dailyDelta": {
   "kr": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-14T14:26:50.642163Z",
-   "comparisonDateKst": "2026-11-14",
+   "comparisonAsOf": "2026-11-15T14:25:59.691380Z",
+   "comparisonDateKst": "2026-11-15",
    "currentScore": 48,
    "delta": 0,
    "previousScore": 48
@@ -16,29 +16,14 @@
   "status": "ready",
   "us": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-14T14:26:50.642163Z",
-   "comparisonDateKst": "2026-11-14",
+   "comparisonAsOf": "2026-11-15T14:25:59.691380Z",
+   "comparisonDateKst": "2026-11-15",
    "currentScore": 41,
    "delta": 0,
    "previousScore": 41
   }
  },
  "items": [
-  {
-   "asOf": "2026-11-09T14:45:37.755923Z",
-   "dateKst": "2026-11-09",
-   "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-09T14:45:37.755923Z",
-   "krLabel": "중립 · 관망",
-   "krScore": 53,
-   "krSettled": true,
-   "sessionType": "after_market",
-   "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-09T14:15:41.520964Z",
-   "usLabel": "중립 · 관망",
-   "usScore": 60,
-   "usSettled": true
-  },
   {
    "asOf": "2026-11-10T14:46:58.599179Z",
    "dateKst": "2026-11-10",
@@ -128,9 +113,24 @@
    "usLabel": "중립 · 관망",
    "usScore": 41,
    "usSettled": true
+  },
+  {
+   "asOf": "2026-11-15T15:26:05.308879Z",
+   "dateKst": "2026-11-16",
+   "inputPolicyVersion": "last-close-session-v1",
+   "krAsOf": "2026-11-15T15:26:05.308879Z",
+   "krLabel": "중립 · 관망",
+   "krScore": 48,
+   "krSettled": true,
+   "sessionType": "pre_market",
+   "source": "score_core_v2_normal_freshness",
+   "usAsOf": "2026-11-15T15:26:05.308879Z",
+   "usLabel": "중립 · 관망",
+   "usScore": 41,
+   "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-15T14:25:59.691380Z",
+ "updatedAt": "2026-11-15T15:26:05.308879Z",
  "version": "temperature-history-v1"
 }
