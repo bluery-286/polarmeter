@@ -115,22 +115,22 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-15T01:25:58.291351Z",
+   "asOf": "2026-11-15T02:25:58.738705Z",
    "dateKst": "2026-11-15",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-15T01:25:58.291351Z",
+   "krAsOf": "2026-11-15T02:25:58.738705Z",
    "krLabel": "중립 · 관망",
    "krScore": 47,
    "krSettled": true,
    "sessionType": "weekend",
    "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-15T01:25:58.291351Z",
+   "usAsOf": "2026-11-15T02:25:58.738705Z",
    "usLabel": "중립 · 관망",
    "usScore": 41,
    "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-15T01:25:58.291351Z",
+ "updatedAt": "2026-11-15T02:25:58.738705Z",
  "version": "temperature-history-v1"
 }
