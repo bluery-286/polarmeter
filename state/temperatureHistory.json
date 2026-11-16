@@ -18,8 +18,8 @@
    "basis": "previous_kst_date",
    "comparisonAsOf": "2026-11-15T14:25:59.691380Z",
    "comparisonDateKst": "2026-11-15",
-   "currentScore": 40,
-   "delta": -1,
+   "currentScore": 39,
+   "delta": -2,
    "previousScore": 41
   }
  },
@@ -115,22 +115,22 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-16T12:16:45.992392Z",
+   "asOf": "2026-11-16T12:32:00.341309Z",
    "dateKst": "2026-11-16",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-16T12:16:45.992392Z",
+   "krAsOf": "2026-11-16T12:32:00.341309Z",
    "krLabel": "냉각 · 리스크 높음",
    "krScore": 35,
    "krSettled": true,
    "sessionType": "after_market",
    "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-16T12:16:45.992392Z",
-   "usLabel": "중립 · 관망",
-   "usScore": 40,
+   "usAsOf": "2026-11-16T12:32:00.341309Z",
+   "usLabel": "냉각 · 리스크 높음",
+   "usScore": 39,
    "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-16T12:16:45.992392Z",
+ "updatedAt": "2026-11-16T12:32:00.341309Z",
  "version": "temperature-history-v1"
 }
