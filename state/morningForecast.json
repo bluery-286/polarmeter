@@ -72,8 +72,8 @@
     "tone": "minus"
    },
    "resultHeadline": {
-    "en": "Today's call was wrong",
-    "ko": "오늘 예보는 빗나갔어요"
+    "en": "Nov 16's call was wrong",
+    "ko": "11월 16일 예보는 빗나갔어요"
    },
    "resultRows": [
     {
@@ -126,17 +126,17 @@
     }
    ],
    "resultTitle": {
-    "en": "Forecast result",
-    "ko": "오늘 예보 결과"
+    "en": "Nov 16 forecast result",
+    "ko": "11월 16일 예보 결과"
    },
    "say": {
-    "en": "I was wrong today. The market opened +0.3%, against the overnight signal. The miss stays in the record.",
+    "en": "I was wrong on Nov 16. The market opened +0.3%, against the overnight signal. The miss stays in the record.",
     "id": "H6",
-    "ko": "오늘은 틀렸어요. 밤사이 신호와 반대로 시가 +0.3%로 시작했어요. 성적표에 그대로 남겨요."
+    "ko": "11월 16일은 틀렸어요. 밤사이 신호와 반대로 시가 +0.3%로 시작했어요. 성적표에 그대로 남겨요."
    },
    "title": {
-    "en": "Korea is likely to open lower",
-    "ko": "오늘 한국장, 내려서 시작할 가능성이 높아요"
+    "en": "Nov 16: Korea is likely to open lower",
+    "ko": "11월 16일 한국장, 내려서 시작할 가능성이 높아요"
    }
   },
   "inputs": {
@@ -177,7 +177,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-16T07:01:05Z",
+ "generatedAt": "2026-11-16T15:02:03Z",
  "ledger": [
   {
    "actual": {
@@ -1280,7 +1280,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-16T21:45:00Z",
- "phase": "kr_closed",
+ "phase": "us_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
