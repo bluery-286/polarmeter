@@ -1,12 +1,20 @@
 {
  "current": {
-  "actual": null,
+  "actual": {
+   "afterOpenPct": -0.95,
+   "closePct": -1.03,
+   "source": "yahoo_gspc"
+  },
   "call": "none",
   "copy": {
    "events": [],
    "kospi": {
     "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
     "ko": "밤사이 반도체와 한국 관련 ETF 흐름은 내일 아침 8:05 꽁치 예보에 이어서 반영돼요."
+   },
+   "result": {
+    "en": "S&P 500 closed −1.03%",
+    "ko": "S&P 500 −1.03% 마감"
    },
    "start": {
     "en": "S&P futures +0.14% · Nasdaq futures +0.55% (21:16 KST, vs previous close)",
@@ -26,7 +34,7 @@
   "outcome": null,
   "prevSession": "2026-11-16",
   "restReason": null,
-  "state": "issued",
+  "state": "scored",
   "stats": null,
   "targetSession": "2026-11-17"
  },
@@ -34,7 +42,7 @@
   "en": "Past record only; it does not promise future results. Not a trading recommendation.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
  },
- "generatedAt": "2026-11-17T12:16:50Z",
+ "generatedAt": "2026-11-17T21:31:39Z",
  "ledger": [
   {
    "actual": {
@@ -658,7 +666,11 @@
    "targetSession": "2026-11-16"
   },
   {
-   "actual": null,
+   "actual": {
+    "afterOpenPct": -0.95,
+    "closePct": -1.03,
+    "source": "yahoo_gspc"
+   },
    "call": "none",
    "inputs": {
     "esPct": 0.14,
@@ -669,14 +681,14 @@
    "outcome": null,
    "prevSession": "2026-11-16",
    "restReason": null,
-   "state": "issued",
+   "state": "scored",
    "stats": null,
    "targetSession": "2026-11-17"
   }
  ],
  "modelVersion": "us-start-hold-v1",
  "nextIssueAt": "2026-11-18T12:00:00Z",
- "phase": "evening",
+ "phase": "scored",
  "schemaVersion": "polarmeter-evening-brief-v1",
  "scorecard": {
   "carried": {
