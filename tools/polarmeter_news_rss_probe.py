@@ -58,10 +58,98 @@ EXCLUDED_SOURCE_HINTS = [
     '프리미엄콘텐츠',
     'premium content',
     'blog',
+    # 2026-11-18 quality check: machine-translated digests and crypto/prediction-market outlets
+    # took the slots of the KOSPI and Wall Street close reports.
+    'vietnam.vn',
+    'roundtable.io',
+    'mezha',
+    '코인리더스',
+    '토큰포스트',
+    '블루밍비트',
+    'coinreaders',
+    'tokenpost',
+    'bloomingbit',
 ]
+
+# Crypto prices and prediction-market odds are not the stock-market temperature the app shows, and the
+# app never says "확률" about the market (2026-11-18: "추가 인상 확률 62%", "비트코인 23% 하락").
+PREDICTION_MARKET_PATTERN = re.compile(
+    r'예측\s*시장|폴리마켓|칼시|확률\s*\d+(?:\.\d+)?\s*%|\[금리·물가\s*예측\]|'
+    r'\b(?:polymarket|kalshi|prediction\s+markets?)\b',
+    re.I,
+)
+CRYPTO_PATTERN = re.compile(
+    r'비트코인|이더리움|가상자산|가상화폐|암호화폐|스테이블\s*코인|코인\s*시장|'
+    r'\b(?:bitcoin|btc|ethereum|crypto\w*|stablecoins?)\b',
+    re.I,
+)
+# A crypto headline that reports an official macro release still carries that release (fact contract:
+# "美 PCE 예상 하회에 비트코인 8만5,000달러 돌파").
+MACRO_RELEASE_MENTION_PATTERN = re.compile(r'\b(?:CPI|PCE|PPI|FOMC|payrolls)\b|소비자물가|비농업|고용지표|금리\s*(?:결정|인상|인하|동결)\s*(?:발표|결정)', re.I)
+# One company raising money is not the market's temperature (11-18: "스페이스X…400억 달러 자산담보부 채권
+# 발행 착수" took one of the app's three chip-story places from the US close).
+SINGLE_COMPANY_FINANCING_PATTERN = re.compile(
+    r'(?:자산담보부|회사채|전환사채|영구채|채권)\s*발행|자금\s*조달|유상증자|\bABS\b|'
+    r'\b(?:bond\s+(?:sale|offering|issue)|raises?\s+\$?\d|debt\s+offering|share\s+sale)\b',
+    re.I,
+)
+INDEX_OR_POLICY_MENTION_PATTERN = re.compile(r'코스피|코스닥|나스닥|다우|증시|지수|국채|정부|중앙은행|한국은행|연준|\b(?:kospi|nasdaq|dow|s&p|treasury|fed)\b', re.I)
+# A war, strike or sanction story reaches the market only through energy, shipping, trade, chips,
+# rates or a ceasefire. Without one of those links it is world news, not market temperature
+# (2026-11-18: UK sanctions on West Bank settlement firms).
+GEOPOLITICAL_EVENT_PATTERN = re.compile(
+    r'제재|공격|전쟁|교전|미사일|드론|폭격|정착촌|국방|군사|병력|무기|'
+    r'\b(?:sanctions?|troops|soldiers|military|missiles?|drones?|airstrikes?|attacks?|war|defen[cs]e\s+minister)\b',
+    re.I,
+)
+GEOPOLITICAL_MARKET_LINK_PATTERN = re.compile(
+    r'유가|원유|석유|브렌트|WTI|이란|중동|OPEC|오펙|가스|LNG|LPG|송유관|정유|해협|호르무즈|홍해|수에즈|유조선|선박|화물선|해운|운임|항로|공급|'
+    r'수출|수입|관세|반도체|환율|증시|주가|코스피|코스닥|나스닥|금리|휴전|종전|평화|협상|정상회담|은행|금융|'
+    r'\b(?:oil|crude|brent|wti|iran|opec|middle\s+east|gas|lng|pipelines?|tankers?|shipping|freight|strait|hormuz|red\s+sea|suez|tariffs?|exports?|'
+    r'chips?|semiconductors?|markets?|stocks?|ceasefire|peace|talks|summit|banks?)\b',
+    re.I,
+)
+# Praise, assessment or anecdote about a strike is commentary, not a new supply event (Kerch bridge, 11-18).
+GEOPOLITICAL_COMMENTARY_PATTERN = re.compile(r'사례로\s*꼽|창의성|칭찬|극찬|높이\s*평가|교훈')
+# Soldiers moving through a pipeline is a battlefield tactic, not an attack on energy supply
+# (2026-11-18 CBS: "battled through underground gas pipeline to launch attack" -> "송유관 공격 소식").
+MILITARY_PIPELINE_TACTIC_PATTERN = re.compile(
+    r'\b(?:troops|soldiers|forces|fighters)\b.{0,60}\b(?:through|inside|via)\b.{0,30}\bpipelines?\b'
+    r'|(?:병력|부대|군인|병사).{0,30}(?:송유관|가스관).{0,10}(?:통해|안으로|속으로|따라)',
+    re.I,
+)
+# "Today"/"tonight" in an old headline describes a session that is already over (11-18: TradingView
+# "Will S&P 500 Open Up or Down Today?" from the previous morning).
+TODAY_WORD_PATTERN = re.compile(r'\b(?:today|tonight|this\s+morning)\b|오늘|금일', re.I)
+STALE_TODAY_MAX_AGE_HOURS = 14.0
+# Template translations of English titles that keep no fact of the source (11-18: "Bill Ackman Cut His
+# Microsoft Stake" -> "S&P500 흐름은 대표지수 온도 변수", "Gold holds steady…" -> "연준 뉴스는 금리 변동성
+# 확인 포인트"). Such a card says nothing the reader can check, so it is not published.
+GENERIC_TRANSLATION_PATTERN = re.compile(r'(?:변수|포인트)$|^연준·금리 신호는 달러와 환율 부담을 바꿀 수 있음$')
+# A translation may not turn a resumption into a disruption, or rising yields into relief (11-18:
+# "Iraq and Turkey resume oil flows" -> "송유관 공급 차질 우려", "Why Bond Yields Keep Climbing Despite
+# Falling Oil" -> "유가 하락은…완화 신호").
+SOURCE_RESUMPTION_PATTERN = re.compile(r'\b(?:resum\w*|restart\w*|restor\w*|reopen\w*|back\s+online)\b', re.I)
+SOURCE_YIELDS_UP_PATTERN = re.compile(r'\byields?\b.{0,24}\b(?:climb\w*|rise|rises|rising|rose|jump\w*|surge\w*|spike\w*|soar\w*)\b', re.I)
+
+
+def english_translation_defect(item: dict[str, Any]) -> str | None:
+    if item.get('language') != 'en':
+        return None
+    source = str(item.get('originalHeadline') or '')
+    display = str(item.get('displayHeadline') or '')
+    if GENERIC_TRANSLATION_PATTERN.search(display) and not re.search(r'\d', display):
+        return 'GENERIC_TRANSLATION_NO_SOURCE_FACT'
+    if SOURCE_RESUMPTION_PATTERN.search(source) and re.search(r'차질|중단|우려|공격|피격', display):
+        return 'TRANSLATION_CONTRADICTS_SOURCE'
+    if SOURCE_YIELDS_UP_PATTERN.search(source) and not re.search(r'금리|국채|수익률', display):
+        return 'TRANSLATION_CONTRADICTS_SOURCE'
+    return None
 
 EXCLUDED_HEADLINE_HINTS = [
     'treasury to begin minting $1 gold trump coin',
+    'cpi aero',  # a company name, not the CPI release (11-18)
+    '랭킹뉴스',  # ranked listicles ("하반기 반도체 하락률 TOP 5")
     '목표가',
     '목표 주가',
     '목표주가',
@@ -1039,7 +1127,9 @@ def critical_market_event(headline: str) -> tuple[bool, str | None]:
     )
     if infrastructure and (disruption or pipeline_damage):
         return True, 'energy_transport_disruption'
-    if any(keyword.lower() in text for keyword in CRITICAL_NEWS_KEYWORDS):
+    # A keyword inside an outlook piece ("내년 자동차 판매…핵심은 종전發 유가 하락") is not a breaking event.
+    outlook_piece = re.search(r'내년|올해|전망|예상|\b(?:outlook|forecast|next\s+year)\b', headline, re.I)
+    if not outlook_piece and any(keyword.lower() in text for keyword in CRITICAL_NEWS_KEYWORDS):
         return True, 'critical_keyword'
     if any(pattern.search(headline) for pattern in CRITICAL_MARKET_MOVE_PATTERNS):
         return True, 'large_market_move'
@@ -1692,7 +1782,24 @@ def parse_utc(value: str | None) -> datetime | None:
 
 
 def expired_macro_event_preview(headline: str, published_at: str | None, now: datetime | None = None) -> bool:
-    return expired_us_cpi_preview(headline, published_at, now or current_time())
+    clock = now or current_time()
+    return expired_us_cpi_preview(headline, published_at, clock) or expired_rate_meeting_preview(headline, clock)
+
+
+RATE_MEETING_MONTH_PATTERN = re.compile(r'(\d{1,2})\s*월\s*(?:FOMC|금통위|통화정책\s*회의|기준금리\s*결정)', re.I)
+RATE_MEETING_PREVIEW_PATTERN = re.compile(r'유력|전망|예상|앞두고|관측|가능성|주목')
+
+
+def expired_rate_meeting_preview(headline: str, now: datetime) -> bool:
+    """A preview of a rate meeting in a month that is already over (11-18: "美 10월 FOMC 금리동결 유력")."""
+    match = RATE_MEETING_MONTH_PATTERN.search(headline)
+    if not match or not RATE_MEETING_PREVIEW_PATTERN.search(headline):
+        return False
+    month = int(match.group(1))
+    if not 1 <= month <= 12:
+        return False
+    current_month = (now + timedelta(hours=9)).month  # meetings are named in KST headlines
+    return 1 <= (current_month - month) % 12 <= 6
 
 
 def mixed_major_index_signal(text: str) -> bool:
@@ -1738,6 +1845,14 @@ def broad_index_up_company_mixed_signal(text: str) -> bool:
     return bool(index_up and company_up and company_down and mixed_connector)
 
 
+def index_up_oil_down_relief(headline: str) -> bool:
+    """The index rose and oil fell: the fall is the relief, not the market's direction
+    (11-10 fixture: "뉴욕증시 2%대 급반등·국제유가 5% 급락…'안도 랠리'" was published as negative)."""
+    index_up = re.search(r'(증시|지수|코스피|코스닥|나스닥|다우|s&p\s*500).{0,10}(\d[\d.]*%\s*대?\s*)?(급반등|반등|급등|상승|강세|랠리)', headline, re.I)
+    oil_down = re.search(r'(국제\s*유가|유가|브렌트|wti).{0,8}(\d[\d.]*%\s*대?\s*)?(급락|하락|폭락|내려)', headline, re.I)
+    return bool((index_up and oil_down) or re.search(r'안도\s*랠리|relief\s+rally', headline, re.I))
+
+
 def headline_tone(headline: str) -> str:
     fact_tone = factual_market_tone(headline)
     if fact_tone is not None:
@@ -1760,6 +1875,8 @@ def headline_tone(headline: str) -> str:
             return 'negative'
         if re.search(r'(급등|상승|반등|회복|rally|gain|higher|climb|climbs).{0,24}(후|뒤|이후|after).{0,24}(약세|하락|차익실현|밀려|내림|lower|drop|slip)', headline, re.I):
             return 'negative'
+        if index_up_oil_down_relief(headline):
+            return 'positive'
         if (
             re.search(r'(급락|폭락|하락|약세).{0,30}(후|뒤|이후).{0,42}(반등|회복|상승|급등)', headline, re.I)
             and re.search(r'(널뛰기|롤러|변동성|이어질까|출렁|요동|불안)', headline, re.I)
@@ -1782,7 +1899,7 @@ def headline_tone(headline: str) -> str:
 def index_giveback_tone(headline: str) -> str | None:
     if not re.search(r'코스피|코스닥|나스닥|다우|지수|\b(?:kospi|kosdaq|nasdaq|dow)\b|s&p', headline, re.I):
         return None
-    giveback = re.search(r'(?:상승분|상승폭|오름폭).{0,12}(?:반납|축소)|\b(?:give|gives|gave|giving)\s+back\s+(?:(?:early|opening|some|all|its|the)\s+)*gains\b', headline, re.I)
+    giveback = re.search(r'(?:상승분|상승폭|오름폭).{0,12}(?:반납|축소)|(?:급등|급반등|반등|상승)하다\s*[\'‘’"]?뚝|\b(?:give|gives|gave|giving)\s+back\s+(?:(?:early|opening|some|all|its|the)\s+)*gains\b', headline, re.I)
     if not giveback:
         return None
     # Only the subsequent result can establish net direction, not the open.
@@ -1805,6 +1922,8 @@ def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     giveback_tone = index_giveback_tone(headline)
     if giveback_tone is not None:
         return giveback_tone
+    if index_up_oil_down_relief(headline):
+        return 'positive'
     # A factual market wrap may have a column label such as "투자 노하우".
     # Bind both moves to their subjects before generic commentary detection.
     if explicit_oil_price_directions(headline) == {'rise'} and not re.search(r'전망|예상|가능성|forecast|\bwill\b', headline, re.I):
@@ -2344,6 +2463,18 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
         return None, 'EXPIRED_MACRO_EVENT_PREVIEW'
     if any(hint.lower() in source_lower for hint in EXCLUDED_SOURCE_HINTS):
         return None, 'SOURCE_LOW_RELEVANCE'
+    if PREDICTION_MARKET_PATTERN.search(headline) or (
+        CRYPTO_PATTERN.search(headline) and not MACRO_RELEASE_MENTION_PATTERN.search(headline)
+    ):
+        return None, 'CRYPTO_OR_PREDICTION_MARKET_NOT_MARKET_TEMPERATURE'
+    if SINGLE_COMPANY_FINANCING_PATTERN.search(headline) and not INDEX_OR_POLICY_MENTION_PATTERN.search(headline):
+        return None, 'SINGLE_COMPANY_FINANCING_NOT_MARKET_TEMPERATURE'
+    if MILITARY_PIPELINE_TACTIC_PATTERN.search(headline):
+        return None, 'MILITARY_TACTIC_NOT_ENERGY_SUPPLY'
+    if GEOPOLITICAL_EVENT_PATTERN.search(headline) and GEOPOLITICAL_COMMENTARY_PATTERN.search(headline):
+        return None, 'GEOPOLITICAL_COMMENTARY_NOT_MARKET_TEMPERATURE'
+    if GEOPOLITICAL_EVENT_PATTERN.search(headline) and not GEOPOLITICAL_MARKET_LINK_PATTERN.search(headline):
+        return None, 'GEOPOLITICS_WITHOUT_MARKET_LINK'
     if is_low_information_quote_headline(headline):
         return None, 'LOW_INFORMATION_QUOTE_HEADLINE'
     if is_entertainment_homonym_story(headline):
@@ -2392,6 +2523,8 @@ def classify_relevance(headline: str, source_name: str, published_at: str | None
     age_hours = (current_time() - published_dt).total_seconds() / 3600.0
     if age_hours > MAX_NEWS_AGE_HOURS:
         return None, 'STALE_OVER_24H'
+    if age_hours > STALE_TODAY_MAX_AGE_HOURS and TODAY_WORD_PATTERN.search(headline):
+        return None, 'STALE_TODAY_HEADLINE'
 
     matched_rules = []
     for rule in MARKET_RELEVANCE_RULES:
@@ -2902,8 +3035,35 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         return (1 if item.get('critical') else 0, float(item.get('marketImpactScore') or 0), float(item.get('qualityScore') or 0), 1 if item.get('category') in {'market_event', 'macro', 'central_bank'} else 0)
 
     out = [refine_selection_quality(item) for item in out]
-    out = sorted(out, key=sort_key, reverse=True)
+    kept_items = []
+    for item in out:
+        reason = english_translation_defect(item)
+        if reason:
+            filtered_reasons[reason] = filtered_reasons.get(reason, 0) + 1
+            continue
+        kept_items.append(item)
+    out = sorted(kept_items, key=sort_key, reverse=True)
     out = issue_capped_items(out, per_issue_limit=3)
+    # The day's index close/open report is the most direct market-temperature evidence. Its score sets the
+    # app's order too, and the app keeps 3 chip/Nvidia cards: on 11-18 "다우 1.64%↓" (82.1, it names Nvidia)
+    # lost that place to "반도체 수출 1조 달러" (87.2). Wrap representatives start at MARKET_WRAP_SCORE_FLOOR.
+    # Only the current session's reports get it: a previous close kept as the other tone's representative
+    # (11-10 fixture: "결국 하락…5018 마감" from the day before a 4% rally) is not lifted above the rally.
+    newest_wrap: dict[str, datetime] = {}
+    for item in out:
+        key = str(item.get('issueClusterKey') or '')
+        published = parse_utc(item.get('publishedAt'))
+        if key in MARKET_WRAP_KEYS and published and (key not in newest_wrap or published > newest_wrap[key]):
+            newest_wrap[key] = published
+    for item in out:
+        key = str(item.get('issueClusterKey') or '')
+        published = parse_utc(item.get('publishedAt'))
+        current = bool(published and key in newest_wrap
+                       and (newest_wrap[key] - published).total_seconds() <= MARKET_WRAP_FLOOR_WINDOW_HOURS * 3600)
+        if key in MARKET_WRAP_KEYS and current and float(item.get('marketImpactScore') or 0) < MARKET_WRAP_SCORE_FLOOR:
+            item['marketImpactScore'] = MARKET_WRAP_SCORE_FLOOR
+            item['selectionNote'] = item.get('selectionNote') or 'market_wrap_floor'
+    out = sorted(out, key=sort_key, reverse=True)
     out, near_duplicates = collapse_near_duplicate_headlines(out)
     if near_duplicates:
         filtered_reasons['NEAR_DUPLICATE_HEADLINE'] = filtered_reasons.get('NEAR_DUPLICATE_HEADLINE', 0) + near_duplicates
@@ -2935,8 +3095,16 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
         'us_indices': r'나스닥|다우|뉴욕증시|\b(?:nasdaq|dow)\b|s&p\s*500',
     }
     anchors: list[dict[str, Any]] = []
-    for pattern in topic_patterns.values():
+    for topic, pattern in topic_patterns.items():
         candidates = [item for item in out if re.search(pattern, item.get('originalHeadline') or item.get('headline') or '', re.I)]
+        if topic in ('kr_indices', 'us_indices'):
+            # The index anchor is the market close/open report, not an earnings tally that names KOSPI.
+            # Both tone representatives of a market wrap are anchored: the regional buckets take one card
+            # per issue, which dropped the US close ("다우 1.64%↓") behind a futures preview on 11-18.
+            wraps = [item for item in candidates if item.get('issueClusterKey') in MARKET_WRAP_KEYS]
+            if wraps:
+                anchors.extend(sorted(wraps, key=sort_key, reverse=True))
+                continue
         if candidates:
             anchors.append(max(candidates, key=lambda item: (item.get('publishedAt') or '', sort_key(item))))
     seen_issues: set[str] = set()
@@ -2964,7 +3132,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     critical_lead_limit = min(len(critical_items), max(4, max_items // 4))
     buckets = [
         (critical_items, critical_lead_limit, True),
-        (anchors, len(topic_patterns), False),
+        (anchors, len(anchors), False),
         (macro_release_items, min(3, max(1, max_items // 5)), True),
         (kr_items, target_kr, True),
         (us_items, target_us, True),
@@ -3048,6 +3216,14 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
     # same. Keep material updates and originals in relatedReports below.
     source = str(item.get('originalHeadline') or item.get('headline') or '')
     published = parse_utc(item.get('publishedAt'))
+    # A reported oil price move is one story per direction however many outlets explain it
+    # (11-18: three "유가 반등" cards under three different keys). Ceasefire facts keep their own keys,
+    # and an energy incident that reports its own count ("송유관 3곳 피격") stays a separate update.
+    if OIL_PRICE_SUBJECT_PATTERN.search(source) and OIL_PRICE_MOVE_PATTERN.search(source) \
+            and not INDEX_WRAP_SUBJECT_PATTERN.search(source) \
+            and not counted_energy_incident(source) and not ru_ua_ceasefire_context(item) \
+            and russia_ukraine_ceasefire_issue_key(item) is None:
+        return OIL_PRICE_MOVE_KEY
     state = energy_supply_state(source)
     # classify_relevance already limits eligible news to the rolling 24-hour
     # window. Topic groups must not split arbitrarily at UTC midnight.
@@ -3066,6 +3242,9 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
     release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
     if release and release['country'] and release['month']:
         return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{release['month']}:{str(item.get('publishedAt') or '')[:10]}:{'denied' if release['deniedComparison'] else release['surprise']}"
+    if re.search(r'호르무즈|\bhormuz\b', source, re.I) and not re.search(r'재개방|reopen', source, re.I) \
+            and not counted_energy_incident(source):
+        return HORMUZ_SECURITY_KEY
     text = normalized_news_topic_text(item)
     raw = ' '.join(str(value or '') for value in [item.get('displayHeadline'), item.get('headline'), item.get('sourceName')])
     if re.search(r'(이란|중동|호르무즈|iran|hormuz|u\s*s\s*iran|us\s*iran)', raw, re.I) and re.search(r'(유가|원유|oil|wti|협상|negotiation|talks|strait|긴장|완화)', raw, re.I):
@@ -3208,6 +3387,40 @@ def russia_ukraine_ceasefire_issue_key(item: dict[str, Any]) -> str | None:
 MAX_CARDS_PER_CATEGORY = 8
 MAX_CARDS_PER_SOURCE = 3
 MARKET_WRAP_KEYS = {'issue:us_index_market_wrap', 'issue:kr_market_flow'}
+MARKET_WRAP_RECENT_HOURS = 3.0
+MARKET_WRAP_SCORE_FLOOR = 90.0
+MARKET_WRAP_FLOOR_WINDOW_HOURS = 6.0
+OIL_PRICE_MOVE_KEY = 'issue:oil_price_move'
+HORMUZ_SECURITY_KEY = 'issue:hormuz_security'
+ONE_PER_TONE_KEYS = MARKET_WRAP_KEYS | {OIL_PRICE_MOVE_KEY}
+# Strikes, seizures and attacks around Hormuz are one running story; two cards keep the newest updates.
+ISSUE_LIMITS = {HORMUZ_SECURITY_KEY: 2}
+OIL_PRICE_SUBJECT_PATTERN = re.compile(r'국제\s*유가|유가|브렌트|\bwti\b|\b(?:oil|crude)\s+(?:prices?|futures)\b|\bbrent\b', re.I)
+# "유가 급락에 3대 지수 반등" is an index close: the index wrap keys keep it.
+INDEX_WRAP_SUBJECT_PATTERN = re.compile(
+    r'증시|지수|코스피|코스닥|나스닥|다우|월가|뉴욕\s*마감|\b(?:s&p|nasdaq|dow|wall\s+street|stocks?|kospi)\b', re.I)
+OIL_PRICE_MOVE_PATTERN = re.compile(
+    r'반등|상승|하락|급등|급락|폭등|폭락|올라|내려|\d+(?:\.\d+)?\s*달러|'
+    r'\b(?:rise|rises|rose|jump\w*|surge\w*|climb\w*|fall|falls|fell|drop\w*|slide\w*|slip\w*|rebound\w*|gain\w*)\b',
+    re.I,
+)
+
+
+def counted_energy_incident(headline: str) -> bool:
+    return bool(is_energy_supply_headline(headline) and re.search(r'\d+\s*(?:곳|척|명|개|기|건)', headline))
+
+
+def market_wrap_representative(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    newest = max(reports, key=lambda item: item.get('publishedAt') or '')
+    newest_at = parse_utc(newest.get('publishedAt'))
+    if newest_at is None:
+        return newest
+    recent = [
+        item for item in reports
+        if (published := parse_utc(item.get('publishedAt'))) is not None
+        and (newest_at - published).total_seconds() <= MARKET_WRAP_RECENT_HOURS * 3600
+    ] or [newest]
+    return max(recent, key=lambda item: (float(item.get('marketImpactScore') or 0), item.get('publishedAt') or ''))
 
 
 def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
@@ -3220,7 +3433,7 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
     for group in groups.values():
         group_key = str(group[0].get('issueClusterKey', ''))
         is_ru_ua_ceasefire = group_key.startswith('issue:related:ru_ua_ceasefire:')
-        group_limit = max(0, per_issue_limit)
+        group_limit = max(0, min(per_issue_limit, ISSUE_LIMITS.get(group_key, per_issue_limit)))
         if is_ru_ua_ceasefire:
             selected = []
             if group_limit:
@@ -3234,16 +3447,23 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
                     ),
                 )
                 selected = [representative]
-        elif group_key in MARKET_WRAP_KEYS:
+        elif group_key in ONE_PER_TONE_KEYS:
             # Plan S5: one card per tone for the same close (7 reports of one US close -> 1 or 2 cards).
             # Each tone keeps its latest report, so the newest close update always survives.
-            tones = list(dict.fromkeys(item.get('impactTone') for item in group))[:min(2, group_limit)]
-            selected = [max((item for item in group if item.get('impactTone') == tone),
-                            key=lambda item: item.get('publishedAt') or '') for tone in tones]
+            # Among the reports of that tone published within MARKET_WRAP_RECENT_HOURS of its newest, the
+            # strongest one represents it: the newest alone was a weak or odd report on 11-18 (KOSPI 0 cards).
+            # The tones are ranked by their representative, so a close report is never dropped for an
+            # earlier futures preview of another tone (11-18: "다우 1.64%↓" lost to two previews).
+            tones = list(dict.fromkeys(item.get('impactTone') for item in group))
+            representatives = [market_wrap_representative([item for item in group if item.get('impactTone') == tone])
+                               for tone in tones]
+            representatives.sort(key=lambda item: (float(item.get('marketImpactScore') or 0), item.get('publishedAt') or ''),
+                                 reverse=True)
+            selected = representatives[:min(2, group_limit)]
         else:
             selected = group[:group_limit]
         if selected:
-            if not is_ru_ua_ceasefire and group_key not in MARKET_WRAP_KEYS:
+            if not is_ru_ua_ceasefire and group_key not in ONE_PER_TONE_KEYS:
                 latest = max(group, key=lambda item: item.get('publishedAt') or '')
                 if not any(item is latest for item in selected):
                     selected[-1] = latest
