@@ -138,7 +138,9 @@ def english_translation_defect(item: dict[str, Any]) -> str | None:
         return None
     source = str(item.get('originalHeadline') or '')
     display = str(item.get('displayHeadline') or '')
-    if GENERIC_TRANSLATION_PATTERN.search(display) and not re.search(r'\d', display):
+    # A number counts as a source fact, but not the "500" of an index name ("S&P500 상승 전망은…변수").
+    display_numbers = re.sub(r's\s*&?\s*p\s*500|nasdaq\s*100|나스닥\s*100|코스피\s*200', '', display, flags=re.I)
+    if GENERIC_TRANSLATION_PATTERN.search(display) and not re.search(r'\d', display_numbers):
         return 'GENERIC_TRANSLATION_NO_SOURCE_FACT'
     if SOURCE_RESUMPTION_PATTERN.search(source) and re.search(r'차질|중단|우려|공격|피격', display):
         return 'TRANSLATION_CONTRADICTS_SOURCE'
