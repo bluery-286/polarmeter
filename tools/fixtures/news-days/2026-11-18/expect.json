@@ -1,0 +1,39 @@
+{
+  "day": "2026-11-18",
+  "kind": "kr_open_rally_fade_us_close_down_nvidia_beat",
+  "weekday": true,
+  "marketMoves": {
+    "us": {"sp500": -1.03},
+    "kr": {"kospiOpen": 2.62}
+  },
+  "labels": [
+    {"match": "3%대 급등 출발", "tone": ["positive"], "why": "KOSPI opened 3% higher after Nvidia's results"},
+    {"match": "3%대 급반등하다 '뚝'", "tone": ["neutral", "negative"], "why": "the opening rally faded to flat; not a rise"},
+    {"match": "다우 1.64%↓", "tone": ["negative"], "why": "US close: all three indexes fell"},
+    {"match": "브렌트유 93.14달러", "tone": ["negative"], "why": "oil rebound on Middle East tension"}
+  ],
+  "sameEvent": [
+    {"name": "oil_rebound_2026-11-17", "match": ["브렌트유 93.14달러", "3거래일만 반등", "유조선 피격에 유가 소폭 반등"], "maxSelected": 1},
+    {"name": "hormuz_security_2026-11-17", "match": ["케슘섬", "해상 사건들은"], "maxSelected": 2}
+  ],
+  "mustSelect": [
+    "3%대 급등 출발",
+    "다우 1.64%↓"
+  ],
+  "mustNotSelect": [
+    "비트코인",
+    "확률 62%",
+    "확률 44%",
+    "서안 정착촌",
+    "케르치 해협 대교",
+    "Vietnam.vn",
+    "underground gas pipeline",
+    "Will S&P 500 Open Up or Down Today",
+    "Cautious trader dumps",
+    "CPI Aero",
+    "랭킹뉴스",
+    "10월 FOMC",
+    "스페이스X"
+  ],
+  "caps": {"maxNegativeShareOnRally": 0.5, "maxPerCategory": 8, "maxPerSource": 3, "minKrMarket": 3}
+}

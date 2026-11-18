@@ -64,6 +64,15 @@ def check_day(folder: Path) -> tuple[list[str], dict]:
         if len(unique) > group.get('maxSelected', 2):
             failures.append(f"same_event: {group['name']} has {len(unique)} cards selected, max {group.get('maxSelected', 2)}")
 
+    # mustSelect: the day's market close/open reports are on the page (11-18: 0 KOSPI and 0 US close cards).
+    for needle in expect.get('mustSelect', []):
+        if not matching(items, needle):
+            failures.append(f"must_select: '{needle}' is not among the selected cards")
+    # mustNotSelect: noise that once took those slots (crypto, prediction odds, world news, stale "today").
+    for needle in expect.get('mustNotSelect', []):
+        for item in matching(items, needle):
+            failures.append(f"must_not_select: '{needle}' was selected ({item.get('sourceName')})")
+
     caps = expect.get('caps', {})
     tones = collections.Counter(item.get('impactTone') for item in items)
     for market, moves in (expect.get('marketMoves') or {}).items():
