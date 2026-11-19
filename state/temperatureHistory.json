@@ -1,13 +1,13 @@
 {
  "anchorTimeKst": "00:00",
  "basis": "kst_calendar_day_latest_settled_market_session",
- "comparisonDateKst": "2026-11-18",
- "currentDateKst": "2026-11-19",
+ "comparisonDateKst": "2026-11-19",
+ "currentDateKst": "2026-11-20",
  "dailyDelta": {
   "kr": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-18T14:47:09.295240Z",
-   "comparisonDateKst": "2026-11-18",
+   "comparisonAsOf": "2026-11-19T14:47:02.411572Z",
+   "comparisonDateKst": "2026-11-19",
    "currentScore": 55,
    "delta": 0,
    "previousScore": 55
@@ -16,29 +16,14 @@
   "status": "ready",
   "us": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-18T14:47:09.295240Z",
-   "comparisonDateKst": "2026-11-18",
-   "currentScore": 61,
-   "delta": 12,
-   "previousScore": 49
+   "comparisonAsOf": "2026-11-19T14:47:02.411572Z",
+   "comparisonDateKst": "2026-11-19",
+   "currentScore": 59,
+   "delta": 7,
+   "previousScore": 52
   }
  },
  "items": [
-  {
-   "asOf": "2026-11-13T14:57:10.844005Z",
-   "dateKst": "2026-11-13",
-   "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-13T14:57:10.844005Z",
-   "krLabel": "중립 · 관망",
-   "krScore": 49,
-   "krSettled": true,
-   "sessionType": "after_market",
-   "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-13T14:17:00.491023Z",
-   "usLabel": "중립 · 관망",
-   "usScore": 49,
-   "usSettled": true
-  },
   {
    "asOf": "2026-11-14T14:26:50.642163Z",
    "dateKst": "2026-11-14",
@@ -128,9 +113,24 @@
    "usLabel": "중립 · 관망",
    "usScore": 52,
    "usSettled": true
+  },
+  {
+   "asOf": "2026-11-19T15:02:04.167434Z",
+   "dateKst": "2026-11-20",
+   "inputPolicyVersion": "last-close-session-v1",
+   "krAsOf": "2026-11-19T15:02:04.167434Z",
+   "krLabel": "중립 · 관망",
+   "krScore": 55,
+   "krSettled": true,
+   "sessionType": "pre_market",
+   "source": "score_core_v2_normal_freshness",
+   "usAsOf": "2026-11-19T14:17:04.737170Z",
+   "usLabel": "중립 · 관망",
+   "usScore": 52,
+   "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-19T14:47:02.411572Z",
+ "updatedAt": "2026-11-19T15:02:04.167434Z",
  "version": "temperature-history-v1"
 }
