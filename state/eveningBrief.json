@@ -1,10 +1,6 @@
 {
  "current": {
-  "actual": {
-   "afterOpenPct": -0.44,
-   "closePct": -0.23,
-   "source": "yahoo_gspc"
-  },
+  "actual": null,
   "call": "up",
   "copy": {
    "caveat": {
@@ -13,20 +9,16 @@
    },
    "events": [],
    "hold": {
-    "en": "Of 116 days with futures this far ahead, 78 still closed above the previous close (20 flat).",
-    "ko": "선물이 이만큼 앞선 날 116번 중 78번은 그 플러스가 마감까지 남았어요 (보합 20번)."
+    "en": "Of 55 days with futures this far ahead, 42 still closed above the previous close (6 flat).",
+    "ko": "선물이 이만큼 앞선 날 55번 중 42번은 그 플러스가 마감까지 남았어요 (보합 6번)."
    },
    "kospi": {
     "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
     "ko": "밤사이 반도체와 한국 관련 ETF 흐름은 내일 아침 8:05 꽁치 예보에 이어서 반영돼요."
    },
-   "result": {
-    "en": "S&P 500 closed −0.23% · start flipped",
-    "ko": "S&P 500 −0.23% 마감 · 출발과 반대로 끝났어요"
-   },
    "start": {
-    "en": "S&P futures +0.34% · Nasdaq futures +0.86% (21:16 KST, vs previous close)",
-    "ko": "S&P 선물 +0.34% · 나스닥 선물 +0.86% (21:16 기준, 전날 마감 대비)"
+    "en": "S&P futures +1.24% · Nasdaq futures +2.19% (21:16 KST, vs previous close)",
+    "ko": "S&P 선물 +1.24% · 나스닥 선물 +2.19% (21:16 기준, 전날 마감 대비)"
    },
    "title": {
     "en": "US tonight: starting strong",
@@ -34,31 +26,31 @@
    }
   },
   "inputs": {
-   "esPct": 0.34,
-   "nqPct": 0.86
+   "esPct": 1.24,
+   "nqPct": 2.19
   },
-  "issuedAt": "2026-11-18T12:16:54Z",
+  "issuedAt": "2026-11-19T12:16:52Z",
   "origin": "live",
-  "outcome": "flipped",
-  "prevSession": "2026-11-17",
+  "outcome": null,
+  "prevSession": "2026-11-18",
   "restReason": null,
-  "state": "scored",
+  "state": "issued",
   "stats": {
    "afterOpenSameShare": 0.555,
-   "band": "0.3-0.5",
-   "days": 116,
-   "flat": 20,
-   "flipped": 18,
-   "held": 78,
+   "band": "0.8+",
+   "days": 55,
+   "flat": 6,
+   "flipped": 7,
+   "held": 42,
    "period": "2024-06 ~ 2026-11"
   },
-  "targetSession": "2026-11-18"
+  "targetSession": "2026-11-19"
  },
  "disclaimer": {
   "en": "Past record only; it does not promise future results. Not a trading recommendation.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
  },
- "generatedAt": "2026-11-18T21:16:29Z",
+ "generatedAt": "2026-11-19T12:16:52Z",
  "ledger": [
   {
    "actual": {
@@ -728,11 +720,35 @@
     "period": "2024-06 ~ 2026-11"
    },
    "targetSession": "2026-11-18"
+  },
+  {
+   "actual": null,
+   "call": "up",
+   "inputs": {
+    "esPct": 1.24,
+    "nqPct": 2.19
+   },
+   "issuedAt": "2026-11-19T12:16:52Z",
+   "origin": "live",
+   "outcome": null,
+   "prevSession": "2026-11-18",
+   "restReason": null,
+   "state": "issued",
+   "stats": {
+    "afterOpenSameShare": 0.555,
+    "band": "0.8+",
+    "days": 55,
+    "flat": 6,
+    "flipped": 7,
+    "held": 42,
+    "period": "2024-06 ~ 2026-11"
+   },
+   "targetSession": "2026-11-19"
   }
  ],
  "modelVersion": "us-start-hold-v1",
- "nextIssueAt": "2026-11-19T12:00:00Z",
- "phase": "scored",
+ "nextIssueAt": "2026-11-20T12:00:00Z",
+ "phase": "evening",
  "schemaVersion": "polarmeter-evening-brief-v1",
  "scorecard": {
   "carried": {
