@@ -1,6 +1,11 @@
 {
  "current": {
-  "actual": null,
+  "actual": {
+   "closePct": null,
+   "intradayPct": null,
+   "openPct": 0.45,
+   "source": "naver_index_price"
+  },
   "analog": null,
   "basisKrSession": "2026-11-18",
   "copy": {
@@ -26,6 +31,10 @@
      "tone": "minus"
     }
    ],
+   "openResult": {
+    "en": "Open +0.5%: no call made",
+    "ko": "시가 +0.5%, 방향 예보 없음"
+   },
    "say": {
     "en": "On days with a signal this weak the close direction was right only 56% of the time. I will not pretend to call it.",
     "id": "H4",
@@ -59,8 +68,12 @@
    "strength": "weak",
    "topDriver": "ewyExcessPct"
   },
-  "result": null,
-  "state": "issued",
+  "result": {
+   "closeHit": null,
+   "openHit": null,
+   "openInBand": null
+  },
+  "state": "open_scored",
   "targetSession": "2026-11-19",
   "usSessions": [
    "2026-11-18"
@@ -70,7 +83,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-18T22:16:41Z",
+ "generatedAt": "2026-11-19T01:16:03Z",
  "ledger": [
   {
    "actual": {
@@ -1257,7 +1270,12 @@
    ]
   },
   {
-   "actual": null,
+   "actual": {
+    "closePct": null,
+    "intradayPct": null,
+    "openPct": 0.45,
+    "source": "naver_index_price"
+   },
    "analog": null,
    "basisKrSession": "2026-11-18",
    "issuedAt": "2026-11-18T22:16:41Z",
@@ -1276,8 +1294,12 @@
     "strength": "weak",
     "topDriver": "ewyExcessPct"
    },
-   "result": null,
-   "state": "issued",
+   "result": {
+    "closeHit": null,
+    "openHit": null,
+    "openInBand": null
+   },
+   "state": "open_scored",
    "targetSession": "2026-11-19",
    "usSessions": [
     "2026-11-18"
@@ -1286,7 +1308,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-19T21:45:00Z",
- "phase": "pre_open",
+ "phase": "kr_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
@@ -1311,9 +1333,8 @@
    "calls": 17,
    "closeCalls": 15,
    "closeHits": 10,
-   "liveSessions": 8,
+   "liveSessions": 9,
    "marks": [
-    "none",
     "hit",
     "miss",
     "hit",
@@ -1332,7 +1353,8 @@
     "none",
     "miss",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
    "openHits": 14,
    "sessions": 20
@@ -1340,7 +1362,6 @@
   "recentBacktest": {
    "calls": 10,
    "marks": [
-    "none",
     "hit",
     "miss",
     "hit",
@@ -1354,7 +1375,7 @@
     "hit"
    ],
    "openHits": 9,
-   "sessions": 12
+   "sessions": 11
   },
   "recentLive": {
    "calls": 7,
@@ -1366,10 +1387,11 @@
     "none",
     "miss",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
    "openHits": 5,
-   "sessions": 8
+   "sessions": 9
   }
  },
  "status": "ok"
