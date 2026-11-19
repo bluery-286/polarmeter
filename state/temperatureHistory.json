@@ -18,8 +18,8 @@
    "basis": "previous_kst_date",
    "comparisonAsOf": "2026-11-19T14:47:02.411572Z",
    "comparisonDateKst": "2026-11-19",
-   "currentScore": 39,
-   "delta": -13,
+   "currentScore": 36,
+   "delta": -16,
    "previousScore": 52
   }
  },
@@ -115,10 +115,10 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-19T19:47:32.798281Z",
+   "asOf": "2026-11-19T20:02:12.534377Z",
    "dateKst": "2026-11-20",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-19T19:47:32.798281Z",
+   "krAsOf": "2026-11-19T20:02:12.534377Z",
    "krLabel": "중립 · 관망",
    "krScore": 55,
    "krSettled": true,
@@ -131,6 +131,6 @@
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-19T19:47:32.798281Z",
+ "updatedAt": "2026-11-19T20:02:12.534377Z",
  "version": "temperature-history-v1"
 }
