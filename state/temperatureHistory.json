@@ -1,44 +1,29 @@
 {
  "anchorTimeKst": "00:00",
  "basis": "kst_calendar_day_latest_settled_market_session",
- "comparisonDateKst": "2026-11-19",
- "currentDateKst": "2026-11-20",
+ "comparisonDateKst": "2026-11-20",
+ "currentDateKst": "2026-11-21",
  "dailyDelta": {
   "kr": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-19T14:47:02.411572Z",
-   "comparisonDateKst": "2026-11-19",
+   "comparisonAsOf": "2026-11-20T14:46:50.267003Z",
+   "comparisonDateKst": "2026-11-20",
    "currentScore": 35,
-   "delta": -20,
-   "previousScore": 55
+   "delta": 0,
+   "previousScore": 35
   },
   "reason": null,
   "status": "ready",
   "us": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-19T14:47:02.411572Z",
-   "comparisonDateKst": "2026-11-19",
-   "currentScore": 39,
-   "delta": -13,
-   "previousScore": 52
+   "comparisonAsOf": "2026-11-20T14:46:50.267003Z",
+   "comparisonDateKst": "2026-11-20",
+   "currentScore": 45,
+   "delta": 8,
+   "previousScore": 37
   }
  },
  "items": [
-  {
-   "asOf": "2026-11-14T14:26:50.642163Z",
-   "dateKst": "2026-11-14",
-   "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-14T14:26:50.642163Z",
-   "krLabel": "중립 · 관망",
-   "krScore": 48,
-   "krSettled": true,
-   "sessionType": "weekend",
-   "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-14T14:26:50.642163Z",
-   "usLabel": "중립 · 관망",
-   "usScore": 41,
-   "usSettled": true
-  },
   {
    "asOf": "2026-11-15T14:25:59.691380Z",
    "dateKst": "2026-11-15",
@@ -128,9 +113,24 @@
    "usLabel": "냉각 · 리스크 높음",
    "usScore": 37,
    "usSettled": true
+  },
+  {
+   "asOf": "2026-11-20T15:01:56.698889Z",
+   "dateKst": "2026-11-21",
+   "inputPolicyVersion": "last-close-session-v1",
+   "krAsOf": "2026-11-20T15:01:56.698889Z",
+   "krLabel": "냉각 · 리스크 높음",
+   "krScore": 35,
+   "krSettled": true,
+   "sessionType": "weekend",
+   "source": "score_core_v2_normal_freshness",
+   "usAsOf": "2026-11-20T14:17:04.113787Z",
+   "usLabel": "냉각 · 리스크 높음",
+   "usScore": 37,
+   "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-20T14:46:50.267003Z",
+ "updatedAt": "2026-11-20T15:01:56.698889Z",
  "version": "temperature-history-v1"
 }
