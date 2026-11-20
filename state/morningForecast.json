@@ -1,11 +1,6 @@
 {
  "current": {
-  "actual": {
-   "closePct": -5.21,
-   "intradayPct": -1.19,
-   "openPct": -4.08,
-   "source": "naver_index_price"
-  },
+  "actual": null,
   "analog": {
    "bucket": "open_le_-1.0",
    "closeSame": 33,
@@ -14,7 +9,7 @@
    "period": "2023-12 ~ 2026-11",
    "widened": false
   },
-  "basisKrSession": "2026-11-19",
+  "basisKrSession": "2026-11-20",
   "copy": {
    "badge": {
     "en": "Strong signal",
@@ -23,161 +18,90 @@
    },
    "chips": [
     {
-     "en": "S&P 500 −2.0%",
-     "ko": "S&P500 −2.0%",
+     "en": "S&P 500 −3.6%",
+     "ko": "S&P500 −3.6%",
      "tone": "minus"
     },
     {
-     "en": "US chips −2.8%",
-     "ko": "미국 반도체 −2.8%",
+     "en": "US chips −10.6%",
+     "ko": "미국 반도체 −10.6%",
      "tone": "minus"
     },
     {
-     "en": "Korea ETF vs KOSPI −3.0pp",
-     "ko": "한국 ETF 코스피 대비 −3.0%p",
+     "en": "Korea ETF vs KOSPI −3.2pp",
+     "ko": "한국 ETF 코스피 대비 −3.2%p",
      "tone": "minus"
     }
    ],
    "closeNote": {
-    "en": "Started like this, closed below (44 days)",
-    "ko": "이만큼 내려 시작해 마이너스 마감 (44일 기준)"
+    "en": "Started like this, closed below · rebounded intraday 45%",
+    "ko": "이만큼 내려 시작해 마이너스 마감 · 장중 반등한 날 45%(반반)"
    },
    "closeStat": {
     "en": "33 of 44 days",
     "ko": "44일 중 33일"
    },
    "openRange": {
-    "en": "Likely +1.5% to −3.5%",
-    "ko": "예상 범위 +1.5 ~ −3.5%"
+    "en": "Likely 0% to −5%",
+    "ko": "예상 범위 0 ~ −5%"
    },
    "openRangeNote": {
     "en": "8 of 10 opens fell inside in the last year",
     "ko": "최근 1년 10번 중 8번은 이 범위 안"
    },
-   "openResult": {
-    "en": "Open −4.1%: call was right",
-    "ko": "시가 −4.1%, 예보 적중"
-   },
    "openStat": {
-    "en": "around −1%",
-    "ko": "−1% 안팎"
+    "en": "around −2.5%",
+    "ko": "−2.5% 안팎"
    },
    "past": {
     "en": "About 9 in 10 of the days with an overnight signal this negative opened lower (44 days since Dec 2023).",
     "ko": "밤사이 신호가 이만큼 나빴던 날은 열에 아홉쯤 하락 출발했어요. (44일, 2023년 12월부터)"
    },
-   "resultBadge": {
-    "en": "Direction right",
-    "ko": "방향 적중",
-    "tone": "plus"
-   },
-   "resultHeadline": {
-    "en": "Direction was right, size was off",
-    "ko": "방향은 맞았고, 크기는 빗나갔어요"
-   },
-   "resultRows": [
-    {
-     "actual": {
-      "en": "−4.1%",
-      "ko": "−4.1%"
-     },
-     "forecast": {
-      "en": "Lower",
-      "ko": "하락"
-     },
-     "hit": true,
-     "key": "open",
-     "label": {
-      "en": "Open direction",
-      "ko": "시가 방향"
-     }
-    },
-    {
-     "actual": {
-      "en": "−4.1%",
-      "ko": "−4.1%"
-     },
-     "forecast": {
-      "en": "around −1%",
-      "ko": "−1% 안팎"
-     },
-     "hit": false,
-     "key": "open_size",
-     "label": {
-      "en": "Open size",
-      "ko": "시가 크기"
-     }
-    },
-    {
-     "actual": {
-      "en": "−5.2%",
-      "ko": "−5.2%"
-     },
-     "forecast": {
-      "en": "Not forecast",
-      "ko": "예보 안 함"
-     },
-     "hit": null,
-     "key": "close",
-     "label": {
-      "en": "Close direction",
-      "ko": "종가 방향"
-     }
-    }
-   ],
-   "resultTitle": {
-    "en": "Nov 20 forecast result",
-    "ko": "11월 20일 예보 결과"
-   },
    "say": {
-    "en": "It moved 1.2% further down intraday. Intraday moves are the part I do not forecast.",
-    "id": "H5",
-    "ko": "장중에 1.2% 더 빠졌어요. 장중 움직임은 제가 예보하지 못하는 부분이에요."
+    "en": "After a sharp gap down the index rebounded intraday 45% of the time. I do not call direction once the market opens.",
+    "id": "H1",
+    "ko": "급락 출발 뒤 장중 반등은 과거 45%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
    },
    "title": {
-    "en": "Nov 20: Korea looks set to open sharply lower",
-    "ko": "11월 20일 한국장, 크게 밀려서 시작할 것으로 보여요"
+    "en": "Monday: Korea looks set to open sharply lower",
+    "ko": "월요일 한국장, 크게 밀려서 시작할 것으로 보여요"
    }
   },
   "inputs": {
-   "ewyExcessPct": -2.96,
-   "ewyPct": -1.57,
-   "kospiPrevPct": 1.39,
-   "soxxPct": -2.75,
-   "spyPct": -1.96
+   "ewyExcessPct": -3.21,
+   "ewyPct": -8.42,
+   "kospiPrevPct": -5.21,
+   "soxxPct": -10.55,
+   "spyPct": -3.64
   },
-  "issuedAt": "2026-11-19T22:00:24Z",
+  "issuedAt": "2026-11-20T21:57:28Z",
   "modelVersion": "kospi-overnight-v1",
   "noForecastReason": null,
   "origin": "live",
   "predicted": {
    "closeCall": "down",
-   "closePct": -1.25,
+   "closePct": -2.7,
    "openBand": [
-    -3.3,
-    1.14
+    -4.68,
+    -0.24
    ],
    "openCall": "down",
-   "openPct": -1.08,
+   "openPct": -2.46,
    "strength": "strong",
-   "topDriver": "ewyExcessPct"
+   "topDriver": "soxxPct"
   },
-  "result": {
-   "closeHit": true,
-   "openHit": true,
-   "openInBand": false
-  },
-  "state": "closed_scored",
-  "targetSession": "2026-11-20",
+  "result": null,
+  "state": "issued",
+  "targetSession": "2026-11-23",
   "usSessions": [
-   "2026-11-19"
+   "2026-11-20"
   ]
  },
  "disclaimer": {
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-20T15:01:59Z",
+ "generatedAt": "2026-11-20T21:57:28Z",
  "ledger": [
   {
    "actual": {
@@ -1441,11 +1365,45 @@
    "usSessions": [
     "2026-11-19"
    ]
+  },
+  {
+   "actual": null,
+   "analog": {
+    "bucket": "open_le_-1.0",
+    "closeSame": 33,
+    "days": 44,
+    "openSame": 41,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-20",
+   "issuedAt": "2026-11-20T21:57:28Z",
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "live",
+   "predicted": {
+    "closeCall": "down",
+    "closePct": -2.7,
+    "openBand": [
+     -4.68,
+     -0.24
+    ],
+    "openCall": "down",
+    "openPct": -2.46,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": null,
+   "state": "issued",
+   "targetSession": "2026-11-23",
+   "usSessions": [
+    "2026-11-20"
+   ]
   }
  ],
  "modelVersion": "kospi-overnight-v1",
- "nextIssueAt": "2026-11-20T21:45:00Z",
- "phase": "us_open",
+ "nextIssueAt": "2026-11-23T21:45:00Z",
+ "phase": "pre_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
