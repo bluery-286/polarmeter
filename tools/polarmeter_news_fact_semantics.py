@@ -28,7 +28,10 @@ def inflation_release(text: str) -> dict | None:
         return None
     countries = [('fr', r'프랑스|france|french'), ('de', r'독일|germany|german'), ('jp', r'일본|japan|japanese'), ('ca', r'캐나다|canada|canadian'), ('kr', r'한국|韓|korea'), ('cn', r'중국|china|chinese'), ('uk', r'영국|britain|british|\buk\b'), ('eu', r'유로존|eurozone'), ('us', r'미국|美|\bu\.?s\.?\b|american')]
     country = next((c for c, pattern in countries if re.search(pattern, text, re.I)), 'us' if metric == 'pce' else None)
-    month_match = re.search(r'(?:^|[^\d])(1[0-2]|[1-9])\s*월', text)
+    # QA 2026-11-22: "일본 CPI…12월 금리 인상 가능성" read 12월 as the release month. The release month sits right
+    # before the metric ("10월 CPI", "10월 근원 소비자물가"); otherwise take a month that is not a meeting or rate month.
+    month_match = (re.search(r'(?:^|[^\d])(1[0-2]|[1-9])\s*월\s*(?:근원\s*|전국\s*|도쿄\s*)?(?:cpi|pce|ppi|소비자\s*물가|생산자\s*물가|물가|개인소비지출)', text, re.I)
+                   or re.search(r'(?:^|[^\d])(1[0-2]|[1-9])\s*월(?!\s*\d\s*주)(?!\s*(?:\d+\s*일\s*)?(?:금리|기준금리|금통위|회의|fomc|통화정책|인상|인하|동결))', text, re.I))
     months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
     month = int(month_match[1]) if month_match else next((i + 1 for i, m in enumerate(months) if re.search(r'\b' + m + r'\b', text, re.I)), None)
     comparison_text = re.sub(r'(?:예상|전망)(?:치|보다)?[^…;,]{0,8}(?:하회|밑돌|밑돈|낮|상회|웃돌|높)[^…;,]{0,14}(?:아냐|아니|않|없)', '부정된비교', text, flags=re.I)

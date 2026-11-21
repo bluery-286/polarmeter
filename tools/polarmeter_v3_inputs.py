@@ -366,5 +366,5 @@ def apply_v3_layers(snapshot: dict[str, Any], previous_public: dict[str, Any] | 
     # The coach brief reads everything attached above (forecast, scores, flows, links) and never raises.
     coach_brief.apply_coach_brief(snapshot, now)
     # The push outbox lists what the sender Worker may deliver, from the forecast block alone, and never raises.
-    push_outbox.apply_push_outbox(snapshot, now)
+    push_outbox.apply_push_outbox(snapshot, now, fetch)   # fetch: Monday futures for a weekend-issued forecast
     return snapshot

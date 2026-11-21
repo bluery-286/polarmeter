@@ -39,6 +39,14 @@ MAX_ITEMS = 4
 
 SEND_TIME_KST = time(8, 5)         # the morning forecast goes out at 08:05 on a trading day (08:00 is the edge of the night-time limit)
 MORNING_EXPIRE_KST = time(8, 55)   # after 08:55 a "forecast" is not sent any more
+# QA 2026-11-21 P1-1 ②: a forecast issued two or more days before (Saturday for Monday) waits until US futures have
+# traded for a while after their Monday 08:00 KST reopen. The 08:25 KST build reads them (FUTURES_CHECK_FROM_KST); if
+# that build does not run, the Saturday item still goes out at 08:35 with its "토요일 아침 기준" note.
+WEEKEND_SEND_TIME_KST = time(8, 35)
+FUTURES_CHECK_FROM_KST = time(8, 15)
+FUTURES_OPPOSITE_PCT = 0.5          # S&P futures this far against the call since the last US close is said in the push
+FUTURES_BAR_SECONDS = 900
+FUTURES_MAX_AGE_SECONDS = 1800
 RESULT_EXPIRE_KST = time(18, 0)    # a scored result is dropped at 18:00
 
 LIMIT_TITLE_KO = 20
@@ -154,7 +162,18 @@ def fit(texts: list[str], limit: int) -> str | None:
 
 # ---------------------------------------------------------------- copy (SPEC §13.4)
 
-def morning_copy(current: Mapping[str, Any], scorecard: Any) -> tuple[dict[str, str], dict[str, str]] | None:
+def futures_clause(call: str, move: float | None) -> dict[str, str] | None:
+    """When weekend futures moved against the call: '미국 선물은 반대로 +0.6%'."""
+    if move is None or call not in ('down', 'up'):
+        return None
+    if (call == 'down' and move < FUTURES_OPPOSITE_PCT) or (call == 'up' and move > -FUTURES_OPPOSITE_PCT):
+        return None
+    shown = mf.fmt_pct(move, 1, True)
+    return {'ko': f'미국 선물은 반대로 {shown}', 'en': f'US futures since moved {shown}'}
+
+
+def morning_copy(current: Mapping[str, Any], scorecard: Any,
+                 futures_move: float | None = None) -> tuple[dict[str, str], dict[str, str]] | None:
     pred, copy = current.get('predicted'), current.get('copy')
     if not isinstance(pred, Mapping) or not isinstance(copy, Mapping):
         return None
@@ -170,12 +189,16 @@ def morning_copy(current: Mapping[str, Any], scorecard: Any) -> tuple[dict[str, 
             return None
         bodies = {}
         issued = mf.issued_note_copy(current)   # QA 2026-11-21 P1-1: a Saturday forecast says it is Saturday's
+        against = futures_clause(call, futures_move) if issued else None
         for index, lang in enumerate(LANGS):
             head = f"{lead[lang]}. {'코스피 시가' if lang == 'ko' else 'KOSPI open'} {stat[index]}"
             if issued:
                 # The basis time is not optional: drop the record first, never the note.
                 note = issued['shortKo' if lang == 'ko' else 'shortEn']
                 candidates = ([f'{head} · {note} · {record[index]}'] if record else []) + [f'{head} · {note}']
+                if against:
+                    # Futures against the call come before everything else that may be dropped, the note included.
+                    candidates = [f'{head} · {note} · {against[lang]}', f'{head} · {against[lang]}']
             else:
                 candidates = ([f'{head} · {record[index]}'] if record else []) + [head]   # the record is the first thing to drop
             bodies[lang] = fit(candidates, LIMIT_BODY_KO if lang == 'ko' else LIMIT_BODY_EN)
@@ -229,16 +252,50 @@ def morning_topics(has_call: bool) -> list[str]:
     return [f'kr_{kind}_{lang}' for lang in LANGS for kind in kinds]
 
 
-def morning_item(current: Mapping[str, Any], scorecard: Any, now: datetime) -> dict[str, Any] | None:
+def bar_price_at(bars: list[tuple[int, float]], end_by: float, max_age: float) -> tuple[float, float] | None:
+    """(end time, close) of the last 15-minute bar that ended by `end_by`, if it ended within `max_age` seconds."""
+    best = None
+    for start, close in bars:
+        if start + FUTURES_BAR_SECONDS <= end_by:
+            best = (start + FUTURES_BAR_SECONDS, close)
+        else:
+            break
+    return best if best and end_by - best[0] <= max_age else None
+
+
+def weekend_futures_move(day: date, now: datetime, fetch: Any) -> float | None:
+    """S&P futures (ES=F) % move from the last US close before `day` to `now`, only after the Monday reopen. Never raises."""
+    try:
+        if fetch is None or now < kst_moment(day, FUTURES_CHECK_FROM_KST):
+            return None
+        prev = eb.us_day_before(day)
+        base_at = eb.close_at(prev)
+        url = eb.YAHOO_URL.format(symbol='ES%3DF', range='5d', interval='15m')
+        bars = eb.hourly_bars(fetch(url))   # same Yahoo chart shape; the bar length is ours to read
+        base = bar_price_at(bars, base_at.timestamp(), 2 * 3600)
+        latest = bar_price_at(bars, now.timestamp(), FUTURES_MAX_AGE_SECONDS)
+        # the latest bar must be after the weekend reopen, not Friday's last bar
+        if not base or not latest or latest[0] < base_at.timestamp() + 24 * 3600 or base[1] <= 0:
+            return None
+        move = (latest[1] / base[1] - 1) * 100
+        return move if abs(move) < eb.SUSPECT_ABS_PCT else None
+    except Exception:  # a missing quote never stops the push
+        return None
+
+
+def morning_item(current: Mapping[str, Any], scorecard: Any, now: datetime, fetch: Any = None) -> dict[str, Any] | None:
     if current.get('state') not in SCORED_FOR_MORNING:
         return None
     day = target_day(current)
     if day is None:
         return None
-    send_after, expire_at = kst_moment(day, SEND_TIME_KST), kst_moment(day, MORNING_EXPIRE_KST)
+    weekend_issue = mf.issued_note_copy(current) is not None
+    send_after = kst_moment(day, WEEKEND_SEND_TIME_KST if weekend_issue else SEND_TIME_KST)
+    expire_at = kst_moment(day, MORNING_EXPIRE_KST)
     if now >= expire_at:
         return None
-    texts = morning_copy(current, scorecard)
+    move = weekend_futures_move(day, now, fetch) if weekend_issue else None
+    texts = morning_copy(current, scorecard, move)
     if texts is None:
         return None
     has_call = current['predicted']['openCall'] in ('down', 'up')
@@ -317,7 +374,7 @@ def limit_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: (item['sendAfter'], item['id']))[:MAX_ITEMS]
 
 
-def build_items(snapshot: Mapping[str, Any], now: datetime) -> list[dict[str, Any]]:
+def build_items(snapshot: Mapping[str, Any], now: datetime, fetch: Any = None) -> list[dict[str, Any]]:
     """The notifications to list at `now` (may raise; `apply_push_outbox` catches)."""
     items = []
     block = snapshot.get('morningForecast')
@@ -326,7 +383,7 @@ def build_items(snapshot: Mapping[str, Any], now: datetime) -> list[dict[str, An
     if isinstance(current, Mapping) and current.get('origin') == 'live' and not current.get('paused'):
         scorecard = block.get('scorecard')
         for builder in (morning_item, result_item):
-            item = builder(current, scorecard, now)
+            item = builder(current, scorecard, now, fetch) if builder is morning_item else builder(current, scorecard, now)
             if item is not None and not item_problems(item):   # one item with a copy problem never takes the others down
                 items.append(item)
     if EVENING_PUSH_LISTED:
@@ -382,13 +439,13 @@ def empty_block(now: datetime | None) -> dict[str, Any]:
     return {'schemaVersion': SCHEMA_VERSION, 'generatedAt': mf.iso_utc(now) if now else None, 'items': []}
 
 
-def apply_push_outbox(snapshot: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
+def apply_push_outbox(snapshot: dict[str, Any], now: datetime | None = None, fetch: Any = None) -> dict[str, Any]:
     """Attach `pushOutbox` (always a block; `items` is empty when there is nothing to send). Never raises."""
     moment = None
     try:
         moment = mf.as_aware(now) if now else datetime.now(timezone.utc)
         block = empty_block(moment)
-        block['items'] = build_items(snapshot, moment)
+        block['items'] = build_items(snapshot, moment, fetch)
         assert_public_push_outbox(block)
     except Exception:  # the push layer must never stop a publish
         try:
