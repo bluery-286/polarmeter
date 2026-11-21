@@ -33,6 +33,9 @@ def main():
         ('코스피 상승분 반납 뒤 하락 전환했지만, 다시 1% 상승 마감', 'positive'),
         ('코스피 상승분 반납, 하락 마감 우려', 'neutral'),
     ]
+    # Pinned to a Korean trading hour: an intraday report read on a weekend is dropped as stale (QA 2026-11-21 N5).
+    from datetime import datetime as _dt
+    probe.set_clock(_dt.fromisoformat('2026-11-20T10:30:00+09:00'))
     for headline, expected in givebacks:
         assert probe.index_giveback_tone(headline) == expected
         assert probe.market_burden_tone(headline, 'positive') == expected
@@ -41,6 +44,7 @@ def main():
         ]}], max_items=30)
         assert result and result[0]['impactTone'] == expected
         assert '반납' in result[0]['displayHeadline']
+    probe.set_clock(None)
     assert probe.index_giveback_tone('코스피, 2.2% 상승 마감') is None
     assert probe.index_giveback_tone('코스피 상승분 반납 없이 강세 마감') is None
     easing = 'US Stock Market Today: Dow Gains 300 Points, S&P 500 And Nasdaq Rise As Oil, Treasury Yields Ease'

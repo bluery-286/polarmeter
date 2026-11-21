@@ -55,7 +55,9 @@ SCORED_FOR_MORNING = ('issued', 'open_scored', 'closed_scored')
 # Evening brief notification (꽁치 저녁 브리핑): prepared, not listed. While this is False the outbox never carries an
 # evening item, so the sender Worker has nothing to send even after DRY_RUN is lifted for the morning forecast. Turn it
 # on only with 형's OK, after the app ships its evening switch (topics `kr_us_evening_{ko|en}`, default off).
-EVENING_PUSH_LISTED = False
+# 2026-11-21 형 OK ("푸시 알람기능 개선해서 업데이트하자 휴대폰 푸시알림은 기본을 On으로"): listed. App 1.0.27 turns
+# the evening switch on by default; 1.0.23-1.0.26 users receive it only if they switched it on themselves.
+EVENING_PUSH_LISTED = True
 TITLE_EVENING = {'ko': '꽁치 저녁 브리핑 · 미국장', 'en': 'Ggongchi evening · US tonight'}
 EVENING_TITLE_SPLIT = '미국장, '
 

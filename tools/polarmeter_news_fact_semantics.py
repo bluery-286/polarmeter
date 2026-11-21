@@ -50,6 +50,10 @@ def factual_market_tone(headline: str) -> str | None:
     up = bool(re.search(index + qualifiers + r'(?:상승|급등|반등|강세|랠리|↑|rise|rises|rose|gain|gains|higher|jump|jumps|surge|surges|rall(?:y|ies)|rebound)', headline, re.I))
     up = up or bool(re.search(r'(?:살린|살아난|되살아난|회복한)\s*증시|증시\s*(?:회복|살아나)', headline, re.I))
     rebound_after_fall = re.search(r'(?:급락|하락|약세|폭락).{0,8}(?:딛고|뒤|후|이후|만에).{0,20}(?:반등|회복|상승)', headline, re.I)
+    # QA 2026-11-21 N4: "뉴욕증시 하락도 뒤집은 엔비디아…코스피 5000선 복귀" overcame the fall; the result is the move.
+    overcome = re.search(r'(?:하락|급락|약세|폭락)(?:도|을|를|세)?\s*(?:뒤집|딛고|이겨|털고|극복)', headline)
+    if overcome and re.search(r'반등|회복|상승|복귀|탈환|되찾|강세', headline[overcome.end():]):
+        return 'neutral' if re.search(r'할까|될까|일까|\?', headline) else 'positive'
     if down and rebound_after_fall:
         # "코스피 급락 딛고 반등할까": the fall is the past, the rebound a question or a fact.
         return 'neutral' if re.search(r'할까|될까|일까|\?', headline) else 'positive'
@@ -89,7 +93,7 @@ def factual_market_tone(headline: str) -> str | None:
 
 def inflation_surprise_why(release: dict) -> str | None:
     if release['surprise'] == 'below':
-        return '물가가 예상보다 낮아 금리 부담을 덜 수 있는 신호입니다. 물가 자체의 상승률과 실제 금리·지수 반응은 별도로 봅니다.'
+        return '물가가 예상보다 낮아 금리 부담을 덜 수 있는 신호입니다. 물가 자체의 상승률과 실제 금리 반응은 별도로 봅니다.'
     if release['surprise'] == 'above':
-        return '물가가 예상보다 높아 금리 부담을 키울 수 있는 신호입니다. 실제 금리·지수 반응은 별도로 봅니다.'
+        return '물가가 예상보다 높아 금리 부담을 키울 수 있는 신호입니다. 실제 금리 반응은 별도로 봅니다.'
     return None

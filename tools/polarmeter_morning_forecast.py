@@ -212,6 +212,7 @@ MIN_ANALOG_DAYS = 20
 EXACT_COUNT_MIN_DAYS = 100   # plan S7: below this the past line says a rough share
 KO_COUNT_WORDS = ('', '하나', '둘', '셋', '넷', '다섯', '여섯', '일곱', '여덟', '아홉')
 SUSPECT_ABS_PCT = 15.0
+STRONG_WORD_MIN_PCT = 1.5   # QA 2026-11-21 P1-3: "크게" headline only from this expected open size
 VOID_AFTER_TRADING_DAYS = 3
 PAUSE_MIN_CALLS = 10
 PAUSE_BELOW_HIT_RATE = 0.6
@@ -220,6 +221,7 @@ CLOSE_TIME_KST = time(15, 30)
 ISSUE_DEADLINE_KST = time(8, 50)   # SPEC §6.3 condition 3
 OPEN_SCORE_TIME_KST = time(9, 5)   # SPEC §6.3 scoring
 CLOSE_SCORE_TIME_KST = time(15, 40)
+CLOSE_SETTLE_UNTIL_KST = time(8, 30)   # next morning: last moment a provisional close may be replaced (QA P1-4)
 US_READY_MINUTES = 15              # SPEC §6.3 condition 2: 15 minutes after the US close
 US_FEED_GRACE_MINUTES = 45         # `last_completed_session_date(.., 'US')` reports a day 45 minutes after its close
 
@@ -517,8 +519,15 @@ def score_row(row: dict[str, Any], prices: Mapping[str, Mapping[str, Any]], now:
         if actual.get('openPct') is None and open_price and kst >= datetime.combine(day, OPEN_SCORE_TIME_KST, KST):
             actual['openPct'] = round((open_price / prev_close - 1) * 100, 2)
             actual['source'] = today_prices.get('source')
-        if actual.get('closePct') is None and close_price and kst >= datetime.combine(day, CLOSE_SCORE_TIME_KST, KST):
-            actual['closePct'] = round((close_price / prev_close - 1) * 100, 2)
+        close_pct = round((close_price / prev_close - 1) * 100, 2) if close_price else None
+        # 2026-11-21 QA P1-4: the 15:40 read can be a provisional close (11-19 kept +0.84% against the official
+        # +1.39%). Until 08:30 the next morning a changed close replaces the first read and the close is re-scored.
+        settle_until = datetime.combine(day + timedelta(days=1), CLOSE_SETTLE_UNTIL_KST, KST)
+        close_refresh = (actual.get('closePct') is not None and close_pct is not None and kst < settle_until
+                         and close_pct != actual.get('closePct'))
+        if close_pct is not None and kst >= datetime.combine(day, CLOSE_SCORE_TIME_KST, KST) and (
+                actual.get('closePct') is None or close_refresh):
+            actual['closePct'] = close_pct
             actual['intradayPct'] = round((close_price / open_price - 1) * 100, 2) if open_price else None
             actual['source'] = actual.get('source') or today_prices.get('source')
             if today_prices.get('source') != actual['source']:
@@ -535,6 +544,9 @@ def score_row(row: dict[str, Any], prices: Mapping[str, Mapping[str, Any]], now:
     if row['state'] == 'open_scored' and actual.get('closePct') is not None:
         row['result']['closeHit'] = call_hit(row['predicted']['closeCall'], actual['closePct'])
         row['state'] = 'closed_scored'
+    elif (row['state'] == 'closed_scored' and actual.get('closePct') is not None and row.get('result')
+          and not row['result'].get('closeUnscored')):
+        row['result']['closeHit'] = call_hit(row['predicted']['closeCall'], actual['closePct'])
 
 
 def settle_unscorable(row: dict[str, Any], today: date) -> None:
@@ -712,7 +724,8 @@ def title_copy(row: Mapping[str, Any], today: date) -> dict[str, str]:
     if pred['openCall'] == 'none':
         return {'ko': f'{ko_day}은 방향을 내지 않아요' if ko_day != '오늘' else '오늘은 방향을 내지 않아요',
                 'en': 'No call today' if en_day == 'today' else f'No call for {en_day}'}
-    strong = pred['strength'] == 'strong'
+    # QA P1-3: "크게" only when the expected open itself is large (11-11/17/20 said "크게" next to "−1% 안팎").
+    strong = pred['strength'] == 'strong' and abs(float(pred.get('openPct') or 0)) >= STRONG_WORD_MIN_PCT
     if pred['openCall'] == 'down':
         return {'ko': f'{ko_day} 한국장, ' + ('크게 밀려서 시작할 것으로 보여요' if strong else '내려서 시작할 가능성이 높아요'),
                 'en': prefix + ('Korea looks set to open sharply lower' if strong else 'Korea is likely to open lower')}
@@ -848,7 +861,7 @@ def range_note_copy(pred: Mapping[str, Any], model: Mapping[str, Any]) -> dict[s
         return None   # a row frozen before the p80 range (or by another model) keeps its range without this note
     cover = band.get('p80RecentCoverage')
     if isinstance(cover, (int, float)) and 0 <= cover <= 1:
-        tens = int(cover * 10 + 0.5)
+        tens = int(cover * 10 + 1e-9)   # QA P2: floor, so 0.75 reads 7 of 10 and never overstates
         return {'ko': f'최근 1년 10번 중 {tens}번은 이 범위 안', 'en': f'{tens} of 10 opens fell inside in the last year'}
     return {'ko': '과거 10번 중 8번은 이 범위 안', 'en': '8 of 10 past opens fell inside'}
 
@@ -861,6 +874,8 @@ def range_copy(pred: Mapping[str, Any]) -> dict[str, str] | None:
     # so the coverage note under it never overstates.
     edge_lo, edge_hi = math.floor(min(band) * 2) / 2, math.ceil(max(band) * 2) / 2
     low, high = sorted((edge_lo, edge_hi), key=abs)
+    if edge_lo < 0 < edge_hi:
+        low, high = edge_lo, edge_hi   # QA P1-3: a range across zero reads low to high ("−3.5 ~ +1.5%"), not "+1.5 ~ −3.5%"
     if low == high:
         text = fmt_half(low, True)
         return {'ko': f'예상 범위 {text}% 안팎', 'en': f'Likely around {text}%'}
@@ -868,8 +883,13 @@ def range_copy(pred: Mapping[str, Any]) -> dict[str, str] | None:
             'en': f'Likely {fmt_half(low, True)}% to {fmt_half(high, True)}%'}
 
 
-def size_copy(value: float) -> dict[str, str]:
+def size_copy(value: float, call: str = 'none') -> dict[str, str]:
     if abs(value) < 0.5:
+        # QA P1-2: a called direction (|open| >= 0.3%) never reads "보합권" next to "올라서 시작할 가능성이 높아요".
+        if call == 'up':
+            return {'ko': '소폭 오름(+0.5% 안쪽)', 'en': 'slightly higher (under +0.5%)'}
+        if call == 'down':
+            return {'ko': f'소폭 내림({MINUS}0.5% 안쪽)', 'en': f'slightly lower (under {MINUS}0.5%)'}
         return {'ko': '보합권', 'en': 'around flat'}
     return {'ko': f'{fmt_half(value, True)}% 안팎', 'en': f'around {fmt_half(value, True)}%'}
 
@@ -924,7 +944,7 @@ def result_rows_copy(row: Mapping[str, Any]) -> list[dict[str, Any]]:
          'forecast': {'ko': DIRECTION_KO[open_call], 'en': DIRECTION_EN[open_call].capitalize()},
          'actual': actual_pct(open_pct), 'hit': result.get('openHit')},
         {'key': 'open_size', 'label': {'ko': '시가 크기', 'en': 'Open size'},
-         'forecast': size_copy(pred['openPct']) if open_call != 'none' else dash,
+         'forecast': size_copy(pred['openPct'], pred['openCall']) if open_call != 'none' else dash,
          'actual': actual_pct(open_pct), 'hit': result.get('openInBand')},
         {'key': 'close', 'label': {'ko': '종가 방향', 'en': 'Close direction'},
          'forecast': {'ko': '예보 안 함', 'en': 'Not forecast'},
@@ -963,7 +983,7 @@ def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) ->
     if isinstance(row.get('inputs'), dict):
         copy['chips'] = chips_copy(row['inputs'])
     if pred['openCall'] != 'none':
-        copy['openStat'] = size_copy(pred['openPct'])
+        copy['openStat'] = size_copy(pred['openPct'], pred['openCall'])
         band = range_copy(pred)
         if band:
             copy['openRange'] = band
@@ -1060,6 +1080,8 @@ def compute_block(previous_public: Mapping[str, Any] | None, series: Mapping[str
         if row['state'] in ('issued', 'open_scored'):
             score_row(row, prices, now)
             settle_unscorable(row, today)
+        elif row['state'] == 'closed_scored' and (today - date.fromisoformat(row['targetSession'])).days <= 1:
+            score_row(row, prices, now)   # QA P1-4: picks up the official close until 08:30 the next morning
         elif row['state'] == 'no_forecast':
             fill_actual_only(row, prices, now)
 
