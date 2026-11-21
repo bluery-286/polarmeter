@@ -56,7 +56,7 @@ strong['predicted']['openBand'] = mf.open_band(-3.0, 'strong', model)
 assert mf.open_band(-3.0, 'strong', model) == [round(-3.0 - model['openBands'][2]['p80AbsErr'], 2),
                                               round(-3.0 + model['openBands'][2]['p80AbsErr'], 2)]
 note = mf.range_note_copy(strong['predicted'], model)
-tens = int(model['openBands'][2]['p80RecentCoverage'] * 10 + 0.5)
+tens = int(model['openBands'][2]['p80RecentCoverage'] * 10 + 1e-9)   # QA 2026-11-21: floor, never overstates
 assert note == {'ko': f'최근 1년 10번 중 {tens}번은 이 범위 안', 'en': f'{tens} of 10 opens fell inside in the last year'}, note
 no_recent = deepcopy(model)
 for band in no_recent['openBands']:
@@ -86,7 +86,7 @@ assert rows[2]['key'] == 'close' and rows[2]['hit'] is None and done['result']['
 
 # 6. Review on #59: the shown range contains the calibrated band; the intraday rate only for starts of its own size.
 shown = mf.range_copy({'openBand': [-1.37, 0.57]})
-assert shown['ko'] == '예상 범위 +1 ~ −1.5%', shown   # outward: [−1.5, +1], not [−1.5, +0.5]
+assert shown['ko'] == '예상 범위 −1.5 ~ +1%', shown   # outward: [−1.5, +1]; across zero it reads low to high (QA 2026-11-21)
 assert mf.range_copy({'openBand': [-4.37, -2.07]})['ko'] == '예상 범위 −2 ~ −4.5%'
 mod = base.synthetic_row('down', 'moderate')
 mod['analog'] = {'days': 40, 'openSame': 30, 'closeSame': 25, 'period': '2024-11-06 ~ 2026-11-06', 'widened': False}

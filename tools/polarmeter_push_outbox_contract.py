@@ -277,9 +277,9 @@ def check_copy_variants() -> None:
     assert '최근' not in broken['body']['ko'], 'a record that does not add up is not printed'
     gone = only(build(snapshot(current_row('down'), card=None), '2026-11-06T06:00:00', 'default card'))
     assert gone['body']['ko'].startswith('크게 밀려서 시작할 것으로 보여요'), gone
-    # a call whose size reads "보합권" still prints
+    # a small called move reads "소폭 내림(−0.5% 안쪽)", never "보합권" next to the call (QA 2026-11-21 P1-2)
     flat = only(build(snapshot(current_row('down', open_pct=-0.35)), '2026-11-06T06:00:00', 'flat-sized call'))
-    assert '보합권' in flat['body']['ko'], flat['body']
+    assert '소폭' in flat['body']['ko'] and '보합권' not in flat['body']['ko'], flat['body']
     # a result with no close number leaves the close out
     no_close = current_row('down', state='closed_scored', actual_open=-2.24, actual_close=None, hit=True)
     item = only(build(snapshot(no_close), '2026-11-06T15:50:00', 'result without close'))
@@ -523,8 +523,12 @@ def check_evening_prepared_not_listed() -> None:
     block = ebc.sample_evening_block()
     snap = {'eveningBrief': block}
     issued = datetime.fromisoformat(block['current']['issuedAt'].replace('Z', '+00:00'))
-    assert po.EVENING_PUSH_LISTED is False, 'the evening notification stays unlisted until 형 turns it on'
-    assert po.build_items(snap, issued) == [], 'switch off: nothing listed'
+    assert po.EVENING_PUSH_LISTED is True, 'the evening notification is listed (형 OK 2026-11-21)'
+    po.EVENING_PUSH_LISTED = False
+    try:
+        assert po.build_items(snap, issued) == [], 'switch off: nothing listed'
+    finally:
+        po.EVENING_PUSH_LISTED = True
     item = po.evening_item(snap, issued)
     assert item and not po.item_problems(item), (item, item and po.item_problems(item))
     assert item['id'] == 'us_evening:2026-11-10' and item['topics'] == ['kr_us_evening_ko', 'kr_us_evening_en']
@@ -540,7 +544,7 @@ def check_evening_prepared_not_listed() -> None:
     try:
         assert ids(po.build_items(snap, issued)) == ['us_evening:2026-11-10']
     finally:
-        po.EVENING_PUSH_LISTED = False
+        po.EVENING_PUSH_LISTED = True
 
 
 def check_wired_after_coach_brief() -> None:

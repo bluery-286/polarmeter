@@ -157,7 +157,7 @@ def check_pre_open_rules() -> None:
         ('C5 up, chips lead', 'up', dict(spy=1.0, soxx=2.6, excess=1.0, top='soxxPct'), 'C5', 'plus',
          '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
         ('C6 up, Korea alone', 'up', dict(spy=0.5, soxx=1.0, excess=5.0), 'C6', 'plus',
-         '밤사이 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up overnight'),
+         '밤사이 한국 주식만 따로 올랐어요', 'Korean stocks alone were bid up overnight'),
         ('C0 up', 'up', dict(spy=0.5, soxx=1.0, excess=0.5, top='spyPct'), 'C0', 'plus',
          '밤사이 미국장 강세가 넘어오는 날이에요', 'US strength carries over to Korea overnight'),
         ('C7 no call', 'none', dict(spy=0.2, soxx=-0.3, excess=0.1, top='spyPct'), 'C7', 'neutral',
@@ -341,7 +341,7 @@ def check_weekend_rules() -> None:
         ('weekend C2', dict(call='down', spy=-1.0, soxx=-3.0, excess=-1.0, top='soxxPct'), 'C2', 'minus',
          '월요일엔 미국 반도체가 한국장을 끌어내리는 날이에요', 'Monday: US chips are pulling Korea lower'),
         ('weekend C6', dict(call='up', spy=0.5, soxx=1.0, excess=5.0, top='ewyExcessPct'), 'C6', 'plus',
-         '금요일 밤 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up on Friday night'),
+         '금요일 밤 한국 주식만 따로 올랐어요', 'Korean stocks alone were bid up on Friday night'),
         ('weekend C3', dict(call='down', spy=-0.5, soxx=-1.0, excess=-5.0, top='ewyExcessPct'), 'C3', 'minus',
          '금요일 밤 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped on Friday night'),
         ('weekend C0 up', dict(call='up', spy=0.8), 'C0', 'plus',
@@ -356,7 +356,7 @@ def check_weekend_rules() -> None:
     # Two US sessions behind a Korea-alone call: no single night to name.
     brief = build(weekend_snap(call='up', spy=0.5, soxx=1.0, excess=5.0, top='ewyExcessPct', sessions=('2026-11-05', '2026-11-06')),
                   WEEKEND_NOW, 'weekend C6 two sessions')
-    assert (ko(brief), brief['verdict']['en']) == ('지난 밤 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up in the last US session')
+    assert (ko(brief), brief['verdict']['en']) == ('지난 밤 한국 주식만 따로 올랐어요', 'Korean stocks alone were bid up in the last US session')
     # A weekday holiday is the same card: Friday 2026-10-09 (한글날), Monday's forecast not yet out -> last row is Thursday's.
     holiday = snapshot(morning_block(forecast_row(call='none', target='2026-10-12', basis='2026-10-09',
                                                   sessions=['2026-10-08', '2026-10-09'], spy=1.1, soxx=0.1, excess=0.0,
@@ -450,9 +450,9 @@ def check_baselines() -> None:
     # 1,340.0 x 1.004 = 1,345.36 and x 0.996 = 1,334.64: the SPEC's 1,345 / 1,335. Won and VIX are both candidates; the won is closer.
     assert [l['ruleId'] for l in lines] == ['L1', 'L2'], lines
     assert lines[0] == {'ruleId': 'L1', 'level': {'ko': '1,345원 위', 'en': 'Above 1,345'}, 'tone': 'minus',
-                        'ko': '원화 약세 구간이에요. 외국인 자금에 부담', 'en': 'Weak-won zone: a drag on foreign money'}, lines[0]
+                        'ko': '원화가 어제보다 0.4% 넘게 약해요. 외국인엔 부담', 'en': 'Won 0.4%+ weaker than yesterday: a drag on foreign money'}, lines[0]
     assert lines[1] == {'ruleId': 'L2', 'level': {'ko': '1,335원 아래', 'en': 'Below 1,335'}, 'tone': 'plus',
-                        'ko': '원화 강세 구간이에요. 외국인 자금에 우호', 'en': 'Strong-won zone: supportive of foreign money'}, lines[1]
+                        'ko': '원화가 어제보다 0.4% 넘게 강해요. 외국인엔 도움', 'en': 'Won 0.4%+ stronger than yesterday: a help for foreign money'}, lines[1]
     # The won far from its lines and VIX close to 30: the VIX pair.
     far = snapshot(morning_block(forecast_row(), 'pre_open'),
                    morning_signals(usd_krw=signal(1400.0, 4.5, '2026-11-05T21:40:00Z', 1340.0), vix=signal(29.5, 3.0, '2026-11-05T21:00:00Z')))
@@ -814,7 +814,7 @@ def check_end_to_end_with_real_blocks() -> None:
     brief = build(base(weekend), '2026-11-07T10:00:00', 'e2e weekend')
     # The fixed world's Monday forecast calls up on the Korea ETF alone, so the weekend card leads with that (not S&P500).
     assert weekend['current']['predicted']['openCall'] == 'up' and weekend['current']['predicted']['topDriver'] == 'ewyExcessPct', weekend['current']['predicted']
-    assert brief['ruleId'] == 'C6' and ko(brief) == '금요일 밤 한국 주식만 따로 샀어요', brief['verdict']
+    assert brief['ruleId'] == 'C6' and ko(brief) == '금요일 밤 한국 주식만 따로 올랐어요', brief['verdict']
     assert [i['ko'] for i in brief['next']][0] == '월요일 한국장이 열려요'
     live = deepcopy(first)
     live['phase'] = 'us_open'

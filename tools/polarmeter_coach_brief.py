@@ -65,13 +65,13 @@ LIMIT_NEXT = 26
 # ---------------------------------------------------------------- copy rules (SPEC §6.5)
 
 KO_BANNED = ('확인', '점검', '살펴', '지켜', '참고', '다음 갱신')   # plan S7: 가능성 / 수 있어요 are allowed (softer, not banned)
-KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천')
+KO_ACTION = ('사세요', '파세요', '담으세요', '비중', '목표가', '손절', '추천', '샀어요', '팔았어요', '사요', '팔아요')   # QA 2026-11-21 C1
 NAKED_TRADE = re.compile(r'(?<!순)(매수|매도)')   # 순매수 / 순매도 describe flows and pass; 매수하세요, 매도 추천 do not
 NAMES = ('삼성전자', 'SK하이닉스', '하이닉스', '엔비디아', '테슬라', '애플', 'NVIDIA', 'Tesla', 'Apple', 'Samsung',
          'SPY', 'SOXX', 'EWY')
 EN_BANNED = re.compile(r'\b(watch|monitor|may|could|buy|sell|sold|bought|stock\s+pick)\b'
                        r'|(?<!net )\b(buying|selling)\b|keep an eye|recommend', re.I)   # "net buying" / "net selling" pass
-DIRECTION_WORDS = ('내려', '올라', '밀려', '끌어', '팔렸', '샀', '조용', '급락', '급등', '하락', '상승', '약세', '강세', '반등', '되돌')
+DIRECTION_WORDS = ('내려', '올라', '올랐', '밀려', '끌어', '팔렸', '조용', '급락', '급등', '하락', '상승', '약세', '강세', '반등', '되돌')
 HAS_NUMBER = re.compile(r'\d|이틀째|사흘째|나흘째')   # day counts in words count as numbers
 KO_SENTENCE_END = re.compile(r'요\.?$')
 KO_HAS_SENTENCE = re.compile(r'요(\.|$)')   # a baseline meaning may close with a noun phrase: "구간이에요. 외국인 자금에 부담"
@@ -338,7 +338,7 @@ PRE_TEXT = {
     'C2': ('C5', '미국 반도체가 한국장을 끌어내리는 날이에요', 'US chips are pulling Korea lower',
            '미국 반도체가 한국장을 끌어올리는 날이에요', 'US chips are pulling Korea higher'),
     'C3': ('C6', '밤사이 한국 주식만 따로 팔렸어요', 'Korean stocks alone were dumped overnight',
-           '밤사이 한국 주식만 따로 샀어요', 'Korean stocks alone were bid up overnight'),
+           '밤사이 한국 주식만 따로 올랐어요', 'Korean stocks alone were bid up overnight'),
     'C0': ('C0', '밤사이 미국장 약세가 넘어오는 날이에요', 'US weakness carries over to Korea overnight',
            '밤사이 미국장 강세가 넘어오는 날이에요', 'US strength carries over to Korea overnight'),
 }
@@ -393,7 +393,7 @@ def weekend_forecast_verdict(ctx: Context) -> dict[str, str] | None:
             night_ko, night_en = f'{mf.WEEKDAYS_KO[us_day.weekday()]}요일 밤', f'{mf.WEEKDAYS_EN[us_day.weekday()]} night'
         else:
             night_ko, night_en = '지난 밤', 'the last US session'
-        ko = f"{night_ko} 한국 주식만 따로 {'팔렸어요' if down else '샀어요'}"
+        ko = f"{night_ko} 한국 주식만 따로 {'팔렸어요' if down else '올랐어요'}"
         en = f"Korean stocks alone were {'dumped' if down else 'bid up'} {'on ' if len(sessions) == 1 else 'in '}{night_en}"
     elif key == 'C1':
         ko = f"{target_ko}엔 미국 {'급락' if down else '급등'}이 크게 넘어올 것으로 보여요"
@@ -589,10 +589,10 @@ def line_candidates(ctx: Context) -> list[dict[str, Any]]:
         up_level, down_level = fx['prev'] * (1 + FX_LINE_FRACTION), fx['prev'] * (1 - FX_LINE_FRACTION)
         add('fx', 1, abs(fx['value'] - up_level) / fx['value'] * 100,
             line('L1', 'minus', f'{mf.fmt_num(up_level, 0)}원 위', f'Above {mf.fmt_num(up_level, 0)}',
-                 '원화 약세 구간이에요. 외국인 자금에 부담', 'Weak-won zone: a drag on foreign money'))
+                 '원화가 어제보다 0.4% 넘게 약해요. 외국인엔 부담', 'Won 0.4%+ weaker than yesterday: a drag on foreign money'))
         add('fx', 2, abs(fx['value'] - down_level) / fx['value'] * 100,
             line('L2', 'plus', f'{mf.fmt_num(down_level, 0)}원 아래', f'Below {mf.fmt_num(down_level, 0)}',
-                 '원화 강세 구간이에요. 외국인 자금에 우호', 'Strong-won zone: supportive of foreign money'))
+                 '원화가 어제보다 0.4% 넘게 강해요. 외국인엔 도움', 'Won 0.4%+ stronger than yesterday: a help for foreign money'))
     kospi = kospi_fact(ctx) if ctx.zone == 'kr_open' else None
     open_pct = num(_mapping(ctx.cur.get('actual')).get('openPct'))
     if kospi and kospi['prev'] and open_pct is not None:  # L3: today's open, the side the market is not on yet

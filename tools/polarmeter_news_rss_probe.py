@@ -1320,6 +1320,12 @@ def english_market_context_translation(headline: str) -> str | None:
     lower = text.lower()
     if not text or has_korean(text):
         return None
+    # QA 2026-11-21: "Fear Gauge Surges Above 31 As AI Trade Unravels Across S&P 500…" is fear rising, not stocks rising.
+    if re.search(r'\bvix\b|fear\s+gauge|volatility\s+index', lower):
+        if re.search(r'surg|jump|spik|soar|climb|rises?\b|rose\b|higher|leaps?|unravel', lower):
+            return 'VIX 급등은 미국장 불안이 커진 신호'
+        if re.search(r'fall|falls|fell|drop|slide|eases?|lower|retreat', lower):
+            return 'VIX 하락은 미국장 불안이 줄어든 신호'
 
     has_sp500 = re.search(r's&p\s*500|sp500', lower) is not None
     has_nasdaq = 'nasdaq' in lower
@@ -1491,7 +1497,9 @@ def english_market_context_translation(headline: str) -> str | None:
         subjects.append('VIX')
     if subjects:
         subject = '·'.join(subjects[:3])
-        if re.search(r'could|ahead|forecast|prediction|critical crossroads|signal more losses|전망|가능', lower):
+        # QA 2026-11-21 N3: "Wall Street Eyes Rebound as … Targets S&P 500 at 8,700" is an outlook, not a rise.
+        if re.search(r'could|ahead|forecast|prediction|critical crossroads|signal more losses|\beyes?\b|\beyeing\b|'
+                     r'\btargets?\b|\bhopes?\b|\bbets?\b|\bpredicts?\b|\boutlook\b|목표|전망|가능', lower):
             if equity_negative or negative:
                 return f'{subject} 약세 전망은 대표지수 부담 변수'
             if equity_positive or positive:
@@ -1904,6 +1912,14 @@ def index_giveback_tone(headline: str) -> str | None:
     giveback = re.search(r'(?:상승분|상승폭|오름폭).{0,12}(?:반납|축소)|(?:급등|급반등|반등|상승)하다\s*[\'‘’"]?뚝|\b(?:give|gives|gave|giving)\s+back\s+(?:(?:early|opening|some|all|its|the)\s+)*gains\b', headline, re.I)
     if not giveback:
         return None
+    # QA 2026-11-21 N1: "올해 상승분 반납" is the year-to-date gain, not an intraday giveback, and a reported
+    # crash/plunge before it already gives the direction ("나스닥 5.28% 폭락하며 올해 상승분 전액 반납").
+    before = headline[:giveback.start()]
+    if re.search(r'(?:올해|올\s*들어|연초|연간|연중|year[-\s]to[-\s]date|this\s+year|ytd)\s*$', before[-12:], re.I) \
+            or re.search(r'(?:올해|올\s*들어|연초|연간|연중)', headline[max(0, giveback.start() - 8):giveback.end()]):
+        return None
+    if re.search(r'폭락|급락|\d+(?:\.\d+)?\s*%\s*(?:대\s*)?(?:하락|급락|폭락)|↓|\b(?:plunge|plunges|tumble|tumbles|crash|crashes)\b', before, re.I):
+        return None
     # Only the subsequent result can establish net direction, not the open.
     tail = headline[giveback.end():]
     if re.match(r'\s*(?:없이|없었|하지\s*않|아니)', tail):
@@ -1916,10 +1932,24 @@ def index_giveback_tone(headline: str) -> str | None:
     return direction
 
 
+YEAR_TO_DATE_GIVEBACK_PATTERN = re.compile(
+    r'(?:올해|연초|연간|올\s*들어)\s*(?:의\s*)?(?:상승분|상승폭|오름폭).{0,12}(?:반납|다\s*내줘|모두\s*내줘|날려)|'
+    r'\b(?:erases?|erased|wipes?\s+out|wiped\s+out|gives?\s+back|gave\s+back)\s+(?:all\s+(?:of\s+)?)?(?:its\s+)?'
+    r'(?:2026|year[-\s]to[-\s]date|ytd|this\s+year\'?s?)\s+gains?\b', re.I)
+
+
+def year_to_date_giveback(headline: str) -> bool:
+    """QA 2026-11-21: an index "올해 상승분 반납" means it fell far enough to erase the year's gain."""
+    return bool(re.search(r'코스피|코스닥|나스닥|다우|지수|\b(?:kospi|kosdaq|nasdaq|dow)\b|s&p', headline, re.I)
+                and YEAR_TO_DATE_GIVEBACK_PATTERN.search(headline))
+
+
 def market_burden_tone(headline: str, fallback: str | None = None) -> str:
     fact_tone = factual_market_tone(headline)
     if fact_tone is not None:
         return fact_tone
+    if year_to_date_giveback(headline):
+        return 'negative'
     headline = mask_negated_moves(headline)
     giveback_tone = index_giveback_tone(headline)
     if giveback_tone is not None:
@@ -2918,7 +2948,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if release and release['deniedComparison'] and not has_korean(headline):
                 translated_headline = f"{release['metric'].upper()} 물가 예상치 비교 주장 부정·실제 발표 확인"
             if release and release['surprise'] != 'unknown' and not has_korean(headline):
-                translated_headline = f"{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
+                translated_headline = f"{release_country_ko(release)}{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
             if has_korean(headline):
                 display_headline = cause_aware_display_headline(headline, headline)
             else:
@@ -2945,7 +2975,7 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 else:
                     release = inflation_release(headline)
                     if release and release['surprise'] != 'unknown':
-                        display_headline = f"{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
+                        display_headline = f"{release_country_ko(release)}{release['metric'].upper()} 물가 예상 {'하회·금리 부담 완화 신호' if release['surprise'] == 'below' else '상회·금리 부담 신호'}"
             final_why = tone_aligned_why(headline, display_headline or headline, relevance['whyImportant'], final_impact_tone)
             giveback_tone = index_giveback_tone(headline)
             if giveback_tone is not None:
@@ -3040,6 +3070,10 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
     kept_items = []
     for item in out:
         reason = english_translation_defect(item)
+        if not reason:
+            index_key = stale_index_intraday_key(item)
+            if index_key and stale_wrap_intraday(item, index_key):
+                reason = 'STALE_SESSION_INTRADAY'   # QA 2026-11-21 N11: "…at Open" after that session closed
         if reason:
             filtered_reasons[reason] = filtered_reasons.get(reason, 0) + 1
             continue
@@ -3412,6 +3446,63 @@ def counted_energy_incident(headline: str) -> bool:
     return bool(is_energy_supply_headline(headline) and re.search(r'\d+\s*(?:곳|척|명|개|기|건)', headline))
 
 
+RELEASE_COUNTRY_KO = {'us': '미국 ', 'kr': '한국 ', 'jp': '일본 ', 'cn': '중국 ', 'uk': '영국 ', 'eu': '유로존 ', 'ez': '유로존 ',
+                      'de': '독일 ', 'fr': '프랑스 ', 'ca': '캐나다 ', 'au': '호주 '}
+
+
+def release_country_ko(release: dict[str, Any]) -> str:
+    """QA 2026-11-21 N8: "CPI 물가 예상 하회" without a country read as the US release on a Japan CPI day."""
+    return RELEASE_COUNTRY_KO.get(str(release.get('country') or '').lower(), '')
+
+
+WRAP_INTRADAY_PATTERN = re.compile(r'장\s*초반|장중|출발|개장|선물|프리마켓|\bat\s+(?:the\s+)?open\b|\bopening\b|'
+                                   r'\bpremarket\b|\bfutures\b|\bpre-market\b', re.I)
+WRAP_CLOSE_PATTERN = re.compile(r'마감|종가|\bclos(?:e|es|ed|ing)\b|\bends?\b|\bended\b|\bfinish(?:es|ed)?\b', re.I)
+KST_ZONE = timezone(timedelta(hours=9))
+
+
+def stale_wrap_intraday(item: dict[str, Any], group_key: str, now: datetime | None = None) -> bool:
+    """QA 2026-11-21 N5/N11: an open/futures report about a session that already closed is not the latest word.
+    Stale when it was published before the latest close of its market (US 06:00 KST, Korea 15:30 KST) and that close
+    has passed, or (Korea) when it was posted outside 08:30-15:40 KST on a weekday ("20일 장 초반 3.58% 하락" on Saturday)."""
+    headline = f"{item.get('headline') or ''} {item.get('originalHeadline') or ''}"
+    if not WRAP_INTRADAY_PATTERN.search(headline) or WRAP_CLOSE_PATTERN.search(headline):
+        return False
+    if '속보' in headline or MACRO_RELEASE_MENTION_PATTERN.search(headline):
+        return False   # a release or breaking report that moved futures is news in its own right
+    published = parse_utc(item.get('publishedAt'))
+    if published is None:
+        return False
+    now_kst = (now or current_time()).astimezone(KST_ZONE)
+    kst = published.astimezone(KST_ZONE)
+    minutes = kst.hour * 60 + kst.minute
+    close_at = {'issue:kr_market_flow': (15, 30), 'issue:us_index_market_wrap': (6, 0)}.get(group_key)
+    if close_at is None:
+        return False
+    last_close = now_kst.replace(hour=close_at[0], minute=close_at[1], second=0, microsecond=0)
+    if now_kst < last_close:
+        last_close -= timedelta(days=1)
+    if kst < last_close:
+        return True
+    if group_key == 'issue:kr_market_flow':
+        return kst.weekday() >= 5 or not (8 * 60 + 30 <= minutes <= 15 * 60 + 40)
+    return False
+
+
+US_INDEX_NAME_PATTERN = re.compile(r'\b(?:dow|nasdaq|s&p\s*500|wall\s+street)\b|다우|나스닥|뉴욕\s*증시|미국\s*증시|s&p500', re.I)
+KR_INDEX_NAME_PATTERN = re.compile(r'코스피|코스닥|\bkospi\b|\bkosdaq\b', re.I)
+
+
+def stale_index_intraday_key(item: dict[str, Any]) -> str | None:
+    """The wrap key an index open/futures report belongs to, whatever cluster it landed in (QA 2026-11-21 N11)."""
+    headline = f"{item.get('headline') or ''} {item.get('originalHeadline') or ''}"
+    if KR_INDEX_NAME_PATTERN.search(headline):
+        return 'issue:kr_market_flow'
+    if US_INDEX_NAME_PATTERN.search(headline):
+        return 'issue:us_index_market_wrap'
+    return None
+
+
 def market_wrap_representative(reports: list[dict[str, Any]]) -> dict[str, Any]:
     newest = max(reports, key=lambda item: item.get('publishedAt') or '')
     newest_at = parse_utc(newest.get('publishedAt'))
@@ -3456,6 +3547,9 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
             # strongest one represents it: the newest alone was a weak or odd report on 11-18 (KOSPI 0 cards).
             # The tones are ranked by their representative, so a close report is never dropped for an
             # earlier futures preview of another tone (11-18: "다우 1.64%↓" lost to two previews).
+            if group_key in MARKET_WRAP_KEYS:
+                fresh = [item for item in group if not stale_wrap_intraday(item, group_key)]
+                group = fresh or group
             tones = list(dict.fromkeys(item.get('impactTone') for item in group))
             representatives = [market_wrap_representative([item for item in group if item.get('impactTone') == tone])
                                for tone in tones]
