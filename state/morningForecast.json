@@ -41,13 +41,17 @@
     "en": "33 of 44 days",
     "ko": "44일 중 33일"
    },
+   "issuedNote": {
+    "en": "As of Sat morning (weekend news not included)",
+    "ko": "토요일 아침 기준(주말 소식 반영 전)"
+   },
    "openRange": {
     "en": "Likely 0% to −5%",
     "ko": "예상 범위 0 ~ −5%"
    },
    "openRangeNote": {
-    "en": "7 of 10 opens fell inside in the last year",
-    "ko": "최근 1년 10번 중 7번은 이 범위 안"
+    "en": "7 of 10 opens fell inside in the last year · As of Sat morning (weekend news not included)",
+    "ko": "최근 1년 10번 중 7번은 이 범위 안 · 토요일 아침 기준(주말 소식 반영 전)"
    },
    "openStat": {
     "en": "around −2.5%",
@@ -101,7 +105,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-21T02:58:39Z",
+ "generatedAt": "2026-11-21T03:40:57Z",
  "ledger": [
   {
    "actual": {
