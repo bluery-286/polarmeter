@@ -46,8 +46,8 @@
     "ko": "예상 범위 0 ~ −5%"
    },
    "openRangeNote": {
-    "en": "8 of 10 opens fell inside in the last year",
-    "ko": "최근 1년 10번 중 8번은 이 범위 안"
+    "en": "7 of 10 opens fell inside in the last year",
+    "ko": "최근 1년 10번 중 7번은 이 범위 안"
    },
    "openStat": {
     "en": "around −2.5%",
@@ -101,7 +101,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-20T21:57:28Z",
+ "generatedAt": "2026-11-21T02:58:39Z",
  "ledger": [
   {
    "actual": {
