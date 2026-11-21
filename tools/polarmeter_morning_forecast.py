@@ -866,6 +866,28 @@ def range_note_copy(pred: Mapping[str, Any], model: Mapping[str, Any]) -> dict[s
     return {'ko': '과거 10번 중 8번은 이 범위 안', 'en': '8 of 10 past opens fell inside'}
 
 
+WEEKDAY_KO = ('월', '화', '수', '목', '금', '토', '일')
+WEEKDAY_EN = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
+
+
+def issued_note_copy(row: Mapping[str, Any]) -> dict[str, str] | None:
+    """QA 2026-11-21 P1-1: a Monday forecast is issued on Saturday morning and frozen (the issue rule stays). Say so on
+    the card and in the 08:05 push, so two and a half days of weekend news are not read as priced in."""
+    issued = row.get('issuedAt')
+    try:
+        issued_day = datetime.fromisoformat(str(issued).replace('Z', '+00:00')).astimezone(KST).date()
+        target = date.fromisoformat(str(row.get('targetSession')))
+    except (TypeError, ValueError):
+        return None
+    if (target - issued_day).days < 2:
+        return None
+    weekend = issued_day.weekday() >= 5
+    ko_day, en_day = WEEKDAY_KO[issued_day.weekday()], WEEKDAY_EN[issued_day.weekday()]
+    return {'ko': f'{ko_day}요일 아침 기준({"주말" if weekend else "그 뒤"} 소식 반영 전)',
+            'en': f'As of {en_day} morning ({"weekend" if weekend else "later"} news not included)',
+            'shortKo': f'{ko_day}요일 아침 기준', 'shortEn': f'as of {en_day} morning'}
+
+
 def range_copy(pred: Mapping[str, Any]) -> dict[str, str] | None:
     band = pred.get('openBand')
     if not band:
@@ -988,6 +1010,12 @@ def build_copy(row: Mapping[str, Any], today: date, model: Mapping[str, Any]) ->
         if band:
             copy['openRange'] = band
             note = range_note_copy(pred, model)
+            issued_note = issued_note_copy(row)
+            if issued_note:
+                # The installed apps show openRangeNote under the open number, so the note reaches them today.
+                shown = {lang: issued_note[lang] for lang in ('ko', 'en')}
+                copy['issuedNote'] = shown
+                note = {lang: f"{note[lang]} · {shown[lang]}" for lang in ('ko', 'en')} if note else shown
             if note:
                 copy['openRangeNote'] = note
         copy.update(close_copy(row, model))
