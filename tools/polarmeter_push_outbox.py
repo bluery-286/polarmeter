@@ -169,9 +169,15 @@ def morning_copy(current: Mapping[str, Any], scorecard: Any) -> tuple[dict[str, 
         if stat is None:
             return None
         bodies = {}
+        issued = mf.issued_note_copy(current)   # QA 2026-11-21 P1-1: a Saturday forecast says it is Saturday's
         for index, lang in enumerate(LANGS):
             head = f"{lead[lang]}. {'코스피 시가' if lang == 'ko' else 'KOSPI open'} {stat[index]}"
-            candidates = ([f'{head} · {record[index]}'] if record else []) + [head]   # the record is the first thing to drop
+            if issued:
+                # The basis time is not optional: drop the record first, never the note.
+                note = issued['shortKo' if lang == 'ko' else 'shortEn']
+                candidates = ([f'{head} · {note} · {record[index]}'] if record else []) + [f'{head} · {note}']
+            else:
+                candidates = ([f'{head} · {record[index]}'] if record else []) + [head]   # the record is the first thing to drop
             bodies[lang] = fit(candidates, LIMIT_BODY_KO if lang == 'ko' else LIMIT_BODY_EN)
         return (TITLE_MORNING, pair(bodies['ko'], bodies['en'])) if all(bodies.values()) else None
     if call == 'none':

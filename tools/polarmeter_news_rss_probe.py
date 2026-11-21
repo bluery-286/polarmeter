@@ -61,6 +61,7 @@ EXCLUDED_SOURCE_HINTS = [
     # 2026-11-18 quality check: machine-translated digests and crypto/prediction-market outlets
     # took the slots of the KOSPI and Wall Street close reports.
     'vietnam.vn',
+    'laodong',  # QA 2026-11-21 N6: Laodong.vn translation of an Iran oil story was the day's #1 card
     'roundtable.io',
     'mezha',
     '코인리더스',
@@ -965,7 +966,22 @@ def is_local_non_oil_infrastructure(text: str) -> bool:
         r'natural\s+gas|천연가스|전국\s*공급|national\s+supply|wholesale|수출|exports?|'
         r'\b(?:global|international|european)\s+(?:gas|energy|supply)|\bgas\s+(?:prices?|futures?)\b|가스\s*(?:가격|선물)', text, re.I,
     )
-    return bool((local_pipe or water_utility_pipe) and not explicit_market)
+    return bool((local_pipe or water_utility_pipe) and not explicit_market) or local_gas_utility_incident(text)
+
+
+def local_gas_utility_incident(text: str) -> bool:
+    """QA 2026-11-21 N7: "Elizabethtown residents no longer need to conserve natural gas after pipeline
+    damage" is a town's gas service, not an oil supply incident. Residents/customers/conserve/leak/service
+    words with no oil, export or national-market word mark a local utility story."""
+    local = re.search(
+        r'\b(?:residents?|customers?|households?|neighbou?rhoods?|townships?|county|city|village|'
+        r'conserve|gas\s+leaks?|service\s+(?:restored|outage)|boil\s+water)\b|주민|가구|도시가스|가스\s*누출|공급\s*재개',
+        text, re.I)
+    gas_pipe = re.search(r'\b(?:natural\s+)?gas\b.{0,60}\bpipelines?\b|\bpipelines?\b.{0,60}\b(?:natural\s+)?gas\b|가스관', text, re.I)
+    market = re.search(
+        r'원유|송유관|유가|정유|유전|\b(?:oil|crude|refiner\w*|oilfield|lng|exports?|wholesale|prices?|futures?)\b|'
+        r'national\s+supply|전국\s*공급|수출|가스\s*(?:가격|선물)|\b(?:europe|european|global)\b', text, re.I)
+    return bool(local and gas_pipe and not market)
 
 
 def is_energy_supply_headline(text: str) -> bool:
@@ -1364,6 +1380,11 @@ def english_market_context_translation(headline: str) -> str | None:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
     if re.search(r'(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?).{0,24}(yields?|treasury|rates?)|(yields?|treasury|rates?).{0,24}(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?)', lower):
         return '금리 상승은 미국 주식 부담 신호'
+    # QA 2026-11-21: "Fed's Cook says waiting to raise rates risks falling behind the curve" read '물가 부담이 줄었다는
+    # 발언…완화' from the word falling. A Fed official arguing for a hike is a rate burden, whatever else it says.
+    if has_fed and re.search(r'\braise\s+rates?\b|\brate\s+hikes?\b|\bhik(?:e|es|ing)\b|behind\s+the\s+curve|'
+                             r'luxury\s+of\s+waiting|runs?\s+hot|break\s+.{0,20}psychology', lower):
+        return '연준 인사의 금리 인상 필요 발언은 금리 부담 신호'
     if has_inflation and inflation_stress_signal(text) and (positive or has_wall_street):
         return '높은 물가는 미국 지수와 금리 기대의 부담 신호'
     if (
@@ -1497,6 +1518,12 @@ def english_market_context_translation(headline: str) -> str | None:
         subjects.append('VIX')
     if subjects:
         subject = '·'.join(subjects[:3])
+        # QA 2026-11-21: "Nasdaq stock market today: 2026 gains erased as Wall Street warns of further losses" read
+        # '나스닥 상승 흐름은 미국장 완화 신호' on a −5% day. Erased gains are a fall.
+        if re.search(r'\bgains?\s+(?:are\s+|were\s+|have\s+been\s+)?(?:erased|wiped(?:\s+out)?|vanish\w*|evaporat\w*|gone)\b|'
+                     r'\b(?:erase[sd]?|wipe[sd]?\s+out|gives?\s+back|gave\s+back)\s+(?:\w+\s+){0,3}gains?\b', lower):
+            span = '올해' if re.search(r'\b20\d\d\b|\byear\b|\bytd\b|year-to-date', lower) else '장중'
+            return f'{subject} {span} 상승분 반납은 미국장 부담 신호'
         # QA 2026-11-21 N3: "Wall Street Eyes Rebound as … Targets S&P 500 at 8,700" is an outlook, not a rise.
         if re.search(r'could|ahead|forecast|prediction|critical crossroads|signal more losses|\beyes?\b|\beyeing\b|'
                      r'\btargets?\b|\bhopes?\b|\bbets?\b|\bpredicts?\b|\boutlook\b|목표|전망|가능', lower):
@@ -1571,13 +1598,27 @@ def koreanize_english_headline(headline: str) -> str | None:
         facility = '송유관' if re.search(r'pipeline', text, re.I) else '정유시설' if re.search(r'refiner', text, re.I) else '유전' if re.search(r'oilfield', text, re.I) else '원유 공급'
         countries = {'saudi': '사우디', 'libyan': '리비아', 'russian': '러시아', 'iranian': '이란', 'iraqi': '이라크', 'canadian': '캐나다', 'norwegian': '노르웨이'}
         place = next((ko for en, ko in countries.items() if re.search(rf'\b{en}\s+(?:oil\s+)?(?:pipeline|refiner|oilfield)', text, re.I)), '')
+        # QA 2026-11-21 N7: the country is kept wherever it appears ("Attacks Cut Saudi Oil Output and
+        # East-West Pipeline Flow" lost both 사우디 and the reported output cut).
+        country = place or next((ko for en, ko in countries.items() if re.search(rf'\b{en}\b', text, re.I)), '')
         event = '가동 중단 소식' if re.search(r'shutdown|shut\s*down|offline|outage', text, re.I) else '공격 소식' if re.search(r'attack|struck', text, re.I) else '공급 차질 우려'
         if energy_warning_only(text) and event == '가동 중단 소식':
             event = '가동 중단 우려'  # a warning is not an event that happened
+        if facility == '원유 공급' and event == '공격 소식':
+            facility = '원유 운송로' if re.search(r'hormuz', text, re.I) else '원유 시설'  # not "원유 공급 공격"
         subject = identity if identity and any(word in identity for word in ('송유관', '정유시설', '유전')) else f'{identity or place} {facility}'.strip()
         if subject.endswith('원유 공급') and event == '공급 차질 우려':
             subject = subject.removesuffix(' 공급')
-        return f'{subject} {event}…실제 공급·유가 영향 확인'.strip()
+        output_cut = re.search(
+            r'\b(?:cut|cuts|slash\w*|reduc\w*|halv\w*)\s+(?:\w+\s+){0,3}(?:oil\s+)?(?:output|production)\b|'
+            r'\b(?:output|production)\s+(?:cut|falls?|fell|drops?|dropped|plunges?|halved)\b', text, re.I)
+        if output_cut and not energy_warning_only(text):
+            lead = f'{country} 원유 생산 감소' if country and country not in subject else '원유 생산 감소'
+            return f'{lead}·{subject} {event.removesuffix(" 소식")}…유가 반응 확인'.strip()
+        if country and country not in subject:
+            subject = f'{country} {subject}'
+        # The app shortens "…영향 확인" to "…영향", which read as a cut-off sentence on every energy card.
+        return f'{subject} {event}…유가 반응 확인'.strip()
     for pattern, translated in FORCED_ENGLISH_HEADLINE_TRANSLATIONS:
         if pattern.search(text):
             return translated
@@ -2783,7 +2824,7 @@ def categorize(headline: str) -> tuple[str, str, list[str]]:
 CRITICAL_ITEM_LIMIT = 5
 # Machine-translated aggregators and non-market outlets stay eligible but never
 # lead as "critical" market news.
-LOW_TRUST_NEWS_SOURCES = re.compile(r'vietnam\.vn|위키리크스한국|토큰포스트|tokenpost|fakti\.bg', re.I)
+LOW_TRUST_NEWS_SOURCES = re.compile(r'vietnam\.vn|laodong|위키리크스한국|토큰포스트|tokenpost|fakti\.bg', re.I)
 PROMOTIONAL_HEADLINE = re.compile(r'(?:이|이런)\s*(?:AI\s*)?(?:전략|종목)들?은\s*\+?\d|지금\s*사야|추천\s*종목|수익률\s*\+?\d+%\s*달성', re.I)
 MARKET_LINK_TERMS = re.compile(
     r'유가|원유|석유|정유|해협|유조선|송유관|가스|LNG|공급망|증시|주가|코스피|코스닥|나스닥|다우|S&P|지수|환율|달러|원화|'
@@ -3019,12 +3060,18 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 filtered_reasons['TONE_EXPLANATION_CONFLICT'] = filtered_reasons.get('TONE_EXPLANATION_CONFLICT', 0) + 1
                 continue
             display_key = normalized_news_topic_text({'displayHeadline': display_headline or headline, 'headline': ''})
+            display_keys = {display_key}
             if energy_supply_risk(headline):
-                display_key = tanker_incident_key(headline, item.get('publishedAt')) or active_energy_display_key(headline)
-            if display_key in seen_display_headlines:
+                # The incident key separates real updates, but two incident keys that render the very same
+                # template title ("호르무즈 원유 공급 공격 소식…" twice on 11-19) are one card to the reader.
+                display_keys = {tanker_incident_key(headline, item.get('publishedAt')) or active_energy_display_key(headline),
+                                'shown:' + display_key}
+            else:
+                display_keys = {display_key, 'shown:' + display_key}
+            if display_keys & seen_display_headlines:
                 filtered_reasons['DUPLICATE_DISPLAY_HEADLINE'] = filtered_reasons.get('DUPLICATE_DISPLAY_HEADLINE', 0) + 1
                 continue
-            seen_display_headlines.add(display_key)
+            seen_display_headlines.update(display_keys)
             oil_relief_compatibility_title = bool(
                 has_korean(headline)
                 and display_headline
@@ -3277,7 +3324,15 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
         return f'issue:related:ru_ua_ceasefire:update:{digest}'
     release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
     if release and release['country'] and release['month']:
-        return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{release['month']}:{str(item.get('publishedAt') or '')[:10]}:{'denied' if release['deniedComparison'] else release['surprise']}"
+        # QA 2026-11-21 N8/N10: one release is one card group. Splitting by surprise put the same Japan CPI
+        # on the list as both '완화' and '부담'. Core and headline measures, and a denied comparison, stay apart.
+        period = release['month']
+        measure = 'core' if re.search(r'근원|\bcore\b', source_title := str(item.get('originalHeadline') or item.get('headline') or ''), re.I) else 'headline'
+        return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{measure}:{period}{':denied' if release['deniedComparison'] else ''}"
+    family_key = event_family_issue_key(str(item.get('originalHeadline') or item.get('headline') or ''),
+                                        str(item.get('displayHeadline') or ''))
+    if family_key:
+        return family_key
     if re.search(r'호르무즈|\bhormuz\b', source, re.I) and not re.search(r'재개방|reopen', source, re.I) \
             and not counted_energy_incident(source):
         return HORMUZ_SECURITY_KEY
@@ -3287,11 +3342,11 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
         return 'issue:iran_oil_risk'
     if re.search(r'(s&p|s\s*p\s*500|sp500|나스닥|nasdaq|다우|dow|wall street|미국\s*주요\s*지수|뉴욕\s*증시|뉴욕\s*마감|'
                  r'3대\s*지수|美\s*증시|미국\s*증시|미\s*증시|월가|필라델피아\s*반도체)', raw, re.I) \
-            and re.search(r'(선물|futures|상승|하락|약세|강세|반등|급등|급락|rally|slip|edge|higher|lower|mixed|혼조|개장|마감|premarket|살린|살아)', raw, re.I):
+            and re.search(r'(선물|futures|상승|하락|약세|강세|반등|급등|급락|폭락|폭등|추락|최악의\s*(?:한\s*주|하루)|\d%\s*[↓↑]|rally|slip|edge|higher|lower|mixed|혼조|개장|마감|premarket|살린|살아)', raw, re.I):
         return 'issue:us_index_market_wrap'
     if re.search(r'(sk\s*하이닉스|하이닉스|삼성전자|삼성)', raw, re.I) and re.search(r'(시총|1위|대장주|왕좌|반도체\s*랠리)', raw, re.I):
         return 'issue:kr_semiconductor_leadership'
-    if re.search(r'(코스피|코스닥|한국\s*증시|국내\s*증시)', raw, re.I) and re.search(r'(마감|개장|수급|외국인|기관|환율|최고치|숨고르기|급등|급락|폭락|반등|회복|상승|하락|약세|강세|조정|\d[\d,]*선)', raw, re.I):
+    if re.search(r'(코스피|코스닥|한국\s*증시|국내\s*증시)', raw, re.I) and re.search(r'(마감|개장|수급|외국인|기관|환율|최고치|숨고르기|급등|급락|폭락|추락|반등|회복|상승|하락|약세|강세|조정|\d[\d,]*선)', raw, re.I):
         return 'issue:kr_market_flow'
     stop_words = {'기사', '뉴스', '오늘', '관련', '소개한', '집중조명'}
     tokens = [token for token in text.split() if len(token) >= 2 and token not in stop_words]
@@ -3430,7 +3485,68 @@ OIL_PRICE_MOVE_KEY = 'issue:oil_price_move'
 HORMUZ_SECURITY_KEY = 'issue:hormuz_security'
 ONE_PER_TONE_KEYS = MARKET_WRAP_KEYS | {OIL_PRICE_MOVE_KEY}
 # Strikes, seizures and attacks around Hormuz are one running story; two cards keep the newest updates.
+# QA 2026-11-21 N10: one event reached the list 3-4 times because the fallback key hashes each outlet's
+# own title words (한은 인상 4장, 호주 실업률 2장, 가자 3장, 수출 1조 달러 3장). These families get one
+# fixed key each. A rate decision keeps 2 cards (the preview and the decision); the others keep 1, and
+# issue_capped_items always keeps the newest report of the group.
+CENTRAL_BANK_PATTERNS = (
+    ('bok', r'한은|한국은행|금통위|이창용|\bbank\s+of\s+korea\b|\bbok\b'),
+    ('boj', r'일본은행|우에다|\bbank\s+of\s+japan\b|\bboj\b'),
+    ('ecb', r'유럽중앙은행|\becb\b|라가르드|lagarde'),
+    ('rba', r'호주중앙은행|\brba\b|reserve\s+bank\s+of\s+australia'),
+)
+RATE_DECISION_WORDS = re.compile(r'금리|기준금리|인상|인하|동결|\d+\s*bp\b|\brates?\b|\bhike\w*|\bcuts?\b|\bhold\w*', re.I)
+LABOUR_RELEASE_WORDS = re.compile(r'실업률|고용\s*(?:지표|보고서|동향)|취업자|일자리|\bunemployment\b|\bjobless\b|\bpayrolls?\b|\bjobs\s+report\b|\bemployment\b', re.I)
+LABOUR_COUNTRIES = (
+    ('us', r'미국|(?-i:\bU\.?S\.?\b)|\bamerican?\b|nonfarm|비농업'),
+    ('kr', r'한국|국내|통계청|\bkorea\w*'),
+    ('au', r'호주|\baustralia\w*'),
+    ('jp', r'일본|\bjapan\w*'),
+    ('ca', r'캐나다|\bcanad\w*'),
+    ('uk', r'영국|(?-i:\bU\.?K\.?\b)|\bbritain\b|\bbritish\b'),
+)
+EVENT_FAMILY_LIMITS = {'cb': 2, 'labour': 1, 'kr_exports': 1, 'gaza': 1, 'energy': 1}
+
+
+def event_family_issue_key(headline: str, display: str = '') -> str | None:
+    text = f'{headline} {display}'
+    if INDEX_WRAP_SUBJECT_PATTERN.search(text):
+        return None  # an index close that names the event stays in the index wrap groups
+    for bank, pattern in CENTRAL_BANK_PATTERNS:
+        if re.search(pattern, text, re.I) and RATE_DECISION_WORDS.search(text):
+            return f'issue:family:cb:{bank}'
+    if LABOUR_RELEASE_WORDS.search(text):
+        country = next((code for code, pattern in LABOUR_COUNTRIES if re.search(pattern, text, re.I)), '')
+        if country:
+            return f'issue:family:labour:{country}'
+    if re.search(r'수출', text) and re.search(r'\d[\d,.]*\s*조\s*달러|\d[\d,.]*\s*억\s*달러|역대\s*(?:최대|최고)', text) \
+            and not re.search(r'반도체\s*(?:주|株)|코스피|코스닥', text):
+        return 'issue:family:kr_exports'
+    if re.search(r'가자|\bgaza\b|하마스|\bhamas\b', text, re.I):
+        return 'issue:family:gaza'
+    # One energy incident told by several outlets (11-18: 사우디 송유관 3장). Hormuz and counted incidents keep
+    # their own keys; the facility or country names the incident.
+    if energy_supply_risk(headline) and not counted_energy_incident(headline) and not re.search(r'호르무즈|\bhormuz\b', text, re.I):
+        countries = (('sa', r'\bsaudi\w*|사우디|east[- ]west\s+pipeline|동서\s*송유관'), ('ly', r'\blibya\w*|리비아'),
+                     ('ru', r'\brussia\w*|러시아'), ('ir', r'\biran\w*|이란'), ('iq', r'\biraq\w*|이라크'),
+                     ('ca', r'\bcanad\w*|캐나다'), ('no', r'\bnorw\w*|노르웨이'))
+        name = next((code for code, pattern in countries if re.search(pattern, text, re.I)), '') \
+            or energy_event_identity(headline) or 'other'
+        return f'issue:family:energy:{name}'
+    return None
+
+
 ISSUE_LIMITS = {HORMUZ_SECURITY_KEY: 2}
+
+
+def issue_limit(group_key: str, default: int) -> int:
+    if group_key in ISSUE_LIMITS:
+        return ISSUE_LIMITS[group_key]
+    if group_key.startswith('issue:release:'):
+        return 1   # QA 2026-11-21: "일본 10월 CPI 2.2%" and "엔화 상승…CPI 발표로" are one release
+    if group_key.startswith('issue:family:'):
+        return EVENT_FAMILY_LIMITS.get(group_key.split(':')[2], default)
+    return default
 OIL_PRICE_SUBJECT_PATTERN = re.compile(r'국제\s*유가|유가|브렌트|\bwti\b|\b(?:oil|crude)\s+(?:prices?|futures)\b|\bbrent\b', re.I)
 # "유가 급락에 3대 지수 반등" is an index close: the index wrap keys keep it.
 INDEX_WRAP_SUBJECT_PATTERN = re.compile(
@@ -3503,7 +3619,17 @@ def stale_index_intraday_key(item: dict[str, Any]) -> str | None:
     return None
 
 
-def market_wrap_representative(reports: list[dict[str, Any]]) -> dict[str, Any]:
+KR_BRIDGE_PATTERN = re.compile(r'韓|한국\s*(?:증시|증권|주식)|국내\s*증시|코스피|코스닥|\bkospi\b', re.I)
+
+
+def market_wrap_representative(reports: list[dict[str, Any]], group_key: str = '') -> dict[str, Any]:
+    # QA 2026-11-21: with the 11-21 Nasdaq crash reports grouped, "美 나스닥 5%대 하락에…韓 증시 '충격파' 우려"
+    # represented the US close, and the app folded it into the KOSPI card, leaving no US close card. A US close is
+    # represented by a report about the US close when the group has one.
+    if group_key == 'issue:us_index_market_wrap':
+        pure = [item for item in reports
+                if not KR_BRIDGE_PATTERN.search(str(item.get('displayHeadline') or item.get('headline') or ''))]
+        reports = pure or reports
     newest = max(reports, key=lambda item: item.get('publishedAt') or '')
     newest_at = parse_utc(newest.get('publishedAt'))
     if newest_at is None:
@@ -3526,7 +3652,7 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
     for group in groups.values():
         group_key = str(group[0].get('issueClusterKey', ''))
         is_ru_ua_ceasefire = group_key.startswith('issue:related:ru_ua_ceasefire:')
-        group_limit = max(0, min(per_issue_limit, ISSUE_LIMITS.get(group_key, per_issue_limit)))
+        group_limit = max(0, min(per_issue_limit, issue_limit(group_key, per_issue_limit)))
         if is_ru_ua_ceasefire:
             selected = []
             if group_limit:
@@ -3551,7 +3677,7 @@ def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) ->
                 fresh = [item for item in group if not stale_wrap_intraday(item, group_key)]
                 group = fresh or group
             tones = list(dict.fromkeys(item.get('impactTone') for item in group))
-            representatives = [market_wrap_representative([item for item in group if item.get('impactTone') == tone])
+            representatives = [market_wrap_representative([item for item in group if item.get('impactTone') == tone], group_key)
                                for tone in tones]
             representatives.sort(key=lambda item: (float(item.get('marketImpactScore') or 0), item.get('publishedAt') or ''),
                                  reverse=True)
