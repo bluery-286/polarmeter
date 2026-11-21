@@ -41,7 +41,7 @@ def current_row(call: str = 'down', *, target: str = '2026-11-06', state: str = 
     size = open_pct if open_pct is not None else {'down': -3.22, 'up': 3.22, 'none': 0.1}[call]
     strength = 'weak' if call == 'none' else 'strong' if abs(size) >= 1.0 else 'moderate'
     row = {'targetSession': target, 'basisKrSession': '2026-11-05', 'usSessions': ['2026-11-05'], 'origin': origin,
-           'state': state, 'issuedAt': '2026-11-05T21:45:00Z', 'noForecastReason': None,
+           'state': state, 'issuedAt': f'{(date.fromisoformat(target) - timedelta(days=1)).isoformat()}T21:45:00Z',   # the evening before, KST morning 'noForecastReason': None,
            'inputs': {'spyPct': spy, 'soxxPct': soxx, 'ewyPct': -13.46, 'kospiPrevPct': -5.28, 'ewyExcessPct': excess},
            'predicted': {'openPct': size, 'closePct': size * 0.9, 'openBand': [size - 1, size + 1], 'strength': strength,
                          'openCall': call, 'closeCall': call, 'topDriver': 'ewyExcessPct'},
@@ -118,14 +118,15 @@ def check_weekend_and_holiday_send_nothing() -> None:
 
 
 def check_saturday_built_monday() -> None:
-    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert waits for Monday 08:05.
+    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert waits for Monday 08:35
+    # (QA 2026-11-21 P1-1 ②: after US futures have reopened at 08:00 and the 08:25 build has read them).
     block = mfc.run('2026-11-07T07:00:00')
     cur = block['current']
     assert cur['targetSession'] == '2026-11-09' and cur['state'] == 'issued', cur
     snap = {'morningForecast': block}
     item = only(build(snap, '2026-11-07T07:00:00', 'saturday for monday'))
     assert item['id'] == 'kr_forecast:2026-11-09', item['id']
-    assert item['sendAfter'] == '2026-11-08T23:05:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:05 / 08:55
+    assert item['sendAfter'] == '2026-11-08T23:35:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:35 / 08:55
     assert item['open'] == {'screen': 'home', 'focus': 'forecast', 'targetSession': '2026-11-09'}, item['open']
     assert item['title']['ko'] == '꽁치 예보 · 오늘 한국장', item['title']   # sent on Monday, so "today" is right when it lands
     # Sunday night it is still listed, a minute after the window it is not

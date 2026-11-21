@@ -510,7 +510,7 @@ def is_narrow_company_result_noise(text: str) -> bool:
 
 def is_personal_finance_story(text: str) -> bool:
     return re.search(
-        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|\bsvol\b|vix\s+futures\s+curve.{0,64}(?:yield|income)|cut.{0,40}yield\s+in\s+half|은퇴|연금|개인\s*포트폴리오)',
+        r'(retirement|retiree|retirees|bond\s+ladder|cash\s+and\s+bond\s+ladder|portfolio|annuity|social\s+security|roth\s+ira|tax-?free|cap\s+gains|capital\s+gains|income\s+investors|income\s+etf|fang\s+income\s+etf|yield\s+strategy|robinhood\s+traders|piling\s+into|bull\s+run|too\s+good\s+to\s+be\s+true|dividend\s+stocks|lock\s+in\s+(?:yields?|5%)|for\s+your\s+portfolio|underperforming\s+trades|trades\s+could\s+yield\s+big\s+returns|big\s+returns\s+over\s+next\s+six\s+months|boost\s+portfolio|\bsvol\b|vix\s+futures\s+curve.{0,64}(?:yield|income)|cut.{0,40}yield\s+in\s+half|은퇴|연금|개인\s*포트폴리오|예금\s*만기|적금\s*만기|갱신\s*전에|\d0대\s*(?:갱신|가입|예금|적금|노후)|노후\s*자금)',
         text,
         re.I,
     ) is not None
@@ -806,8 +806,13 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
 
 def source_index_direction(text: str) -> str | None:
     subject = r'(shares?|stocks?|markets?|indices|index|s&p\s*500|sp500|nasdaq|dow|kospi|kosdaq|증시|지수|코스피|코스닥|나스닥|다우)'
-    down = r'(decline|declines|declined|fall|falls|falling|drop|drops|slip|slips|lower|tumble|plunge|하락|급락|약세|폭락)'
+    down = (r'(decline|declines|declined|fall|falls|falling|drop|drops|slip|slips|lower|tumble|plunge|하락|급락|약세|폭락|'
+            r'correction\s+territory|bear\s+market|\brout\b|erasedgains|조정\s*국면|상승분\s*(?:전부\s*|전액\s*)?반납)')
     up = r'(rise|rises|rising|gain|gains|higher|climb|climbs|rally|rebound|상승|급등|강세|반등)'
+    # QA 2026-11-22: "wiped out all its year-to-date gains" is a fall; the word "gains" in it is not a rise.
+    text = re.sub(r'\bgains?\s+(?:are\s+|were\s+|have\s+been\s+)?(?:erased|wiped(?:\s+out)?|vanish\w*|evaporat\w*|gone)\b|'
+                  r'\b(?:erase[sd]?|wipe[sd]?\s+out|gives?\s+back|gave\s+back)\s+(?:[\w-]+\s+){0,4}gains?\b', 'erasedgains', text, flags=re.I)
+    text = re.sub(r'상승분\s*(?:전부\s*|전액\s*)?반납', '상승분반납 하락', text)
     if re.search(subject + r'.{0,56}' + down + r'|' + down + r'.{0,56}' + subject, text, re.I):
         return 'negative'
     if re.search(subject + r'.{0,56}' + up + r'|' + up + r'.{0,56}' + subject, text, re.I):
@@ -961,12 +966,15 @@ def is_local_non_oil_infrastructure(text: str) -> bool:
         re.search(r'\b(?:(?:drinking|potable|municipal|tap)[\s-]+water|waste[\s-]*water)\b', text, re.I)
         and re.search(r'\bpipelines?\b', text, re.I)
     )
+    # QA 2026-11-22: "Kalyan-Dombivli Water Crisis: 24-Hour MIDC Shutdown …, Residents Blame Tanker Lobby" read
+    # '원유 공급 가동 중단 소식' from shutdown + tanker. Water tankers and a water cut are a town's water supply.
+    water_supply_story = re.search(r'\bwater\s+(?:crisis|shortages?|supply|cuts?|tankers?|outages?)\b|단수|급수\s*(?:중단|차질)', text, re.I)
     explicit_market = re.search(
         r'원유|송유관|유가|정유|유전|\b(?:oil|crude|refiner\w*|oilfield|lng)\b|'
         r'natural\s+gas|천연가스|전국\s*공급|national\s+supply|wholesale|수출|exports?|'
         r'\b(?:global|international|european)\s+(?:gas|energy|supply)|\bgas\s+(?:prices?|futures?)\b|가스\s*(?:가격|선물)', text, re.I,
     )
-    return bool((local_pipe or water_utility_pipe) and not explicit_market) or local_gas_utility_incident(text)
+    return bool((local_pipe or water_utility_pipe or water_supply_story) and not explicit_market) or local_gas_utility_incident(text)
 
 
 def local_gas_utility_incident(text: str) -> bool:
@@ -1355,6 +1363,16 @@ def english_market_context_translation(headline: str) -> str | None:
     has_chip = re.search(r'nvidia|chipmaker|semiconductor|micron|broadcom|ai stock|ai stocks', lower) is not None
     up_words = r'edge\s+higher|\bhigher\b|\bclimb(?:s|ing)?\b|\brise(?:s|n)?\b|\brising\b|\brall(?:y|ies|ied)\b|\brebound(?:s|ed|ing)?\b|\badvance(?:s|d)?\b|\bjump(?:s|ed)?\b|\bsurge(?:s|d)?\b|\bgain(?:s|ed)?\b'
     down_words = r'\bslide(?:s|d|ing)?\b|\bslip(?:s|ped|ping)?\b|\bdip(?:s|ped|ping)?\b|\bdrop(?:s|ped|ping)?\b|\bfall(?:s|ing)?\b|\bfell\b|\blower\b|\bsell-?off\b|\bplunge(?:s|d)?\b|\bslump(?:s|ed)?\b|melt\s*down|meltdown|pull\s*back|pullback|risk-?off|\blost\b|\bdecline(?:s|d)?\b|\btumble(?:s|d)?\b|\bweaken(?:s|ed)?\b|\bcrash(?:es|ed)?\b|\bdrown(?:s|ed|ing)?\b|\bsink(?:s|ing)?\b|\bsank\b'
+    # QA 2026-11-22: "ended … in correction territory" and "AI Rout Deepens" are falls; "Locks In Gains on Nvidia …
+    # Puts" is a short seller's profit, not stocks gaining. Mask the profit-taking words before reading a direction.
+    down_words += r'|correction\s+territory|bear\s+market|\brout\b|\bwiped?\s+out\b|\bwipes\s+out\b'
+    erased_pattern = (r'\bgains?\s+(?:are\s+|were\s+|have\s+been\s+)?(?:erased|wiped(?:\s+out)?|vanish\w*|evaporat\w*|gone)\b|'
+                      r'\b(?:erase[sd]?|wipe[sd]?\s+out|gives?\s+back|gave\s+back)\s+(?:[\w-]+\s+){0,4}gains?\b')
+    erased_gains = re.search(erased_pattern, lower) is not None
+    lower = re.sub(erased_pattern, 'erasedgains', lower)   # erased gains are a fall, never the word "gains"
+    down_words += r'|erasedgains'
+    lower = re.sub(r'\b(?:locks?|locked|locking)\s+in\s+(?:\w+\s+){0,2}(?:gains?|profits?)\b|\btak(?:e|es|ing)\s+profits?\b|profit[-\s]taking',
+                   'profit lock', lower)
     positive = re.search(up_words, lower, re.I) is not None
     negative = re.search(down_words, lower, re.I) is not None
     equity_subject = r'(s&p\s*500|sp500|nasdaq|dow|dow jones|wall street|stocks?|futures?|chipmakers?|semiconductors?|micron|intel|amd|nvidia)'
@@ -1378,6 +1396,14 @@ def english_market_context_translation(headline: str) -> str | None:
         return '연준 신호에 금·은 가격 약세, 안전자산 수요 약화'
     if re.search(r'bond\s+yields?.{0,24}falling|yields?.{0,24}falling', lower) and has_inflation:
         return '물가 반등은 금리가 오래 높게 남을 수 있다는 부담'
+    # QA 2026-11-22: "Fed minutes: Higher interest rates needed in December as inflation worries mount" became the
+    # vague '금리 상승은 미국 주식 부담 신호'. Minutes that call for higher rates say so, with the month when named.
+    if re.search(r'\b(?:fed|fomc)\s+minutes?\b', lower) and re.search(
+            r'higher\s+(?:interest\s+)?rates?\s+(?:are\s+|were\s+)?(?:needed|warranted|likely)|(?:further|more|additional)\s+(?:rate\s+)?(?:hikes?|increases?)|raise\s+rates?|\bhikes?\b', lower):
+        month = next((ko for en, ko in (('january', '1월'), ('february', '2월'), ('march', '3월'), ('april', '4월'), ('may', '5월'),
+                                         ('june', '6월'), ('july', '7월'), ('september', '9월'), ('october', '10월'),
+                                         ('november', '11월'), ('december', '12월')) if re.search(rf'\b{en}\b', lower)), '')
+        return f'연준 의사록, {month + " " if month else "추가 "}금리 인상 필요 의견…금리 부담 신호'
     if re.search(r'(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?).{0,24}(yields?|treasury|rates?)|(yields?|treasury|rates?).{0,24}(rising|higher|jump(?:s|ed|ing)?|surge(?:s|d|ing)?)', lower):
         return '금리 상승은 미국 주식 부담 신호'
     # QA 2026-11-21: "Fed's Cook says waiting to raise rates risks falling behind the curve" read '물가 부담이 줄었다는
@@ -1476,10 +1502,13 @@ def english_market_context_translation(headline: str) -> str | None:
         return '중동 긴장은 유가와 시장 불안을 키울 수 있음'
     if has_oil_geo:
         return '중동 긴장은 유가와 대표 지수 반응 확인'
-    if has_inflation and re.search(r'watch(?:ing)?|this\s+week|week\s+ahead|ahead\s+of|preview|calendar', lower):
+    if has_inflation and re.search(r'usd/jpy|\byen\b', lower) and re.search(r'forecast|outlook|key\s+levels?|preview|ahead', lower):
+        return '미국 물가·일본은행 일정 앞둔 달러·엔 환율 전망'  # QA 2026-11-22: a currency outlook, not a result
+    if has_inflation and re.search(r'watch(?:ing)?|this\s+week|week\s+ahead|ahead\s+of|preview|calendar|forecast|outlook|key\s+levels?', lower):
         return '이번 주 미국 물가 발표 앞두고 금리 반응 확인'  # a schedule preview, not a result
     if has_inflation:
-        return '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
+        # QA 2026-11-22: '미국 물가 지표는 금리 부담을 키울 수 있는 신호' said nothing the title said. No result, no card.
+        return None
     if has_dollar and has_fed:
         return '연준·금리 신호는 달러와 환율 부담을 바꿀 수 있음'
     if has_futures and positive and re.search(r'fed\s*minutes?|fomc\s*minutes?', lower, re.I) and re.search(r'earnings?\s+loom|earnings?', lower, re.I):
@@ -1520,8 +1549,32 @@ def english_market_context_translation(headline: str) -> str | None:
         subject = '·'.join(subjects[:3])
         # QA 2026-11-21: "Nasdaq stock market today: 2026 gains erased as Wall Street warns of further losses" read
         # '나스닥 상승 흐름은 미국장 완화 신호' on a −5% day. Erased gains are a fall.
-        if re.search(r'\bgains?\s+(?:are\s+|were\s+|have\s+been\s+)?(?:erased|wiped(?:\s+out)?|vanish\w*|evaporat\w*|gone)\b|'
-                     r'\b(?:erase[sd]?|wipe[sd]?\s+out|gives?\s+back|gave\s+back)\s+(?:\w+\s+){0,3}gains?\b', lower):
+        # QA 2026-11-22: the app rebuilds a "…신호" template title from the English source (and read this one as a
+        # rise on 1.0.27), but keeps a plain fact title. A correction or erased gains is said as the fact.
+        source_lower = text.lower()
+        index_name = (('s&p', 'S&P500'), ('sp500', 'S&P500'), ('nasdaq', '나스닥'), ('dow', '다우'))
+        def clause_names(clause: str) -> list[str]:
+            return list(dict.fromkeys(ko for en, ko in index_name if en in clause))
+        clauses = re.split(r',|;|\bwhile\b|\bas\b|\bbut\b|…', source_lower)
+        corr_clause = next((c for c in clauses if re.search(r'correction|bear\s+market', c)), '')
+        if corr_clause and not equity_positive:
+            state = '약세장 진입' if 'bear' in corr_clause else '조정 국면 진입'
+            in_corr = clause_names(corr_clause) or subjects
+            title = f"{'·'.join(in_corr)} {state}"
+            for clause in clauses:
+                others = [name for name in clause_names(clause) if name not in in_corr]
+                if not others or clause == corr_clause:
+                    continue
+                who = '·'.join(others)
+                if re.search(erased_pattern, clause) or 'erasedgains' in clause:
+                    span = '올해' if re.search(r'\b20\d\d\b|\byear\b|\bytd\b|year-to-date', clause) else '장중'
+                    return f'{title}, {who} {span} 상승분 반납'
+                worst = re.search(r'worst\s+(week|day|month)\s+since\s+(\d{4})', clause)
+                if worst:
+                    unit = {'week': '한 주', 'day': '하루', 'month': '한 달'}[worst[1]]
+                    return f'{title}, {who} {worst[2]}년 이후 최악의 {unit}'
+            return title
+        if erased_gains:
             span = '올해' if re.search(r'\b20\d\d\b|\byear\b|\bytd\b|year-to-date', lower) else '장중'
             return f'{subject} {span} 상승분 반납은 미국장 부담 신호'
         # QA 2026-11-21 N3: "Wall Street Eyes Rebound as … Targets S&P 500 at 8,700" is an outlook, not a rise.
@@ -1595,6 +1648,18 @@ def koreanize_english_headline(headline: str) -> str | None:
             return f'{identity or "원유"} 선적 재개 소식…공급량과 남은 차질 확인'
         return f'{identity or "에너지 시설"} 복구 소식…실제 공급 회복 범위 확인'
     if energy_supply_risk(text):
+        # QA 2026-11-22: "Oil Set for Weekly Gains After US Threatens Indefinite Blockade of Iran" became the empty
+        # '원유 공급 차질 우려…유가 반응 확인'. A blockade threat names who threatens whom, and the reported oil move.
+        if re.search(r'\bblockades?\b', text, re.I) and re.search(r'\biran\w*\b', text, re.I):
+            who = '미국의 ' if re.search(r'\bus\b|\bu\.s\.|\btrump\b|\bwashington\b', text, re.I) else ''
+            if re.search(r'\bconvoy\b|\btest\w*\b|\brun\w*\s+the\b|\bbreak\w*\b', text, re.I):
+                # "Iran Is Preparing Oil Convoy to Test U.S. Blockade": Iran acts against the blockade, not under it
+                return f'이란, {who}봉쇄 시험할 원유 수송 준비 보도…유가 반응 확인'
+            move = ('유가 주간 상승 흐름' if re.search(r'weekly\s+gains?|week(?:ly)?\s+(?:rise|advance)', text, re.I)
+                    else '유가 상승' if re.search(r'\b(?:oil|crude)\b.{0,30}\b(?:rise|rises|rose|gain|gains|jump\w*|climb\w*|higher|surge\w*)\b', text, re.I)
+                    else '유가 반응 확인')
+            threat = '봉쇄 위협' if re.search(r'threat\w*|warn\w*', text, re.I) else '봉쇄'
+            return f'{who}이란 {threat}에 {move}'
         facility = '송유관' if re.search(r'pipeline', text, re.I) else '정유시설' if re.search(r'refiner', text, re.I) else '유전' if re.search(r'oilfield', text, re.I) else '원유 공급'
         countries = {'saudi': '사우디', 'libyan': '리비아', 'russian': '러시아', 'iranian': '이란', 'iraqi': '이라크', 'canadian': '캐나다', 'norwegian': '노르웨이'}
         place = next((ko for en, ko in countries.items() if re.search(rf'\b{en}\s+(?:oil\s+)?(?:pipeline|refiner|oilfield)', text, re.I)), '')
@@ -2997,6 +3062,12 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if not has_korean(headline) and not translated_headline:
                 filtered_reasons['UNTRANSLATED_ENGLISH_HEADLINE'] = filtered_reasons.get('UNTRANSLATED_ENGLISH_HEADLINE', 0) + 1
                 continue
+            if not has_korean(headline) and ERASED_GAINS_SOURCE.search(headline) and not re.search(r'correction|bear\s+market', headline, re.I):
+                # QA 2026-11-22: app 1.0.27 rebuilds the title of an English card from the source and reads the "gains"
+                # in "2026 gains erased" as a rise (card shown as 좋음 on a −5% day), whatever the server title says.
+                # Korean reports of the same close carry the fact. Lift once 1.0.28 (newsSemanticDirection fix) is out.
+                filtered_reasons['ERASED_GAINS_ENGLISH_APP_MISREAD'] = filtered_reasons.get('ERASED_GAINS_ENGLISH_APP_MISREAD', 0) + 1
+                continue
             translated_from_english = bool(translated_headline and not has_korean(headline))
             mixed_company_signal = broad_index_up_company_mixed_signal(headline) or broad_index_up_company_mixed_signal(display_headline or headline)
             final_impact_tone = 'neutral' if mixed_company_signal else market_burden_tone(headline, relevance['impactTone'])
@@ -3294,6 +3365,13 @@ def normalized_news_topic_text(item: dict[str, Any]) -> str:
     return re.sub(r'\s+', ' ', text).strip()
 
 
+ERASED_GAINS_SOURCE = re.compile(
+    r'\bgains?\s+(?:are\s+|were\s+|have\s+been\s+)?(?:erased|wiped(?:\s+out)?|vanish\w*|evaporat\w*|gone)\b|'
+    r'\b(?:erase[sd]?|wipe[sd]?\s+out|gives?\s+back|gave\s+back)\s+(?:[\w-]+\s+){0,4}gains?\b', re.I)
+NOMONTH_SUFFIX = 'nomonth'
+RELEASE_PREVIEW_PATTERN = re.compile(r'앞두고|앞둔|발표\s*예정|주목|촉각|관심|대기|경계|\bahead\b|preview|\bdue\b|week\s+ahead|expected\s+to', re.I)
+
+
 def issue_cluster_key(item: dict[str, Any]) -> str:
     # These are topic groups, NOT proof that casualties or facilities are the
     # same. Keep material updates and originals in relatedReports below.
@@ -3323,12 +3401,19 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
         digest = hashlib.sha256(title.encode('utf-8')).hexdigest()
         return f'issue:related:ru_ua_ceasefire:update:{digest}'
     release = inflation_release(str(item.get('originalHeadline') or item.get('headline') or ''))
-    if release and release['country'] and release['month']:
+    if release and release['country'] and release['month'] and not WEEK_AHEAD_PATTERN.search(source_text := str(item.get('originalHeadline') or item.get('headline') or '')) \
+            and not re.search(r'\d\s*월\s*\d\s*주', source_text):
         # QA 2026-11-21 N8/N10: one release is one card group. Splitting by surprise put the same Japan CPI
         # on the list as both '완화' and '부담'. Core and headline measures, and a denied comparison, stay apart.
         period = release['month']
         measure = 'core' if re.search(r'근원|\bcore\b', source_title := str(item.get('originalHeadline') or item.get('headline') or ''), re.I) else 'headline'
         return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{measure}:{period}{':denied' if release['deniedComparison'] else ''}"
+    if release and release['country'] and not release['deniedComparison'] and re.search(r'\d+(?:\.\d+)?\s*%', source) \
+            and not RELEASE_PREVIEW_PATTERN.search(source):
+        # QA 2026-11-22: "일본 CPI 3.1%…12월 인상 가능성" names no release month. A reported figure is a result: it joins
+        # the one dated release of that country and measure in the same list (issue_capped_items), else stands alone.
+        measure = 'core' if re.search(r'근원|\bcore\b', source, re.I) else 'headline'
+        return f"issue:release:{release['family']}:{release['country']}:{release['metric']}:{measure}:{NOMONTH_SUFFIX}"
     family_key = event_family_issue_key(str(item.get('originalHeadline') or item.get('headline') or ''),
                                         str(item.get('displayHeadline') or ''))
     if family_key:
@@ -3342,7 +3427,7 @@ def issue_cluster_key(item: dict[str, Any]) -> str:
         return 'issue:iran_oil_risk'
     if re.search(r'(s&p|s\s*p\s*500|sp500|나스닥|nasdaq|다우|dow|wall street|미국\s*주요\s*지수|뉴욕\s*증시|뉴욕\s*마감|'
                  r'3대\s*지수|美\s*증시|미국\s*증시|미\s*증시|월가|필라델피아\s*반도체)', raw, re.I) \
-            and re.search(r'(선물|futures|상승|하락|약세|강세|반등|급등|급락|폭락|폭등|추락|최악의\s*(?:한\s*주|하루)|\d%\s*[↓↑]|rally|slip|edge|higher|lower|mixed|혼조|개장|마감|premarket|살린|살아)', raw, re.I):
+            and re.search(r'(선물|futures|상승|하락|약세|강세|반등|급등|급락|폭락|폭등|추락|조정\s*국면|상승분\s*(?:전부\s*|전액\s*)?반납|correction|최악의\s*(?:한\s*주|하루)|\d%\s*[↓↑]|rally|slip|edge|higher|lower|mixed|혼조|개장|마감|premarket|살린|살아)', raw, re.I):
         return 'issue:us_index_market_wrap'
     if re.search(r'(sk\s*하이닉스|하이닉스|삼성전자|삼성)', raw, re.I) and re.search(r'(시총|1위|대장주|왕좌|반도체\s*랠리)', raw, re.I):
         return 'issue:kr_semiconductor_leadership'
@@ -3505,11 +3590,17 @@ LABOUR_COUNTRIES = (
     ('ca', r'캐나다|\bcanad\w*'),
     ('uk', r'영국|(?-i:\bU\.?K\.?\b)|\bbritain\b|\bbritish\b'),
 )
-EVENT_FAMILY_LIMITS = {'cb': 2, 'labour': 1, 'kr_exports': 1, 'gaza': 1, 'energy': 1}
+EVENT_FAMILY_LIMITS = {'cb': 2, 'labour': 1, 'kr_exports': 1, 'gaza': 1, 'energy': 1, 'week_ahead': 2, 'chip_export_rules': 1}
+WEEK_AHEAD_PATTERN = re.compile(r'다음\s*주|내주|\d{1,2}\s*월\s*\d\s*주\s*(?:차\s*)?(?:글로벌\s*)?(?:증시\s*)?(?:캘린더|일정|전망|경제)|'
+                                r'\[\s*n\s*위크\s*\]|캘린더|핫\s*이슈|주간\s*(?:전망|일정|경제)|\bweek\s+ahead\b|\bnext\s+week\b|\bthis\s+week\b', re.I)
 
 
 def event_family_issue_key(headline: str, display: str = '') -> str | None:
     text = f'{headline} {display}'
+    # QA 2026-11-22: six cards were one "next week's calendar" (다음주 경제·내주 핫이슈·11월4주 캘린더·다음주 코스피·
+    # Week Ahead…). A schedule preview is one group whatever event it names first; a reported result never matches.
+    if WEEK_AHEAD_PATTERN.search(text) and not re.search(r'마감|급락|급등|폭락|\bclosed?\b', headline):
+        return 'issue:family:week_ahead:all'
     if INDEX_WRAP_SUBJECT_PATTERN.search(text):
         return None  # an index close that names the event stays in the index wrap groups
     for bank, pattern in CENTRAL_BANK_PATTERNS:
@@ -3524,6 +3615,10 @@ def event_family_issue_key(headline: str, display: str = '') -> str | None:
         return 'issue:family:kr_exports'
     if re.search(r'가자|\bgaza\b|하마스|\bhamas\b', text, re.I):
         return 'issue:family:gaza'
+    # QA 2026-11-22: "美 반도체 수출규제 전면 확대…삼성" and "젠슨황發 美반도체 수출 규제에 삼성·TSCM도 부담" are one rule.
+    if re.search(r'수출\s*(?:규제|통제)|\bexport\s+(?:controls?|curbs?|restrictions?|ban)\b', text, re.I) \
+            and re.search(r'반도체|ai\s*칩|칩|\bchips?\b|semiconductor|nvidia|엔비디아', text, re.I):
+        return 'issue:family:chip_export_rules'
     # One energy incident told by several outlets (11-18: 사우디 송유관 3장). Hormuz and counted incidents keep
     # their own keys; the facility or country names the incident.
     if energy_supply_risk(headline) and not counted_energy_incident(headline) and not re.search(r'호르무즈|\bhormuz\b', text, re.I):
@@ -3642,10 +3737,22 @@ def market_wrap_representative(reports: list[dict[str, Any]], group_key: str = '
     return max(recent, key=lambda item: (float(item.get('marketImpactScore') or 0), item.get('publishedAt') or ''))
 
 
+def join_undated_releases(keys: list[str]) -> list[str]:
+    """An undated release report joins the single dated release of the same country and measure in the list."""
+    out = []
+    for key in keys:
+        if key.endswith(':' + NOMONTH_SUFFIX):
+            prefix = key[:-len(NOMONTH_SUFFIX)]
+            dated = {other for other in keys if other.startswith(prefix) and not other.endswith(NOMONTH_SUFFIX)
+                     and not other.endswith(':denied')}
+            key = dated.pop() if len(dated) == 1 else key
+        out.append(key)
+    return out
+
+
 def issue_capped_items(items: list[dict[str, Any]], per_issue_limit: int = 3) -> list[dict[str, Any]]:
     groups: dict[str, list[dict[str, Any]]] = {}
-    for item in items:
-        key = issue_cluster_key(item)
+    for item, key in zip(items, join_undated_releases([issue_cluster_key(item) for item in items])):
         item['issueClusterKey'] = key
         groups.setdefault(key, []).append(item)
     selected_ids: set[int] = set()
