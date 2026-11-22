@@ -22,7 +22,7 @@ body may hold more than one sentence, so the digit rule applies to the body as a
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Mapping
 
 import polarmeter_coach_brief as cb
@@ -39,14 +39,16 @@ MAX_ITEMS = 4
 
 SEND_TIME_KST = time(8, 5)         # the morning forecast goes out at 08:05 on a trading day (08:00 is the edge of the night-time limit)
 MORNING_EXPIRE_KST = time(8, 55)   # after 08:55 a "forecast" is not sent any more
-# QA 2026-11-21 P1-1 ②: a forecast issued two or more days before (Saturday for Monday) waits until US futures have
-# traded for a while after their Monday 08:00 KST reopen. The 08:25 KST build reads them (FUTURES_CHECK_FROM_KST); if
-# that build does not run, the Saturday item still goes out at 08:35 with its "토요일 아침 기준" note.
-WEEKEND_SEND_TIME_KST = time(8, 35)
-FUTURES_CHECK_FROM_KST = time(8, 15)
-FUTURES_OPPOSITE_PCT = 0.5          # S&P futures this far against the call since the last US close is said in the push
+# 형 2026-11-23 "앞당기자": every morning forecast, Monday's too, goes out at 08:05 (no longer 08:35 on Monday). A forecast
+# issued two or more days before (Saturday for Monday) carries `futuresCheck`: the S&P futures (ES=F) price at the last US
+# close and two ready-made bodies. The sender Worker reads ES=F once when it sends (after the weekend reopen) and picks the
+# body that says how far futures moved against or with the call; any doubt and it sends the plain body. Weekday forecasts
+# carry none: futures pause 07:00-08:00 KST, so between the 06:50 forecast and 08:05 there is next to nothing to add.
+FUTURES_SAY_PCT = 0.5               # S&P futures this far from the last US close are said in the push
 FUTURES_BAR_SECONDS = 900
-FUTURES_MAX_AGE_SECONDS = 1800
+FUTURES_SYMBOL = 'ES=F'
+FUTURES_PCT_PLACEHOLDER = '{pct}'
+FUTURES_WIDEST_PCT = '+7.9%'        # the longest number the Worker can put in (it drops moves of 8% or more)
 RESULT_EXPIRE_KST = time(18, 0)    # a scored result is dropped at 18:00
 
 LIMIT_TITLE_KO = 20
@@ -162,18 +164,16 @@ def fit(texts: list[str], limit: int) -> str | None:
 
 # ---------------------------------------------------------------- copy (SPEC §13.4)
 
-def futures_clause(call: str, move: float | None) -> dict[str, str] | None:
-    """When weekend futures moved against the call: '미국 선물은 반대로 +0.6%'."""
-    if move is None or call not in ('down', 'up'):
-        return None
-    if (call == 'down' and move < FUTURES_OPPOSITE_PCT) or (call == 'up' and move > -FUTURES_OPPOSITE_PCT):
-        return None
-    shown = mf.fmt_pct(move, 1, True)
-    return {'ko': f'미국 선물은 반대로 {shown}', 'en': f'US futures since moved {shown}'}
+FUTURES_CLAUSES = {
+    'against': {'ko': '미국 선물은 반대로 {pct}', 'en': 'US futures since moved {pct}'},
+    'same': {'ko': '미국 선물도 같은 방향 {pct}', 'en': 'US futures agree, {pct}'},
+}
 
 
 def morning_copy(current: Mapping[str, Any], scorecard: Any,
-                 futures_move: float | None = None) -> tuple[dict[str, str], dict[str, str]] | None:
+                 clause: Mapping[str, str] | None = None) -> tuple[dict[str, str], dict[str, str]] | None:
+    """Title and body. `clause` (a FUTURES_CLAUSES entry, for a weekend-issued call day only) builds the body the Worker
+    may send instead, with '{pct}' left in it; its length is checked with the widest number put in."""
     pred, copy = current.get('predicted'), current.get('copy')
     if not isinstance(pred, Mapping) or not isinstance(copy, Mapping):
         return None
@@ -189,19 +189,21 @@ def morning_copy(current: Mapping[str, Any], scorecard: Any,
             return None
         bodies = {}
         issued = mf.issued_note_copy(current)   # QA 2026-11-21 P1-1: a Saturday forecast says it is Saturday's
-        against = futures_clause(call, futures_move) if issued else None
+        extra = clause if issued else None
         for index, lang in enumerate(LANGS):
             head = f"{lead[lang]}. {'코스피 시가' if lang == 'ko' else 'KOSPI open'} {stat[index]}"
             if issued:
                 # The basis time is not optional: drop the record first, never the note.
                 note = issued['shortKo' if lang == 'ko' else 'shortEn']
                 candidates = ([f'{head} · {note} · {record[index]}'] if record else []) + [f'{head} · {note}']
-                if against:
-                    # Futures against the call come before everything else that may be dropped, the note included.
-                    candidates = [f'{head} · {note} · {against[lang]}', f'{head} · {against[lang]}']
+                if extra:
+                    # The futures line comes before everything else that may be dropped, the note included.
+                    candidates = [f'{head} · {note} · {extra[lang]}', f'{head} · {extra[lang]}']
             else:
                 candidates = ([f'{head} · {record[index]}'] if record else []) + [head]   # the record is the first thing to drop
-            bodies[lang] = fit(candidates, LIMIT_BODY_KO if lang == 'ko' else LIMIT_BODY_EN)
+            limit = LIMIT_BODY_KO if lang == 'ko' else LIMIT_BODY_EN
+            bodies[lang] = next((text for text in candidates
+                                 if len(text.replace(FUTURES_PCT_PLACEHOLDER, FUTURES_WIDEST_PCT)) <= limit), None)
         return (TITLE_MORNING, pair(bodies['ko'], bodies['en'])) if all(bodies.values()) else None
     if call == 'none':
         chips = copy.get('chips')
@@ -263,24 +265,43 @@ def bar_price_at(bars: list[tuple[int, float]], end_by: float, max_age: float) -
     return best if best and end_by - best[0] <= max_age else None
 
 
-def weekend_futures_move(day: date, now: datetime, fetch: Any) -> float | None:
-    """S&P futures (ES=F) % move from the last US close before `day` to `now`, only after the Monday reopen. Never raises."""
+def weekend_futures_base(day: date, now: datetime, fetch: Any) -> tuple[float, datetime] | None:
+    """(ES=F price at the last US close before `day`, that close time), once that close has passed. Never raises."""
     try:
-        if fetch is None or now < kst_moment(day, FUTURES_CHECK_FROM_KST):
+        if fetch is None:
             return None
-        prev = eb.us_day_before(day)
-        base_at = eb.close_at(prev)
+        base_at = eb.close_at(eb.us_day_before(day))
+        if now < base_at + timedelta(minutes=30):
+            return None
         url = eb.YAHOO_URL.format(symbol='ES%3DF', range='5d', interval='15m')
         bars = eb.hourly_bars(fetch(url))   # same Yahoo chart shape; the bar length is ours to read
         base = bar_price_at(bars, base_at.timestamp(), 2 * 3600)
-        latest = bar_price_at(bars, now.timestamp(), FUTURES_MAX_AGE_SECONDS)
-        # the latest bar must be after the weekend reopen, not Friday's last bar
-        if not base or not latest or latest[0] < base_at.timestamp() + 24 * 3600 or base[1] <= 0:
-            return None
-        move = (latest[1] / base[1] - 1) * 100
-        return move if abs(move) < eb.SUSPECT_ABS_PCT else None
+        return (base[1], base_at) if base and base[1] > 0 else None
     except Exception:  # a missing quote never stops the push
         return None
+
+
+def futures_check(current: Mapping[str, Any], scorecard: Any, base: tuple[float, datetime] | None) -> dict[str, Any] | None:
+    """What the Worker needs to say the weekend futures move at send time, or None (then it sends the plain body)."""
+    call = (current.get('predicted') or {}).get('openCall')
+    if base is None or call not in ('down', 'up'):
+        return None
+    bodies = {}
+    for name, clause in FUTURES_CLAUSES.items():
+        texts = morning_copy(current, scorecard, clause)
+        if texts is None:
+            return None
+        body = texts[1]
+        widest = {lang: body[lang].replace(FUTURES_PCT_PLACEHOLDER, FUTURES_WIDEST_PCT) for lang in LANGS}
+        if any(body[lang].count(FUTURES_PCT_PLACEHOLDER) != 1 for lang in LANGS) \
+                or item_problems({'title': texts[0], 'body': widest}):
+            return None
+        bodies[name] = body
+    price, base_at = base
+    return {'symbol': FUTURES_SYMBOL, 'basePrice': round(price, 2), 'baseAt': mf.iso_utc(base_at),
+            # the latest futures quote must be from after the weekend reopen, not Friday's last bar
+            'freshAfter': mf.iso_utc(base_at + timedelta(hours=24)),
+            'call': call, 'sayPct': FUTURES_SAY_PCT, 'maxAbsPct': eb.SUSPECT_ABS_PCT, **bodies}
 
 
 def morning_item(current: Mapping[str, Any], scorecard: Any, now: datetime, fetch: Any = None) -> dict[str, Any] | None:
@@ -290,19 +311,22 @@ def morning_item(current: Mapping[str, Any], scorecard: Any, now: datetime, fetc
     if day is None:
         return None
     weekend_issue = mf.issued_note_copy(current) is not None
-    send_after = kst_moment(day, WEEKEND_SEND_TIME_KST if weekend_issue else SEND_TIME_KST)
+    send_after = kst_moment(day, SEND_TIME_KST)
     expire_at = kst_moment(day, MORNING_EXPIRE_KST)
     if now >= expire_at:
         return None
-    move = weekend_futures_move(day, now, fetch) if weekend_issue else None
-    texts = morning_copy(current, scorecard, move)
+    texts = morning_copy(current, scorecard)
     if texts is None:
         return None
     has_call = current['predicted']['openCall'] in ('down', 'up')
-    return {'id': f'kr_forecast:{day.isoformat()}', 'kind': 'kr_forecast', 'hasCall': has_call,
+    check = futures_check(current, scorecard, weekend_futures_base(day, now, fetch)) if weekend_issue and has_call else None
+    item = {'id': f'kr_forecast:{day.isoformat()}', 'kind': 'kr_forecast', 'hasCall': has_call,
             'topics': morning_topics(has_call), 'sendAfter': mf.iso_utc(send_after), 'expireAt': mf.iso_utc(expire_at),
             'title': texts[0], 'body': texts[1],
             'open': {'screen': 'home', 'focus': 'forecast', 'targetSession': day.isoformat()}}
+    if check is not None:
+        item['futuresCheck'] = check
+    return item
 
 
 def result_item(current: Mapping[str, Any], scorecard: Any, now: datetime) -> dict[str, Any] | None:
@@ -513,3 +537,18 @@ def assert_public_push_outbox(block: Any) -> None:
         opened = item.get('open')
         assert isinstance(opened, dict) and opened.get('screen') == 'home' and opened.get('focus') in ('forecast', 'scorecard', 'evening') \
             and opened.get('targetSession') == match.group(2), 'pushOutbox open'
+        check = item.get('futuresCheck')
+        if check is not None:
+            assert item['kind'] == 'kr_forecast' and item['hasCall'], 'futuresCheck is for a call-day forecast only'
+            assert isinstance(check, dict) and check.get('symbol') == FUTURES_SYMBOL and check.get('call') in ('down', 'up'), \
+                'pushOutbox futuresCheck symbol/call'
+            assert isinstance(check.get('basePrice'), (int, float)) and check['basePrice'] > 0, 'pushOutbox futuresCheck basePrice'
+            assert all(isinstance(check.get(k), str) and ISO_PATTERN.match(check[k]) for k in ('baseAt', 'freshAfter')), \
+                'pushOutbox futuresCheck times'
+            assert isinstance(check.get('sayPct'), (int, float)) and isinstance(check.get('maxAbsPct'), (int, float)), \
+                'pushOutbox futuresCheck thresholds'
+            for name in FUTURES_CLAUSES:
+                node = check.get(name)
+                assert isinstance(node, dict) and all(isinstance(node.get(lang), str)
+                                                      and node[lang].count(FUTURES_PCT_PLACEHOLDER) == 1 for lang in LANGS), \
+                    f'pushOutbox futuresCheck {name}'
