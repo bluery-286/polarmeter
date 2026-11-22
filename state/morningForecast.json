@@ -67,8 +67,8 @@
     "ko": "급락 출발 뒤 장중 반등은 과거 45%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
    },
    "title": {
-    "en": "Monday: Korea looks set to open sharply lower",
-    "ko": "월요일 한국장, 크게 밀려서 시작할 것으로 보여요"
+    "en": "Korea looks set to open sharply lower",
+    "ko": "오늘 한국장, 크게 밀려서 시작할 것으로 보여요"
    }
   },
   "inputs": {
@@ -105,7 +105,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-21T03:40:57Z",
+ "generatedAt": "2026-11-22T15:26:01Z",
  "ledger": [
   {
    "actual": {
