@@ -13,8 +13,8 @@ Live cards of 11-22 01:26 KST that read the source backwards or said nothing:
   "USD/JPY Forecast: US CPI, BoJ and Key Levels" was '미국 물가 지표는 금리 부담을 키울 수 있는 신호'
 Grouping: an undated release report ("일본 CPI 3.1%…12월 인상 가능성") joins the one dated release; "12월 금리 인상" is
 not a release month; six week-ahead calendars are one group of two.
-P1-1 ②: a weekend-issued Monday forecast is sent at 08:35 KST, and says so when S&P futures moved 0.5% or more against
-the call after their 08:00 reopen.
+P1-1 ②: a weekend-issued Monday forecast is sent at 08:05 KST (형 2026-11-23); it carries the Friday-close futures price
+so the sender Worker can say a 0.5%+ weekend move against or with the call when it sends.
 """
 from datetime import datetime, timezone
 
@@ -91,6 +91,7 @@ def chart(points: list[tuple[str, float]]) -> dict:
 
 
 def check_monday_futures() -> None:
+    """형 2026-11-23 "앞당기자": Monday's forecast goes out at 08:05 like every day; the Worker says the weekend futures move."""
     current = {
         'targetSession': '2026-11-23', 'issuedAt': '2026-11-20T21:57:28Z', 'state': 'issued', 'origin': 'live',
         'predicted': {'openCall': 'down'},
@@ -98,25 +99,46 @@ def check_monday_futures() -> None:
                  'openStat': {'ko': '−2.5% 안팎', 'en': 'around −2.5%'}},
     }
     scorecard = {'live': {'calls': 8, 'openHits': 6}}
-    # Friday 16:00 New York = 21:00 UTC; futures reopen Monday 08:00 KST = Sunday 23:00 UTC
-    up = chart([('2026-11-20T20:45:00', 100.0), ('2026-11-22T23:00:00', 100.8), ('2026-11-22T23:15:00', 100.7)])
-    flat = chart([('2026-11-20T20:45:00', 100.0), ('2026-11-22T23:00:00', 99.6), ('2026-11-22T23:15:00', 99.5)])
+    # Friday 16:00 New York = 21:00 UTC; the base is the last 15-minute bar that ended by then
+    bars = chart([('2026-11-20T20:30:00', 99.0), ('2026-11-20T20:45:00', 100.0), ('2026-11-20T21:45:00', 101.0)])
     at = lambda s: datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
-    item = po.morning_item(current, scorecard, at('2026-11-22T23:25:00'), lambda url: up)
-    assert item['sendAfter'] == '2026-11-22T23:35:00Z', item['sendAfter']   # 08:35 KST
-    assert '미국 선물은 반대로 +0.8%' in item['body']['ko'] and len(item['body']['ko']) <= po.LIMIT_BODY_KO, item['body']
-    assert '+0.8%' in item['body']['en'], item['body']
-    same = po.morning_item(current, scorecard, at('2026-11-22T23:25:00'), lambda url: flat)
-    assert '선물' not in same['body']['ko'] and '토요일 아침 기준' in same['body']['ko'], same['body']
-    early = po.morning_item(current, scorecard, at('2026-11-21T03:00:00'), lambda url: up)   # Saturday build
-    assert '선물' not in early['body']['ko'] and early['sendAfter'] == '2026-11-22T23:35:00Z', early
+    item = po.morning_item(current, scorecard, at('2026-11-21T03:00:00'), lambda url: bars)   # Saturday build
+    assert item['sendAfter'] == '2026-11-22T23:05:00Z', item['sendAfter']   # 08:05 KST, no longer 08:35
+    assert '토요일 아침 기준' in item['body']['ko'] and '선물' not in item['body']['ko'], item['body']
+    check = item['futuresCheck']
+    assert check['symbol'] == 'ES=F' and check['basePrice'] == 100.0 and check['call'] == 'down', check
+    assert check['baseAt'] == '2026-11-20T21:00:00Z' and check['freshAfter'] == '2026-11-21T21:00:00Z', check
+    assert check['sayPct'] == 0.5 and check['maxAbsPct'] == 8.0, check
+    for name, ko_tail, en_tail in (('against', '미국 선물은 반대로 {pct}', 'US futures since moved {pct}'),
+                                   ('same', '미국 선물도 같은 방향 {pct}', 'US futures agree, {pct}')):
+        body = check[name]
+        assert body['ko'].endswith(ko_tail) and body['en'].endswith(en_tail), body
+        widest = {lang: body[lang].replace('{pct}', '+7.9%') for lang in ('ko', 'en')}
+        assert len(widest['ko']) <= po.LIMIT_BODY_KO and not po.item_problems({'title': item['title'], 'body': widest}), widest
+    po.assert_public_push_outbox({'schemaVersion': po.SCHEMA_VERSION, 'generatedAt': None, 'items': [item]})
+    # no quote, a failing quote, a build before Friday's close settled: the plain Saturday push, still 08:05
     def broken(url):
         raise OSError('no quote')
-    assert '선물' not in po.morning_item(current, scorecard, at('2026-11-22T23:25:00'), broken)['body']['ko']
-    stale = chart([('2026-11-20T20:45:00', 100.0), ('2026-11-20T21:45:00', 101.0)])   # Friday's last bar only
-    assert '선물' not in po.morning_item(current, scorecard, at('2026-11-22T23:25:00'), lambda url: stale)['body']['ko']
+    for fetch, now in ((None, '2026-11-21T03:00:00'), (broken, '2026-11-21T03:00:00'), (lambda url: bars, '2026-11-20T21:10:00')):
+        plain = po.morning_item(current, scorecard, at(now), fetch)
+        assert 'futuresCheck' not in plain and plain['sendAfter'] == '2026-11-22T23:05:00Z', plain
+    # a weekday forecast (issued the same morning) carries no check and goes out at 08:05
     weekday = {**current, 'targetSession': '2026-11-24', 'issuedAt': '2026-11-23T21:50:00Z'}
-    assert po.morning_item(weekday, scorecard, at('2026-11-23T22:00:00'), lambda url: up)['sendAfter'] == '2026-11-23T23:05:00Z'
+    day_item = po.morning_item(weekday, scorecard, at('2026-11-23T22:00:00'), lambda url: bars)
+    assert day_item['sendAfter'] == '2026-11-23T23:05:00Z' and 'futuresCheck' not in day_item, day_item
+    # a no-call Monday has nothing for futures to be against
+    none_day = {**current, 'predicted': {'openCall': 'none'},
+                'copy': {'chips': [{'ko': '미국 혼조', 'en': 'US mixed'}, {'ko': '환율 보합', 'en': 'won flat'}]}}
+    quiet = po.morning_item(none_day, scorecard, at('2026-11-21T03:00:00'), lambda url: bars)
+    assert quiet is None or 'futuresCheck' not in quiet, quiet
+    # a malformed check never passes the public-shape gate
+    bad = {**item, 'futuresCheck': {**check, 'against': {'ko': '{pct} {pct}', 'en': 'x {pct}'}}}
+    try:
+        po.assert_public_push_outbox({'schemaVersion': po.SCHEMA_VERSION, 'generatedAt': None, 'items': [bad]})
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('a check body with two {pct} must be refused')
 
 
 def main() -> None:

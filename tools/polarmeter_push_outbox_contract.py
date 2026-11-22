@@ -118,15 +118,15 @@ def check_weekend_and_holiday_send_nothing() -> None:
 
 
 def check_saturday_built_monday() -> None:
-    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert waits for Monday 08:35
-    # (QA 2026-11-21 P1-1 ②: after US futures have reopened at 08:00 and the 08:25 build has read them).
+    # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert goes out Monday 08:05 like
+    # every trading day (형 2026-11-23 "앞당기자"; the Worker adds the weekend futures move when it sends).
     block = mfc.run('2026-11-07T07:00:00')
     cur = block['current']
     assert cur['targetSession'] == '2026-11-09' and cur['state'] == 'issued', cur
     snap = {'morningForecast': block}
     item = only(build(snap, '2026-11-07T07:00:00', 'saturday for monday'))
     assert item['id'] == 'kr_forecast:2026-11-09', item['id']
-    assert item['sendAfter'] == '2026-11-08T23:35:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:35 / 08:55
+    assert item['sendAfter'] == '2026-11-08T23:05:00Z' and item['expireAt'] == '2026-11-08T23:55:00Z', item   # Mon 08:05 / 08:55
     assert item['open'] == {'screen': 'home', 'focus': 'forecast', 'targetSession': '2026-11-09'}, item['open']
     assert item['title']['ko'] == '꽁치 예보 · 오늘 한국장', item['title']   # sent on Monday, so "today" is right when it lands
     # Sunday night it is still listed, a minute after the window it is not
