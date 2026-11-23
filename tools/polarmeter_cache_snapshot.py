@@ -1527,6 +1527,71 @@ def corroborate_large_moves(signals: dict[str, dict[str, Any]]) -> None:
         })
 
 
+# 2026-11-24: on a +5% S&P / +8% Nasdaq rebound the page still carried the previous night's
+# "S&P500·다우 약세 흐름은 미국장 부담" and "VIX 급등은 미국장 불안" cards. A US index story older than
+# CONTRADICTED_NEWS_MIN_AGE_MINUTES that says the opposite of the live index move is yesterday's news.
+CONTRADICTED_NEWS_MIN_LIVE_PCT = 1.5
+CONTRADICTED_NEWS_MIN_VIX_PCT = 10.0
+CONTRADICTED_NEWS_MIN_AGE_MINUTES = 60
+US_INDEX_NOUN = r'(?:S&P\s*500|S&P|나스닥(?:100)?|다우(?:존스)?|뉴욕\s*증시|미국\s*증시|미국\s*지수|월가|미국\s*주가지수\s*선물|지수\s*선물)'
+US_INDEX_DOWN = r'(?:약세|하락|급락|폭락|추락|하락세|내림세|후퇴)'
+US_INDEX_UP = r'(?:강세|상승|급등|폭등|반등|랠리|오름세)'
+
+
+def news_us_index_direction(text: str) -> str | None:
+    if re.search(r'\bVIX\b|공포\s*지수|변동성\s*지수', text, re.I):
+        if re.search(r'(?:VIX|공포\s*지수|변동성\s*지수)[^\n]{0,10}(?:급등|상승|치솟)', text, re.I):
+            return 'vix_up'
+        if re.search(r'(?:VIX|공포\s*지수|변동성\s*지수)[^\n]{0,10}(?:급락|하락|진정)', text, re.I):
+            return 'vix_down'
+    # The direction word must follow the index noun itself ("S&P500·다우 약세"), not a rate or oil story.
+    down = re.search(US_INDEX_NOUN + r'(?:[·, ]+' + US_INDEX_NOUN + r')*[^\n]{0,8}?' + US_INDEX_DOWN, text, re.I)
+    up = re.search(US_INDEX_NOUN + r'(?:[·, ]+' + US_INDEX_NOUN + r')*[^\n]{0,8}?' + US_INDEX_UP, text, re.I)
+    if down and not up:
+        return 'down'
+    if up and not down:
+        return 'up'
+    return None
+
+
+def drop_news_contradicted_by_live(news: dict[str, Any], signals: dict[str, dict[str, Any]], now: datetime | None = None) -> int:
+    items = news.get('items')
+    if not isinstance(items, list) or len(items) <= 3:
+        return 0
+    now = now or datetime.now(timezone.utc)
+
+    def live_pct(key: str) -> float | None:
+        signal = signals.get(key) or {}
+        if signal.get('status') != 'ok':
+            return None
+        pct = as_float(signal.get('changePct'))
+        return pct if pct is not None and math.isfinite(pct) else None
+
+    index_moves = [pct for pct in (live_pct('sp500'), live_pct('nasdaq100')) if pct is not None]
+    index_dir = None
+    if index_moves and all(abs(pct) >= CONTRADICTED_NEWS_MIN_LIVE_PCT for pct in index_moves) \
+            and len({pct > 0 for pct in index_moves}) == 1:
+        index_dir = 'up' if index_moves[0] > 0 else 'down'
+    vix = live_pct('vix')
+    vix_dir = None if vix is None or abs(vix) < CONTRADICTED_NEWS_MIN_VIX_PCT else ('vix_up' if vix > 0 else 'vix_down')
+    kept, dropped = [], 0
+    for item in items:
+        text = ' '.join(str(item.get(field) or '') for field in ('displayHeadline', 'headline'))
+        direction = news_us_index_direction(text)
+        published = parse_utc_datetime(item.get('publishedAt'))
+        old = published is not None and (now - published).total_seconds() >= CONTRADICTED_NEWS_MIN_AGE_MINUTES * 60
+        contradicted = old and (
+            (direction in {'up', 'down'} and index_dir is not None and direction != index_dir)
+            or (direction in {'vix_up', 'vix_down'} and vix_dir is not None and direction != vix_dir)
+        )
+        if contradicted and len(items) - dropped > 3:
+            dropped += 1
+            continue
+        kept.append(item)
+    news['items'] = kept
+    return dropped
+
+
 def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = None, last_good: dict[str, Any] | None = None) -> dict[str, Any]:
     providers = provider_items(probe)
     signals = {
@@ -1534,6 +1599,8 @@ def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = No
         for signal in probe.get('requiredSignals', [])
     }
     corroborate_large_moves(signals)
+    news = cached_news(news_probe)
+    drop_news_contradicted_by_live(news, signals)
     ok_count = sum(1 for item in signals.values() if item['status'] in {'ok', 'stale'})
     quality = data_quality(signals)
     status = 'ok' if quality['normalTemperatureAllowed'] else ('partial' if ok_count else 'needs_keys')
@@ -1556,7 +1623,7 @@ def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = No
         },
         'signals': signals,
         'macroEvents': build_macro_events(),
-        'news': cached_news(news_probe),
+        'news': news,
     }
 
 
