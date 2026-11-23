@@ -222,8 +222,37 @@ def check_large_move_corroboration() -> None:
     assert odd['kospi']['status'] == 'suspect'
 
 
+def check_news_contradicted_by_live() -> None:
+    from datetime import datetime, timezone
+    from polarmeter_cache_snapshot import drop_news_contradicted_by_live
+    now = datetime(2026, 11, 23, 15, 45, tzinfo=timezone.utc)
+    def item(head, at):
+        return {'headline': head, 'displayHeadline': head, 'publishedAt': at}
+    news = {'items': [
+        item('S&P500·다우 약세 흐름은 미국장 부담을 키울 수 있음', '2026-11-23T11:59:00Z'),
+        item('VIX 급등은 미국장 불안이 커진 신호', '2026-11-23T12:10:00Z'),
+        item('젠슨 황 복귀에 엔비디아 28% 폭등…나스닥 5.9% 급등', '2026-11-23T15:08:00Z'),
+        item('나스닥 하락 전환', '2026-11-23T15:20:00Z'),          # fresh: kept, may be a real intraday turn
+        item('금리 상승은 미국 주식 부담 신호', '2026-11-23T10:18:00Z'),  # rates, not an index direction
+        item('코스피 3.3% 하락', '2026-11-23T11:11:00Z'),
+    ]}
+    live = {'sp500': {'status': 'ok', 'changePct': 5.03}, 'nasdaq100': {'status': 'ok', 'changePct': 7.44},
+            'vix': {'status': 'ok', 'changePct': -27.0}}
+    assert drop_news_contradicted_by_live(news, live, now) == 2
+    heads = [entry['headline'] for entry in news['items']]
+    assert not any('약세 흐름' in head or 'VIX 급등' in head for head in heads), heads
+    assert '나스닥 하락 전환' in heads and '코스피 3.3% 하락' in heads and '금리 상승은 미국 주식 부담 신호' in heads
+    # A quiet day, a split S&P/Nasdaq, or a suspect quote never drops news.
+    for quiet in ({'sp500': {'status': 'ok', 'changePct': 0.4}, 'nasdaq100': {'status': 'ok', 'changePct': 0.6}},
+                  {'sp500': {'status': 'ok', 'changePct': -2.0}, 'nasdaq100': {'status': 'ok', 'changePct': 2.0}},
+                  {'sp500': {'status': 'suspect', 'changePct': 5.0}}):
+        again = {'items': [item('S&P500·다우 약세 흐름은 미국장 부담을 키울 수 있음', '2026-11-23T11:59:00Z')] * 5}
+        assert drop_news_contradicted_by_live(again, quiet, now) == 0
+
+
 def main() -> int:
     check_large_move_corroboration()
+    check_news_contradicted_by_live()
     check_consistent_quote_change_basis()
     check_missing_previous_session_bar()
     check_weekend_placeholder_bar()
