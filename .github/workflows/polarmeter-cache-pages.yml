@@ -178,6 +178,7 @@ jobs:
           PYTHONPATH=tools python3 tools/polarmeter_news_qa_20261121_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_p1_20261121_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_news_p1_20261122_contract.py
+          PYTHONPATH=tools python3 tools/polarmeter_news_big_move_20261124_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_worker_error_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_data_history_contract.py
           PYTHONPATH=tools python3 tools/polarmeter_partial_degrade_contract.py

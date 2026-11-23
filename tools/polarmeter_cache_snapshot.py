@@ -163,8 +163,11 @@ SANITY_RANGES = {
     # Keep the value in temperature, but disclose low confidence until corroborated.
     'kospi': {'minPrice': 1000, 'maxPrice': 12000, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 18.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
     'kosdaq': {'minPrice': 400, 'maxPrice': 1500, 'priceOutOfRangeStatus': 'suspect', 'suspectAbsChangePct': 6.0, 'rejectAbsChangePct': 16.0, 'rejectAbsChangeStatus': 'suspect', 'requiresChangePct': True},
-    'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
-    'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 7.0, 'requiresChangePct': True},
+    # 2026-11-24: QQQ +8.0% on Jensen Huang's return was dropped as "out of range" and the app showed a stale
+    # value with no change. A real crash/rally day must show: 5~25% is shown (suspect), only >25% is a bad quote;
+    # corroborate_large_moves() then clears the warning when a peer index moved the same way.
+    'sp500': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 25.0, 'requiresChangePct': True},
+    'nasdaq100': {'suspectAbsChangePct': 5.0, 'rejectAbsChangePct': 25.0, 'requiresChangePct': True},
     'usd_krw': {'suspectAbsChangePct': 2.0, 'rejectAbsChangePct': 3.0, 'requiresChangePct': False},
     'us10y': {'minPrice': 1.0, 'maxPrice': 8.0, 'suspectAbsChangePct': 8.0, 'rejectAbsChangePct': 15.0, 'requiresChangePct': False},
     'dxy': {'minPrice': 70.0, 'maxPrice': 140.0, 'suspectAbsChangePct': 3.0, 'rejectAbsChangePct': 5.0, 'requiresChangePct': False},
@@ -1464,12 +1467,73 @@ def cached_news(news_probe: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+# A large move seen by one index alone may be a bad quote; the same move seen by its peers is the market.
+LARGE_MOVE_PEERS = {
+    'sp500': ('nasdaq100', 'iwm', 'soxx', 'smh'),
+    'nasdaq100': ('sp500', 'soxx', 'smh', 'iwm'),
+    'iwm': ('sp500', 'nasdaq100'),
+    'soxx': ('smh', 'nasdaq100', 'sp500'),
+    'smh': ('soxx', 'nasdaq100', 'sp500'),
+    'eem': ('sp500', 'nasdaq100', 'kospi'),
+    'kospi': ('kosdaq', 'kr_samsung'),
+    'kosdaq': ('kospi',),
+}
+# VIX moves against stocks.
+LARGE_MOVE_INVERSE_PEERS = {'vix': ('sp500', 'nasdaq100')}
+LARGE_MOVE_PEER_MIN_ABS_PCT = 2.0
+LARGE_MOVE_PEER_MAX_GAP_MINUTES = 90
+
+
+def _large_move_reason(signal: dict[str, Any]) -> bool:
+    reason = str(signal.get('qualityReason') or '')
+    return reason.startswith('changePct_suspect') or reason.startswith('changePct_out_of_range')
+
+
+def _peer_confirms(signal: dict[str, Any], peer: dict[str, Any] | None, sign: int) -> bool:
+    if not isinstance(peer, dict) or peer.get('status') not in {'ok', 'suspect'}:
+        return False
+    pct = as_float(peer.get('changePct'))
+    if pct is None or not math.isfinite(pct) or abs(pct) < LARGE_MOVE_PEER_MIN_ABS_PCT or (pct > 0) != (sign > 0):
+        return False
+    try:
+        a, b = parse_utc_datetime(signal.get('dataAsOf')), parse_utc_datetime(peer.get('dataAsOf'))
+    except OverflowError:
+        return False
+    return a is not None and b is not None and abs((a - b).total_seconds()) <= LARGE_MOVE_PEER_MAX_GAP_MINUTES * 60
+
+
+def corroborate_large_moves(signals: dict[str, dict[str, Any]]) -> None:
+    """Show a corroborated large index move as a normal value (no "확인 전" badge)."""
+    promoted = []
+    for key, signal in signals.items():
+        if signal.get('status') != 'suspect' or not _large_move_reason(signal):
+            continue
+        pct = as_float(signal.get('changePct'))
+        if pct is None or not math.isfinite(pct) or pct == 0:
+            continue
+        sign = 1 if pct > 0 else -1
+        peers = [(peer, sign) for peer in LARGE_MOVE_PEERS.get(key, ())]
+        peers += [(peer, -sign) for peer in LARGE_MOVE_INVERSE_PEERS.get(key, ())]
+        confirmed_by = next((peer for peer, want in peers if _peer_confirms(signal, signals.get(peer), want)), None)
+        if confirmed_by:
+            promoted.append((key, confirmed_by))
+    for key, confirmed_by in promoted:
+        signal = signals[key]
+        signal.update({
+            'status': 'ok',
+            'qualityStatus': 'ok',
+            'qualityReason': f'large_move_corroborated_by:{confirmed_by}',
+            'reliability': signal_reliability(key, str(signal.get('provider') or ''), 'ok', None, signal.get('dataAsOf')),
+        })
+
+
 def build_snapshot(probe: dict[str, Any], news_probe: dict[str, Any] | None = None, last_good: dict[str, Any] | None = None) -> dict[str, Any]:
     providers = provider_items(probe)
     signals = {
         signal['key']: choose_signal(signal, providers, last_good or {})
         for signal in probe.get('requiredSignals', [])
     }
+    corroborate_large_moves(signals)
     ok_count = sum(1 for item in signals.values() if item['status'] in {'ok', 'stale'})
     quality = data_quality(signals)
     status = 'ok' if quality['normalTemperatureAllowed'] else ('partial' if ok_count else 'needs_keys')
