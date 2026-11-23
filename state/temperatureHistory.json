@@ -115,10 +115,10 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-23T17:01:28.036163Z",
+   "asOf": "2026-11-23T17:07:34.305207Z",
    "dateKst": "2026-11-24",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-23T17:01:28.036163Z",
+   "krAsOf": "2026-11-23T17:07:34.305207Z",
    "krLabel": "중립 · 관망",
    "krScore": 41,
    "krSettled": true,
@@ -131,6 +131,6 @@
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-23T17:01:28.036163Z",
+ "updatedAt": "2026-11-23T17:07:34.305207Z",
  "version": "temperature-history-v1"
 }
