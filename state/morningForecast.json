@@ -1,187 +1,107 @@
 {
  "current": {
-  "actual": {
-   "closePct": -3.31,
-   "intradayPct": -0.56,
-   "openPct": -2.77,
-   "source": "naver_index_price"
-  },
+  "actual": null,
   "analog": {
-   "bucket": "open_le_-1.0",
-   "closeSame": 33,
-   "days": 44,
-   "openSame": 41,
+   "bucket": "open_ge_1.0",
+   "closeSame": 50,
+   "days": 57,
+   "openSame": 54,
    "period": "2023-12 ~ 2026-11",
    "widened": false
   },
-  "basisKrSession": "2026-11-20",
+  "basisKrSession": "2026-11-23",
   "copy": {
    "badge": {
     "en": "Strong signal",
     "ko": "신호 뚜렷",
-    "tone": "minus"
+    "tone": "plus"
    },
    "chips": [
     {
-     "en": "S&P 500 −3.6%",
-     "ko": "S&P500 −3.6%",
-     "tone": "minus"
+     "en": "S&P 500 +4.7%",
+     "ko": "S&P500 +4.7%",
+     "tone": "plus"
     },
     {
-     "en": "US chips −10.6%",
-     "ko": "미국 반도체 −10.6%",
-     "tone": "minus"
+     "en": "US chips +13.6%",
+     "ko": "미국 반도체 +13.6%",
+     "tone": "plus"
     },
     {
-     "en": "Korea ETF vs KOSPI −3.2pp",
-     "ko": "한국 ETF 코스피 대비 −3.2%p",
-     "tone": "minus"
+     "en": "Korea ETF vs KOSPI +13.4pp",
+     "ko": "한국 ETF 코스피 대비 +13.4%p",
+     "tone": "plus"
     }
    ],
    "closeNote": {
-    "en": "Started like this, closed below · rebounded intraday 45%",
-    "ko": "이만큼 내려 시작해 마이너스 마감 · 장중 반등한 날 45%(반반)"
+    "en": "Started like this, closed above · rose further intraday 52%",
+    "ko": "이만큼 올라 시작해 플러스 마감 · 장중 더 오른 날 52%(반반)"
    },
    "closeStat": {
-    "en": "33 of 44 days",
-    "ko": "44일 중 33일"
-   },
-   "issuedNote": {
-    "en": "As of Sat morning (weekend news not included)",
-    "ko": "토요일 아침 기준(주말 소식 반영 전)"
+    "en": "50 of 57 days",
+    "ko": "57일 중 50일"
    },
    "openRange": {
-    "en": "Likely 0% to −5%",
-    "ko": "예상 범위 0 ~ −5%"
+    "en": "Likely +3% to +7.5%",
+    "ko": "예상 범위 +3 ~ +7.5%"
    },
    "openRangeNote": {
-    "en": "7 of 10 opens fell inside in the last year · As of Sat morning (weekend news not included)",
-    "ko": "최근 1년 10번 중 7번은 이 범위 안 · 토요일 아침 기준(주말 소식 반영 전)"
-   },
-   "openResult": {
-    "en": "Open −2.8%: call was right",
-    "ko": "시가 −2.8%, 예보 적중"
+    "en": "7 of 10 opens fell inside in the last year",
+    "ko": "최근 1년 10번 중 7번은 이 범위 안"
    },
    "openStat": {
-    "en": "around −2.5%",
-    "ko": "−2.5% 안팎"
+    "en": "around +5.5%",
+    "ko": "+5.5% 안팎"
    },
    "past": {
-    "en": "About 9 in 10 of the days with an overnight signal this negative opened lower (44 days since Dec 2023).",
-    "ko": "밤사이 신호가 이만큼 나빴던 날은 열에 아홉쯤 하락 출발했어요. (44일, 2023년 12월부터)"
-   },
-   "resultBadge": {
-    "en": "Direction right",
-    "ko": "방향 적중",
-    "tone": "plus"
-   },
-   "resultHeadline": {
-    "en": "Nov 23 went as forecast",
-    "ko": "11월 23일은 예보대로였어요"
-   },
-   "resultRows": [
-    {
-     "actual": {
-      "en": "−2.8%",
-      "ko": "−2.8%"
-     },
-     "forecast": {
-      "en": "Lower",
-      "ko": "하락"
-     },
-     "hit": true,
-     "key": "open",
-     "label": {
-      "en": "Open direction",
-      "ko": "시가 방향"
-     }
-    },
-    {
-     "actual": {
-      "en": "−2.8%",
-      "ko": "−2.8%"
-     },
-     "forecast": {
-      "en": "around −2.5%",
-      "ko": "−2.5% 안팎"
-     },
-     "hit": true,
-     "key": "open_size",
-     "label": {
-      "en": "Open size",
-      "ko": "시가 크기"
-     }
-    },
-    {
-     "actual": {
-      "en": "−3.3%",
-      "ko": "−3.3%"
-     },
-     "forecast": {
-      "en": "Not forecast",
-      "ko": "예보 안 함"
-     },
-     "hit": null,
-     "key": "close",
-     "label": {
-      "en": "Close direction",
-      "ko": "종가 방향"
-     }
-    }
-   ],
-   "resultTitle": {
-    "en": "Nov 23 forecast result",
-    "ko": "11월 23일 예보 결과"
+    "en": "About 9 in 10 of the days with an overnight signal this positive opened higher (57 days since Dec 2023).",
+    "ko": "밤사이 신호가 이만큼 좋았던 날은 열에 아홉쯤 상승 출발했어요. (57일, 2023년 12월부터)"
    },
    "say": {
-    "en": "Nov 23 went as forecast. The open was −2.8%, inside the expected range.",
-    "id": "H7",
-    "ko": "11월 23일은 예보대로였어요. 시가 −2.8%, 예상 범위 안이에요."
+    "en": "After a sharp gap up the index rose further 52% of the time. I do not call direction once the market opens.",
+    "id": "H2",
+    "ko": "급등 출발 뒤 더 오른 날은 과거 52%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
    },
    "title": {
-    "en": "Nov 23: Korea looks set to open sharply lower",
-    "ko": "11월 23일 한국장, 크게 밀려서 시작할 것으로 보여요"
+    "en": "Korea looks set to open sharply higher",
+    "ko": "오늘 한국장, 크게 올라서 시작할 것으로 보여요"
    }
   },
   "inputs": {
-   "ewyExcessPct": -3.21,
-   "ewyPct": -8.42,
-   "kospiPrevPct": -5.21,
-   "soxxPct": -10.55,
-   "spyPct": -3.64
+   "ewyExcessPct": 13.42,
+   "ewyPct": 10.11,
+   "kospiPrevPct": -3.31,
+   "soxxPct": 13.63,
+   "spyPct": 4.71
   },
-  "issuedAt": "2026-11-20T21:57:28Z",
+  "issuedAt": "2026-11-23T22:16:39Z",
   "modelVersion": "kospi-overnight-v1",
   "noForecastReason": null,
   "origin": "live",
   "predicted": {
-   "closeCall": "down",
-   "closePct": -2.7,
+   "closeCall": "up",
+   "closePct": 6.44,
    "openBand": [
-    -4.68,
-    -0.24
+    3.03,
+    7.47
    ],
-   "openCall": "down",
-   "openPct": -2.46,
+   "openCall": "up",
+   "openPct": 5.25,
    "strength": "strong",
-   "topDriver": "soxxPct"
+   "topDriver": "ewyExcessPct"
   },
-  "result": {
-   "closeHit": true,
-   "openHit": true,
-   "openInBand": true
-  },
-  "state": "closed_scored",
-  "targetSession": "2026-11-23",
+  "result": null,
+  "state": "issued",
+  "targetSession": "2026-11-24",
   "usSessions": [
-   "2026-11-20"
+   "2026-11-23"
   ]
  },
  "disclaimer": {
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-23T15:02:04Z",
+ "generatedAt": "2026-11-23T22:16:39Z",
  "ledger": [
   {
    "actual": {
@@ -1488,11 +1408,45 @@
    "usSessions": [
     "2026-11-20"
    ]
+  },
+  {
+   "actual": null,
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-23",
+   "issuedAt": "2026-11-23T22:16:39Z",
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "live",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 6.44,
+    "openBand": [
+     3.03,
+     7.47
+    ],
+    "openCall": "up",
+    "openPct": 5.25,
+    "strength": "strong",
+    "topDriver": "ewyExcessPct"
+   },
+   "result": null,
+   "state": "issued",
+   "targetSession": "2026-11-24",
+   "usSessions": [
+    "2026-11-23"
+   ]
   }
  ],
  "modelVersion": "kospi-overnight-v1",
- "nextIssueAt": "2026-11-23T21:45:00Z",
- "phase": "us_open",
+ "nextIssueAt": "2026-11-24T21:45:00Z",
+ "phase": "pre_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
