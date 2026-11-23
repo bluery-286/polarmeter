@@ -17,6 +17,8 @@ TRANSLATE = {
     'AI-Linked Stocks Take Off After Nvidia Reinstates Jensen Huang': '젠슨 황 CEO 복귀에 AI·반도체주 급등',
     'Nvidia Rebound Sends Dow Futures Up 1100 Points': '다우 선물 1100포인트 상승',
     'US stock futures fall ahead of Nvidia earnings: 5 things to know': '실적 발표 앞두고 미국 주가지수 선물 하락',
+    'Nasdaq futures tripped a circuit breaker built for market crashes as Jensen Huang returned to Nvidia':
+        '젠슨 황 CEO 복귀에 나스닥 선물 서킷브레이커 발동',
 }
 NO_BIG_MOVE = [
     'Can Jensen Huang Return to Nvidia?',

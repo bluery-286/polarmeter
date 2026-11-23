@@ -1580,6 +1580,9 @@ def drop_news_contradicted_by_live(news: dict[str, Any], signals: dict[str, dict
         direction = news_us_index_direction(text)
         published = parse_utc_datetime(item.get('publishedAt'))
         old = published is not None and (now - published).total_seconds() >= CONTRADICTED_NEWS_MIN_AGE_MINUTES * 60
+        # A card we translated from English is our wording, not the wire's: if it reads against a clear live
+        # move it is a misreading (11-24 "나스닥 선물 급락" on a +7% day), whatever its age.
+        old = old or bool(item.get('originalHeadline'))
         contradicted = old and (
             (direction in {'up', 'down'} and index_dir is not None and direction != index_dir)
             or (direction in {'vix_up', 'vix_down'} and vix_dir is not None and direction != vix_dir)

@@ -235,10 +235,12 @@ def check_news_contradicted_by_live() -> None:
         item('나스닥 하락 전환', '2026-11-23T15:20:00Z'),          # fresh: kept, may be a real intraday turn
         item('금리 상승은 미국 주식 부담 신호', '2026-11-23T10:18:00Z'),  # rates, not an index direction
         item('코스피 3.3% 하락', '2026-11-23T11:11:00Z'),
+        {**item('젠슨 황 CEO 복귀에 나스닥 선물 급락', '2026-11-23T15:40:00Z'),
+         'originalHeadline': 'Nasdaq futures tripped a circuit breaker built for market crashes'},  # fresh but our misreading
     ]}
     live = {'sp500': {'status': 'ok', 'changePct': 5.03}, 'nasdaq100': {'status': 'ok', 'changePct': 7.44},
             'vix': {'status': 'ok', 'changePct': -27.0}}
-    assert drop_news_contradicted_by_live(news, live, now) == 2
+    assert drop_news_contradicted_by_live(news, live, now) == 3
     heads = [entry['headline'] for entry in news['items']]
     assert not any('약세 흐름' in head or 'VIX 급등' in head for head in heads), heads
     assert '나스닥 하락 전환' in heads and '코스피 3.3% 하락' in heads and '금리 상승은 미국 주식 부담 신호' in heads

@@ -1747,6 +1747,9 @@ def english_big_move_fact_headline(headline: str) -> str | None:
         return min(found)[2]
 
     for index, clause in enumerate(clauses):
+        # 2026-11-24: "Nasdaq futures tripped a circuit breaker built for market crashes as Jensen Huang returned"
+        # became "나스닥 선물 급락" on a +7% day. What a safeguard is "built for" is not the move.
+        clause = re.sub(r'\b(?:built|designed|meant|made|created)\s+(?:for|to\s+\w+)\s+(?:\w+\s+){0,2}?(?:crash\w*|plung\w*|sell-?offs?|panics?)', '', clause, flags=re.I)
         cl = clause.lower()
         subject = subject_of(cl)
         if subject is None or subject in used:
@@ -1759,6 +1762,9 @@ def english_big_move_fact_headline(headline: str) -> str | None:
                 clause, cl = f'{clause} {follow}', f'{cl} {follow.lower()}'
                 direction = _big_move_direction(cl)
         if direction is None:
+            if subject.endswith('선물') and re.search(r'circuit\s+breakers?|\bhalt\w*|limit[-\s]up|limit[-\s]down|trading\s+(?:pause|stop)', cl):
+                moves.append(f'{subject} 서킷브레이커 발동')
+                used.add(subject)
             continue
         amount = _big_move_amount(clause)
         if amount:
