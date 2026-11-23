@@ -187,10 +187,43 @@ def check_vix_stress_preservation() -> None:
     assert selected['status'] == 'stale' and selected['value'] == 16.46
     assert selected['dataAsOf'] == previous['vix']['dataAsOf']
     # The change is VIX-specific, not a blanket removal of anomaly rejection.
-    assert validate_candidate('sp500', {'status': 'ok', 'price': 100, 'changePct': 20})[0] == 'invalid'
+    assert validate_candidate('sp500', {'status': 'ok', 'price': 100, 'changePct': 30})[0] == 'invalid'
+    # 2026-11-24: an 8% Nasdaq day (Jensen Huang's return) is the market, not a bad quote.
+    assert validate_candidate('nasdaq100', {'status': 'ok', 'price': 657, 'changePct': 8.0})[0] == 'suspect'
+    assert validate_candidate('sp500', {'status': 'ok', 'price': 100, 'changePct': 20})[0] == 'suspect'
+
+
+def check_large_move_corroboration() -> None:
+    from polarmeter_cache_snapshot import corroborate_large_moves
+
+    def sig(pct, status='suspect', at='2026-11-23T15:15:30Z', reason='changePct_suspect>5.0', provider='public-chart-delayed'):
+        return {'status': status, 'qualityStatus': status, 'qualityReason': reason if status == 'suspect' else None,
+                'changePct': pct, 'dataAsOf': at, 'provider': provider,
+                'reliability': {'displayBadge': '변동 큼 · 보조 확인'}}
+    signals = {'sp500': sig(4.76, 'ok'), 'nasdaq100': sig(8.03), 'soxx': sig(13.6, reason='changePct_suspect>6.0'),
+               'smh': sig(15.5, reason='changePct_suspect>6.0'), 'vix': sig(-22.9, reason='changePct_out_of_range>20.0'),
+               'iwm': sig(3.0, 'ok'), 'eem': sig(8.0, reason='changePct_suspect>6.0'), 'kospi': sig(1.0, 'ok')}
+    corroborate_large_moves(signals)
+    for key in ('nasdaq100', 'soxx', 'smh', 'vix', 'eem'):
+        assert signals[key]['status'] == 'ok' and signals[key]['qualityStatus'] == 'ok', (key, signals[key])
+        assert signals[key]['qualityReason'].startswith('large_move_corroborated_by:'), key
+        assert '확인' not in signals[key]['reliability']['displayBadge'], key
+    # A lone jump with calm peers stays flagged.
+    lone = {'sp500': sig(0.3, 'ok'), 'nasdaq100': sig(9.0), 'soxx': sig(0.5, 'ok'), 'smh': sig(0.4, 'ok'), 'iwm': sig(0.2, 'ok')}
+    corroborate_large_moves(lone)
+    assert lone['nasdaq100']['status'] == 'suspect'
+    # Opposite-direction peers do not confirm, and neither does a peer quote from hours earlier.
+    split = {'sp500': sig(-4.0, 'ok'), 'nasdaq100': sig(8.0), 'soxx': sig(9.0, 'ok', at='2026-11-23T10:00:00Z')}
+    corroborate_large_moves(split)
+    assert split['nasdaq100']['status'] == 'suspect'
+    # Range/price problems are not move-size questions: never promoted.
+    odd = {'kospi': sig(7.0, reason='price_out_of_range'), 'kosdaq': sig(7.0, 'ok')}
+    corroborate_large_moves(odd)
+    assert odd['kospi']['status'] == 'suspect'
 
 
 def main() -> int:
+    check_large_move_corroboration()
     check_consistent_quote_change_basis()
     check_missing_previous_session_bar()
     check_weekend_placeholder_bar()

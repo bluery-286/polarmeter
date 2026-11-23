@@ -52,6 +52,13 @@ CRITICAL_NEWS_KEYWORDS = [
 CRITICAL_MARKET_MOVE_PATTERNS = [
     re.compile(r'(나스닥|S&P500|S&P 500|코스피|코스닥)[^\n]{0,24}(2\.\d|[3-9])%[^\n]{0,12}(상승|급등|하락|급락|폭락)', re.I),
     re.compile(r'(nasdaq|s&p\s*500|dow)[^\n]{0,24}(jumps?|surges?|rallies|plunges?|crashes?|drops?)[^\n]{0,24}(2\.\d|[3-9])%', re.I),
+    # 2026-11-24: "Nvidia Stock Rises 28% After Jensen Huang Reinstated" was a STANDARD card. A double-digit move
+    # in an index heavyweight, or a 1,000-point Dow day, moves the whole market temperature.
+    re.compile(r'(nvidia|apple|microsoft|alphabet|google|amazon|meta|tesla|broadcom|tsmc)[^\n]{0,30}'
+               r'(soar\w*|surg\w*|jump\w*|ris(?:e|es)|rose|rall\w*|plung\w*|crash\w*|tumbl\w*|fall\w*|fell|sink\w*|sank|slid\w*)'
+               r'[^\n]{0,16}?\b([1-9]\d)(?:\.\d+)?\s*(?:%|percent)', re.I),
+    re.compile(r'(엔비디아|애플|마이크로소프트|구글|아마존|메타|테슬라|브로드컴|TSMC)[^\n]{0,20}?([1-9]\d)(?:\.\d+)?%[^\n]{0,8}(폭등|급등|폭락|급락|상승|하락)', re.I),
+    re.compile(r'(\bdow\b|다우)[^\n]{0,30}?\b(1,?\d{3})\s*(?:-\s*)?(points?|포인트)', re.I),
 ]
 
 EXCLUDED_SOURCE_HINTS = [
@@ -805,7 +812,7 @@ FORCED_ENGLISH_HEADLINE_TRANSLATIONS = [
 
 
 def source_index_direction(text: str) -> str | None:
-    subject = r'(shares?|stocks?|markets?|indices|index|s&p\s*500|sp500|nasdaq|dow|kospi|kosdaq|증시|지수|코스피|코스닥|나스닥|다우)'
+    subject = r'(shares?|stocks?|markets?|indices|index|s&p\s*500|sp500|nasdaq|dow|kospi|kosdaq|증시|지수|코스피|코스닥|나스닥|다우|주가)'
     down = (r'(decline|declines|declined|fall|falls|falling|drop|drops|slip|slips|lower|tumble|plunge|하락|급락|약세|폭락|'
             r'correction\s+territory|bear\s+market|\brout\b|erasedgains|조정\s*국면|상승분\s*(?:전부\s*|전액\s*)?반납)')
     up = r'(rise|rises|rising|gain|gains|higher|climb|climbs|rally|rebound|상승|급등|강세|반등)'
@@ -1157,7 +1164,11 @@ def critical_market_event(headline: str) -> tuple[bool, str | None]:
     outlook_piece = re.search(r'내년|올해|전망|예상|\b(?:outlook|forecast|next\s+year)\b', headline, re.I)
     if not outlook_piece and any(keyword.lower() in text for keyword in CRITICAL_NEWS_KEYWORDS):
         return True, 'critical_keyword'
-    if any(pattern.search(headline) for pattern in CRITICAL_MARKET_MOVE_PATTERNS):
+    if any(pattern.search(headline) for pattern in CRITICAL_MARKET_MOVE_PATTERNS[:2]):
+        return True, 'large_market_move'
+    # The 11-24 heavyweight / 1,000-point patterns count only today's move ("falls 1,600 points in two sessions" is not).
+    if any(pattern.search(headline) for pattern in CRITICAL_MARKET_MOVE_PATTERNS[2:]) and not BIG_MOVE_NOT_TODAY.search(headline) \
+            and not re.search(r'이번\s*주|주간|한\s*주|지난주|누적|연초|이후|만에|이틀|사흘', headline):
         return True, 'large_market_move'
     return False, None
 
@@ -1628,6 +1639,158 @@ def directly_observed_index_rise(headline: str) -> bool:
                 and not re.search(subject + r'(?:falls?|drops?|slides?|slips?|declines?)\b', headline, re.I))
 
 
+# 2026-11-24: Jensen Huang's return moved Nvidia +30% and the Nasdaq +8%. English wires had it from 23:11 KST,
+# but every one of them was dropped as UNTRANSLATED_ENGLISH_HEADLINE and the first Korean report only landed at
+# 00:08. A headline that names who moved, by how much and why can be carried over fact for fact.
+BREAKING_CRITICAL_HOURS = 3
+BIG_MOVE_COMPANIES = [
+    (r'nvidia|nvda', '엔비디아'), (r'apple|aapl', '애플'), (r'microsoft|msft', '마이크로소프트'),
+    (r'alphabet|google', '구글'), (r'amazon', '아마존'), (r'\bmeta\b|facebook', '메타'), (r'tesla', '테슬라'),
+    (r'broadcom', '브로드컴'), (r'micron', '마이크론'), (r'\bintel\b', '인텔'), (r'\bamd\b', 'AMD'),
+    (r'\btsmc\b', 'TSMC'), (r'samsung', '삼성전자'), (r'sk\s*hynix', 'SK하이닉스'),
+]
+BIG_MOVE_INDICES = [
+    (r'nasdaq(?:-100)?\s+futures', '나스닥 선물'), (r'dow\s+futures', '다우 선물'), (r's&p\s*500\s+futures', 'S&P500 선물'),
+    (r'(?:us\s+|u\.s\.\s+)?stock\s+futures|equity\s+futures|wall\s+street\s+futures', '미국 주가지수 선물'),
+    (r's&p\s*500', 'S&P500'), (r'nasdaq(?:-100)?', '나스닥'), (r'\bdow(?:\s+jones)?\b', '다우'),
+    (r'ai(?:-linked)?\s+stocks|ai\s+shares|chip\s*stocks|chipmakers', 'AI·반도체주'),
+    (r'(?:us|u\.s\.)\s+stocks|wall\s+street|stock\s+market|\bstocks\b', '미국 증시'),
+]
+BIG_MOVE_UP = r'surg\w*|soar\w*|jump\w*|ris(?:e|es|ing)|rose|rall\w*|rebound\w*|climb\w*|gain\w*|spik\w*|leap\w*|skyrocket\w*|take\s+off|takes\s+off|took\s+off|lifts?|higher|\bup\b'
+BIG_MOVE_DOWN = r'plung\w*|slip\w*|plummet\w*|tumbl\w*|crash\w*|sink\w*|sank|slid\w*|slump\w*|fall\w*|fell|drop\w*|sell-?off|declin\w*|lower|\bdown\b|\boff\b'
+# A move "in two sessions", "since the scandal" or "this week" is not today's move; an offer or talks are not the event.
+BIG_MOVE_NOT_TODAY = re.compile(
+    r'\bsince\b|\bin\s+(?:two|three|four|five|\d+)\s+(?:sessions|days|weeks|months)|\bover\s+(?:the\s+)?(?:past|last)\b|'
+    r'this\s+week|last\s+week|for\s+the\s+week|\bweekly\b|\bmonthly\b|year[-\s]to[-\s]date|\bytd\b|\bso\s+far\b|'
+    r'\boffer\w*|\btalks?\b|\bconsider\w*|\bseek\w*|\bwants?\b|\bpush\w*\s+(?:for|to)\b|\bplans?\s+to\b|\?', re.I)
+BIG_MOVE_CAUSES = [
+    (r'(?:jensen\s+)?huang\b.{0,40}(?:return\w*|reinstat\w*|back\b|comes?\s+back)|(?:reinstat\w*|brings?\s+back|return\s+of)\s+(?:jensen\s+)?huang', '젠슨 황 CEO 복귀'),
+    (r'huang\b.{0,30}(?:ousted|fired|resign\w*|steps?\s+down|exit\w*|depart\w*|leave\w*)', '젠슨 황 CEO 퇴진'),
+    (r'\bceo\b.{0,30}(?:return\w*|reinstat\w*)|reinstat\w*\s+(?:\w+\s+){0,3}as\s+ceo', 'CEO 복귀'),
+    (r'\bceo\b.{0,30}(?:ousted|fired|resign\w*|steps?\s+down|exit\w*)', 'CEO 퇴진'),
+    (r'\bsec\b.{0,20}(?:probe|investigation|inquiry)|accounting\s+(?:probe|investigation)', 'SEC 회계 조사'),
+    (r'\bearnings\b|quarterly\s+results|\bguidance\b', '실적 발표'),
+]
+
+
+def _big_move_amount(clause: str) -> str | None:
+    pct = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|\s+percent\b)(-plus|\+)?', clause, re.I)
+    if pct:
+        return f"{pct.group(1)}%{' 넘게' if pct.group(2) else ''}"
+    points = re.search(r'(\d{1,2},?\d{3}|\d{2,4})\s*(?:-\s*)?points?', clause, re.I)
+    if points:
+        return f"{points.group(1)}포인트"
+    return None
+
+
+def _big_move_direction(clause: str) -> str | None:
+    up = re.search(BIG_MOVE_UP, clause, re.I)
+    down = re.search(BIG_MOVE_DOWN, clause, re.I)
+    if up and not down:
+        return 'up'
+    if down and not up:
+        return 'down'
+    if up and down:
+        return 'up' if up.start() < down.start() else 'down'
+    return None
+
+
+# The fact-for-fact translation is only as good as the wire it copies: Google News also carries content farms
+# that recycle old moves ("Nvidia Shares Fall 46 Percent" a day after the fall, under a rebound).
+BIG_MOVE_TRUSTED_SOURCES = re.compile(
+    r'bloomberg|reuters|cnbc|marketwatch|wall\s+street\s+journal|\bwsj\b|new\s+york\s+times|nytimes|yahoo|'
+    r'associated\s+press|\bap\s+news|barron|financial\s+times|\bft\.com|investing\.com|fox\s+business|\bcnn\b|'
+    r'globe\s+and\s+mail|quartz|business\s+insider|forbes|axios|the\s+guardian|bbc|washington\s+post|'
+    r'nasdaq\.com|morningstar|kiplinger|investopedia|the\s+motley\s+fool|seeking\s+alpha|benzinga|tradingview',
+    re.I,
+)
+
+
+def english_big_move_fact_headline(headline: str) -> str | None:
+    """'Nvidia Stock Rises 28% After Jensen Huang Reinstated as CEO' -> '젠슨 황 CEO 복귀에 엔비디아 28% 급등'."""
+    text = re.sub(r'\s+', ' ', (headline or '').strip())
+    if not text or has_korean(text):
+        return None
+    lower = text.lower()
+    if re.search(r'erased|wiped|correction|bear\s+market|\bif\b|\bwould\b|\bcould\b|\bmay\b|\bmight\b', lower):
+        return None
+    if BIG_MOVE_NOT_TODAY.search(text) and not re.search(r'\bis\s+back\b|\breturns?\b|\breinstat', lower):
+        return None
+    if re.search(r'\b(?:offer\w*|talks?|consider\w*)\b', lower):
+        return None
+    # "Nvidia Is Only 17% of SMH": a weight, not a move.
+    if re.search(r'\d\s*%\s+of\b|\bstake\b|\bweight\w*|\bshare\s+of\b|\bpercent\s+of\b', lower):
+        return None
+    cause = next((ko for pattern, ko in BIG_MOVE_CAUSES if re.search(pattern, lower)), None)
+    company_found = any(re.search(pattern, lower) for pattern, _ in BIG_MOVE_COMPANIES)
+    if not cause and not company_found:
+        return None  # index-only headlines keep the tuned market-context rules
+    # Split "X Surges 1,200 Points As Nvidia Soars 30% On ..." into one clause per subject.
+    clauses = re.split(r'\s(?:as|while|and|after|amid|on|,)\s|;|\s[|–—-]\s|:\s', text, flags=re.I)
+    moves: list[str] = []
+    used: set[str] = set()
+    def subject_of(cl: str) -> str | None:
+        # "Nvidia Rebound Sends Dow Futures Up 1100 Points": the number belongs to the subject right before it.
+        found = []
+        for table in (BIG_MOVE_COMPANIES, BIG_MOVE_INDICES):
+            for pattern, ko in table:
+                match = re.search(pattern, cl)
+                if match and not any(start <= match.start() < end for start, end, _ in found):
+                    found.append((match.start(), match.end(), ko))
+        if not found:
+            return None
+        anchor = re.search(r'\d[\d,.]*\s*(?:%|percent|points?)', cl)
+        if anchor:
+            before = [item for item in found if item[0] < anchor.start()]
+            if before:
+                return max(before)[2]
+        return min(found)[2]
+
+    for index, clause in enumerate(clauses):
+        cl = clause.lower()
+        subject = subject_of(cl)
+        if subject is None or subject in used:
+            continue
+        direction = _big_move_direction(re.sub(r'stock\s+market|wall\s+street', '', cl))
+        if direction is None and index + 1 < len(clauses) and subject_of(clauses[index + 1].lower()) is None:
+            # "Nasdaq Futures Halted After 7% Surge": the move sits in the next clause
+            follow = clauses[index + 1]
+            if _big_move_direction(follow.lower()):
+                clause, cl = f'{clause} {follow}', f'{cl} {follow.lower()}'
+                direction = _big_move_direction(cl)
+        if direction is None:
+            continue
+        amount = _big_move_amount(clause)
+        if amount:
+            # The number must sit right next to the move: "Rises 28%", "7% Surge", "Up 1100 Points".
+            verbs = BIG_MOVE_UP + '|' + BIG_MOVE_DOWN
+            number = r'\d[\d,.]*\s*(?:%|percent|points?)'
+            if not re.search(rf'(?:{verbs})\W+(?:[\w’\'-]+\W+){{0,3}}?{number}|{number}[\w-]*\W+(?:[\w’\'-]+\W+){{0,2}}?(?:{verbs})', cl, re.I):
+                amount = None
+        if cause and re.search(r'huang|ceo|reinstat', cl) and not re.search(BIG_MOVE_UP + '|' + BIG_MOVE_DOWN, re.sub(r'huang.*', '', cl), re.I):
+            continue  # "Nvidia Reinstates Jensen Huang" names the cause, not a move
+        strong = (amount and '%' in amount and float(re.match(r'[\d.]+', amount).group(0)) >= 3) or re.search(
+            r'surg|soar|skyrocket|plung|plummet|crash|tumbl|take\s+off|took\s+off|takes\s+off', cl)
+        word = ('급등' if strong else '상승') if direction == 'up' else ('급락' if strong else '하락')
+        if subject.endswith('선물') and re.search(r'\bhalt\w*', cl):
+            word += '·거래 일시 중단'
+        company = any(subject == ko for _, ko in BIG_MOVE_COMPANIES)
+        moves.append(f"{subject}{' 주가' if company else ''} {amount + ' ' if amount else ''}{word}")
+        used.add(subject)
+        if len(moves) == 2:
+            break
+    if not moves:
+        return None
+    if not cause and not any(re.search(r'\d', move) for move in moves):
+        return None  # a bare "Nvidia shares rise" is single-stock noise
+    if re.search(r'premarket|pre-market|pre-bell|before\s+the\s+bell', lower) and not any('선물' in move for move in moves):
+        moves[0] = '개장 전 ' + moves[0]
+    body = '…'.join(moves)
+    if cause and re.search(r'\b(?:ahead\s+of|before)\b', lower) and not re.search(r'\bafter\b|\bon\b|following', lower):
+        return f'{cause} 앞두고 {body}'
+    return f'{cause}에 {body}' if cause else body
+
+
 def koreanize_english_headline(headline: str) -> str | None:
     if not headline or has_korean(headline):
         return None
@@ -1687,6 +1850,9 @@ def koreanize_english_headline(headline: str) -> str | None:
     for pattern, translated in FORCED_ENGLISH_HEADLINE_TRANSLATIONS:
         if pattern.search(text):
             return translated
+    big_move = english_big_move_fact_headline(text)
+    if big_move and translation_preserves_source_facts(text, big_move):
+        return big_move
     market_translation = english_market_context_translation(text)
     if market_translation:
         return market_translation if translation_preserves_source_facts(text, market_translation) else None
@@ -3062,6 +3228,10 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
             if not has_korean(headline) and not translated_headline:
                 filtered_reasons['UNTRANSLATED_ENGLISH_HEADLINE'] = filtered_reasons.get('UNTRANSLATED_ENGLISH_HEADLINE', 0) + 1
                 continue
+            if (translated_headline and not has_korean(headline) and translated_headline == english_big_move_fact_headline(headline)
+                    and not BIG_MOVE_TRUSTED_SOURCES.search(f"{item.get('sourceName') or ''} {result.get('label') or ''}")):
+                filtered_reasons['BIG_MOVE_UNTRUSTED_SOURCE'] = filtered_reasons.get('BIG_MOVE_UNTRUSTED_SOURCE', 0) + 1
+                continue
             if not has_korean(headline) and ERASED_GAINS_SOURCE.search(headline) and not re.search(r'correction|bear\s+market', headline, re.I):
                 # QA 2026-11-22: app 1.0.27 rebuilds the title of an English card from the source and reads the "gains"
                 # in "2026 gains erased" as a rise (card shown as 좋음 on a −5% day), whatever the server title says.
@@ -3181,8 +3351,13 @@ def normalize_items(feed_results: list[dict[str, Any]], max_items: int) -> tuple
                 'provider': 'public-rss',
                 'licenseNote': item.get('licenseNote') or 'public RSS headline cache only; no body or image scraping',
             })
-    def sort_key(item: dict[str, Any]) -> tuple[int, float, float, int]:
-        return (1 if item.get('critical') else 0, float(item.get('marketImpactScore') or 0), float(item.get('qualityScore') or 0), 1 if item.get('category') in {'market_event', 'macro', 'central_bank'} else 0)
+    def sort_key(item: dict[str, Any]) -> tuple[int, int, float, float, int]:
+        # 2026-11-24: a breaking critical story (Jensen Huang's return, Nasdaq +8%) sat under a critical oil
+        # story from 15 hours earlier. Among critical cards, the last BREAKING_CRITICAL_HOURS come first.
+        published = parse_utc(item.get('publishedAt'))
+        breaking = bool(item.get('critical') and published
+                        and (current_time() - published).total_seconds() <= BREAKING_CRITICAL_HOURS * 3600)
+        return (1 if item.get('critical') else 0, 1 if breaking else 0, float(item.get('marketImpactScore') or 0), float(item.get('qualityScore') or 0), 1 if item.get('category') in {'market_event', 'macro', 'central_bank'} else 0)
 
     out = [refine_selection_quality(item) for item in out]
     kept_items = []
