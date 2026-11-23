@@ -1,6 +1,10 @@
 {
  "current": {
-  "actual": null,
+  "actual": {
+   "afterOpenPct": 0.14,
+   "closePct": 4.73,
+   "source": "yahoo_gspc"
+  },
   "call": "up",
   "copy": {
    "caveat": {
@@ -15,6 +19,10 @@
    "kospi": {
     "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
     "ko": "밤사이 반도체와 한국 관련 ETF 흐름은 내일 아침 8:05 꽁치 예보에 이어서 반영돼요."
+   },
+   "result": {
+    "en": "S&P 500 closed +4.73% · start held",
+    "ko": "S&P 500 +4.73% 마감 · 출발 방향을 지켰어요"
    },
    "start": {
     "en": "S&P futures +2.62% · Nasdaq futures +3.42% (21:16 KST, vs previous close)",
@@ -31,10 +39,10 @@
   },
   "issuedAt": "2026-11-23T12:16:56Z",
   "origin": "live",
-  "outcome": null,
+  "outcome": "held",
   "prevSession": "2026-11-20",
   "restReason": null,
-  "state": "issued",
+  "state": "scored",
   "stats": {
    "afterOpenSameShare": 0.555,
    "band": "0.8+",
@@ -50,7 +58,7 @@
   "en": "Past record only; it does not promise future results. Not a trading recommendation.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
  },
- "generatedAt": "2026-11-23T12:16:56Z",
+ "generatedAt": "2026-11-23T21:16:41Z",
  "ledger": [
   {
    "actual": {
@@ -778,7 +786,11 @@
    "targetSession": "2026-11-20"
   },
   {
-   "actual": null,
+   "actual": {
+    "afterOpenPct": 0.14,
+    "closePct": 4.73,
+    "source": "yahoo_gspc"
+   },
    "call": "up",
    "inputs": {
     "esPct": 2.62,
@@ -786,10 +798,10 @@
    },
    "issuedAt": "2026-11-23T12:16:56Z",
    "origin": "live",
-   "outcome": null,
+   "outcome": "held",
    "prevSession": "2026-11-20",
    "restReason": null,
-   "state": "issued",
+   "state": "scored",
    "stats": {
     "afterOpenSameShare": 0.555,
     "band": "0.8+",
@@ -804,7 +816,7 @@
  ],
  "modelVersion": "us-start-hold-v1",
  "nextIssueAt": "2026-11-24T12:00:00Z",
- "phase": "evening",
+ "phase": "scored",
  "schemaVersion": "polarmeter-evening-brief-v1",
  "scorecard": {
   "carried": {
@@ -814,17 +826,17 @@
    "held": 0
   },
   "liveTotal": {
-   "calls": 7,
+   "calls": 8,
    "flat": 0,
    "flipped": 2,
-   "held": 5
+   "held": 6
   },
   "recent": {
-   "calls": 16,
+   "calls": 17,
    "flat": 0,
    "flipped": 4,
-   "held": 12,
-   "liveCalls": 7
+   "held": 13,
+   "liveCalls": 8
   }
  },
  "status": "ok"
