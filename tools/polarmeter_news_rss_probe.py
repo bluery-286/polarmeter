@@ -1170,6 +1170,11 @@ def critical_market_event(headline: str) -> tuple[bool, str | None]:
     if any(pattern.search(headline) for pattern in CRITICAL_MARKET_MOVE_PATTERNS[2:]) and not BIG_MOVE_NOT_TODAY.search(headline) \
             and not re.search(r'이번\s*주|주간|한\s*주|지난주|누적|연초|이후|만에|이틀|사흘', headline):
         return True, 'large_market_move'
+    # 2026-11-24 14:31: KOSPI +7% ("코스피 '젠슨 황 복귀'에 급등...장중 5천 선 회복") was a STANDARD card under three
+    # oil stories, because a Korean wire often names no percent. An index named with 급등/폭등/급락/폭락 is
+    # today's big move unless it is a worry, a forecast, a question or a multi-day tally.
+    if KR_INDEX_STRONG_MOVE.search(headline) and not KR_INDEX_STRONG_MOVE_NOT_EVENT.search(headline):
+        return True, 'large_market_move'
     return False, None
 
 
@@ -1659,6 +1664,10 @@ BIG_MOVE_INDICES = [
 BIG_MOVE_UP = r'surg\w*|soar\w*|jump\w*|ris(?:e|es|ing)|rose|rall\w*|rebound\w*|climb\w*|gain\w*|spik\w*|leap\w*|skyrocket\w*|take\s+off|takes\s+off|took\s+off|lifts?|higher|\bup\b'
 BIG_MOVE_DOWN = r'plung\w*|slip\w*|plummet\w*|tumbl\w*|crash\w*|sink\w*|sank|slid\w*|slump\w*|fall\w*|fell|drop\w*|sell-?off|declin\w*|lower|\bdown\b|\boff\b'
 # A move "in two sessions", "since the scandal" or "this week" is not today's move; an offer or talks are not the event.
+KR_INDEX_STRONG_MOVE = re.compile(r'(코스피|코스닥|나스닥|다우|S&P\s*500)[^\n]{0,24}?(급등|폭등|급락|폭락)(?!주|세\s*(?:전환|가능))')
+KR_INDEX_STRONG_MOVE_NOT_EVENT = re.compile(
+    r'우려|경고|가능성|전망|예상|공포|대비|시나리오|할까|하나|\?|이번\s*주|주간|한\s*주|지난주|누적|연초|이후|만에|이틀|사흘|'
+    r'지난해|작년|역대|과거|때처럼|당시|선물|급등주|급락주')
 BIG_MOVE_NOT_TODAY = re.compile(
     r'\bsince\b|\bin\s+(?:two|three|four|five|\d+)\s+(?:sessions|days|weeks|months)|\bover\s+(?:the\s+)?(?:past|last)\b|'
     r'this\s+week|last\s+week|for\s+the\s+week|\bweekly\b|\bmonthly\b|year[-\s]to[-\s]date|\bytd\b|\bso\s+far\b|'
