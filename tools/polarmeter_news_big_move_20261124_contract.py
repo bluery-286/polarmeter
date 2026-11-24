@@ -32,12 +32,19 @@ CRITICAL = [
     'Nvidia Stock Rises 28% After Jensen Huang Reinstated as CEO',
     '젠슨 황 복귀에 엔비디아 28% 폭등…나스닥 5.9% 급등',
     "Stock Market Today: Dow Surges 1,200 Points As Nvidia Soars 30% On Jensen Huang's Return",
+    # 11-24 14:31 KOSPI +7%: Korean wires often name no percent.
+    "코스피 '젠슨 황 복귀'에 급등...장중 5천 선 회복",
+    '코스닥 급락…외국인 매도 폭탄',
 ]
 NOT_CRITICAL = [
     'Dow Jones falls 1,600 points in two sessions, but analysts see a bottom',
     'Nvidia Has Fallen 18% Since the Jensen Huang Scandal',
     '엔비디아, 이번 주 누적 18% 하락',
     '애플 주가 2% 하락',
+    '코스피 급락 우려…외국인 이탈 경고',
+    '코스닥 급등주 10선',
+    '코스피, 이번 주 급등 이어갈까',
+    '코스피 2020년 3월 폭락 때처럼',
 ]
 
 
