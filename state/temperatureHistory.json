@@ -18,8 +18,8 @@
    "basis": "previous_kst_date",
    "comparisonAsOf": "2026-11-24T14:46:54.178418Z",
    "comparisonDateKst": "2026-11-24",
-   "currentScore": 37,
-   "delta": -25,
+   "currentScore": 36,
+   "delta": -26,
    "previousScore": 62
   }
  },
@@ -115,10 +115,10 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-24T20:16:35.238995Z",
+   "asOf": "2026-11-24T20:31:34.616284Z",
    "dateKst": "2026-11-25",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-24T20:16:35.238995Z",
+   "krAsOf": "2026-11-24T20:31:34.616284Z",
    "krLabel": "온기 · 긍정 우위",
    "krScore": 65,
    "krSettled": true,
@@ -131,6 +131,6 @@
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-24T20:16:35.238995Z",
+ "updatedAt": "2026-11-24T20:31:34.616284Z",
  "version": "temperature-history-v1"
 }
