@@ -115,22 +115,22 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-25T22:59:08.877094Z",
+   "asOf": "2026-11-25T23:16:34.157771Z",
    "dateKst": "2026-11-26",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-25T22:59:08.877094Z",
+   "krAsOf": "2026-11-25T23:16:34.157771Z",
    "krLabel": "냉각 · 리스크 높음",
    "krScore": 35,
    "krSettled": true,
    "sessionType": "pre_market",
    "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-25T22:59:08.877094Z",
+   "usAsOf": "2026-11-25T23:16:34.157771Z",
    "usLabel": "중립 · 관망",
    "usScore": 43,
    "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-25T22:59:08.877094Z",
+ "updatedAt": "2026-11-25T23:16:34.157771Z",
  "version": "temperature-history-v1"
 }
