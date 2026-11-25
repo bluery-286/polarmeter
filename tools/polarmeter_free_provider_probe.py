@@ -614,6 +614,39 @@ def fixed_basis_change(symbol: str, price: float | None, now: datetime,
     return previous, basis, moment.timestamp()
 
 
+INTRADAY_CATCH_UP_LAG_SECONDS = 20 * 60
+
+
+def intraday_catch_up(symbol: str, meta: dict[str, Any], fetch: Callable[[str], dict[str, Any]] | None = None
+                      ) -> tuple[float, int] | None:
+    """Today's quote when the 1y daily series still ends at the last session after the open.
+
+    2026-11-24/25: at 09:16 KST the daily endpoint still said 11-24 15:30 (KOSPI +6.32%) while the 5-minute
+    endpoint already had today's 09:14 quote (-4.6%); the app showed yesterday's move for the first 35-50
+    minutes of a reversal day. The 5-minute quote counts only when its own trading period says the regular
+    session that started after the daily quote is open, so a closed market or a holiday changes nothing."""
+    quote_time = meta.get('regularMarketTime')
+    if not isinstance(quote_time, (int, float)) or isinstance(quote_time, bool):
+        return None
+    now = datetime.now(timezone.utc).timestamp()
+    if now - float(quote_time) < INTRADAY_CATCH_UP_LAG_SECONDS:
+        return None
+    url = f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol, safe="")}?range=1d&interval=5m'
+    try:
+        fresh = (((fetch or fetch_json)(url).get('chart', {}).get('result') or [{}])[0]).get('meta') or {}
+    except Exception:  # pragma: no cover - network diagnostic; the daily result stays
+        return None
+    price = as_float(fresh.get('regularMarketPrice'))
+    fresh_time = fresh.get('regularMarketTime')
+    regular = (fresh.get('currentTradingPeriod') or {}).get('regular') or {}
+    start, end = regular.get('start'), regular.get('end')
+    if price in (None, 0) or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (fresh_time, start, end)):
+        return None
+    if not (float(quote_time) < start <= fresh_time <= now + 300 and start <= now < end):
+        return None
+    return price, int(fresh_time)
+
+
 def yahoo_chart_probe() -> dict[str, Any]:
     """Worker-side public delayed Yahoo chart probe for non-keyed macro/index gaps.
 
@@ -657,6 +690,15 @@ def yahoo_chart_probe() -> dict[str, Any]:
                     change_source = f'fixed_basis_{change_basis}'
                 else:
                     change_basis = 'midnight_bar'
+            elif price not in (None, 0):
+                caught = intraday_catch_up(symbol, meta)
+                # The stale daily price is the last session's close: today's change is measured from it.
+                if caught and abs(caught[0] / price - 1) <= 0.35:
+                    previous, price = price, caught[0]
+                    change = price - previous
+                    change_pct = change / previous * 100
+                    change_source = 'intraday_catch_up_previous_session_close'
+                    meta = {**meta, 'regularMarketTime': caught[1]}
             status = 'ok' if price is not None else 'unavailable'
             reason = None if status == 'ok' else 'no_price'
             data_as_of = normalized_as_of_time(meta.get('regularMarketTime'))
