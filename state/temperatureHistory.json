@@ -1,44 +1,29 @@
 {
  "anchorTimeKst": "00:00",
  "basis": "kst_calendar_day_latest_settled_market_session",
- "comparisonDateKst": "2026-11-24",
- "currentDateKst": "2026-11-25",
+ "comparisonDateKst": "2026-11-25",
+ "currentDateKst": "2026-11-26",
  "dailyDelta": {
   "kr": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-24T14:46:54.178418Z",
-   "comparisonDateKst": "2026-11-24",
+   "comparisonAsOf": "2026-11-25T14:47:03.199480Z",
+   "comparisonDateKst": "2026-11-25",
    "currentScore": 35,
-   "delta": -30,
-   "previousScore": 65
+   "delta": 0,
+   "previousScore": 35
   },
   "reason": null,
   "status": "ready",
   "us": {
    "basis": "previous_kst_date",
-   "comparisonAsOf": "2026-11-24T14:46:54.178418Z",
-   "comparisonDateKst": "2026-11-24",
-   "currentScore": 25,
-   "delta": -37,
-   "previousScore": 62
+   "comparisonAsOf": "2026-11-25T14:47:03.199480Z",
+   "comparisonDateKst": "2026-11-25",
+   "currentScore": 29,
+   "delta": -1,
+   "previousScore": 30
   }
  },
  "items": [
-  {
-   "asOf": "2026-11-19T14:47:02.411572Z",
-   "dateKst": "2026-11-19",
-   "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-19T14:47:02.411572Z",
-   "krLabel": "중립 · 관망",
-   "krScore": 55,
-   "krSettled": true,
-   "sessionType": "after_market",
-   "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-19T14:17:04.737170Z",
-   "usLabel": "중립 · 관망",
-   "usScore": 52,
-   "usSettled": true
-  },
   {
    "asOf": "2026-11-20T14:46:50.267003Z",
    "dateKst": "2026-11-20",
@@ -128,9 +113,24 @@
    "usLabel": "냉각 · 리스크 높음",
    "usScore": 30,
    "usSettled": true
+  },
+  {
+   "asOf": "2026-11-25T15:01:53.867412Z",
+   "dateKst": "2026-11-26",
+   "inputPolicyVersion": "last-close-session-v1",
+   "krAsOf": "2026-11-25T15:01:53.867412Z",
+   "krLabel": "냉각 · 리스크 높음",
+   "krScore": 35,
+   "krSettled": true,
+   "sessionType": "pre_market",
+   "source": "score_core_v2_normal_freshness",
+   "usAsOf": "2026-11-25T14:16:47.170581Z",
+   "usLabel": "냉각 · 리스크 높음",
+   "usScore": 30,
+   "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-25T14:47:03.199480Z",
+ "updatedAt": "2026-11-25T15:01:53.867412Z",
  "version": "temperature-history-v1"
 }
