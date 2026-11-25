@@ -18,8 +18,8 @@
    "basis": "previous_kst_date",
    "comparisonAsOf": "2026-11-25T14:47:03.199480Z",
    "comparisonDateKst": "2026-11-25",
-   "currentScore": 40,
-   "delta": 10,
+   "currentScore": 41,
+   "delta": 11,
    "previousScore": 30
   }
  },
@@ -115,10 +115,10 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-25T18:46:55.670858Z",
+   "asOf": "2026-11-25T19:01:56.961371Z",
    "dateKst": "2026-11-26",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-25T18:46:55.670858Z",
+   "krAsOf": "2026-11-25T19:01:56.961371Z",
    "krLabel": "냉각 · 리스크 높음",
    "krScore": 35,
    "krSettled": true,
@@ -131,6 +131,6 @@
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-25T18:46:55.670858Z",
+ "updatedAt": "2026-11-25T19:01:56.961371Z",
  "version": "temperature-history-v1"
 }
