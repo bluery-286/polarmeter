@@ -375,10 +375,34 @@ def parse_utc_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+# 2026-11-24/25: the first build after the Korean open still had the last session's index (KOSPI +6.32% on a -4.6%
+# morning). It set a 60-minute TTL, so the GitHub hourly run skipped as "fresh" and the scheduler Worker waited for
+# nextRefreshAt. While a market is open and one of its core indexes is older than this, the next build comes soon.
+OPEN_INDEX_LAG_MINUTES = 45
+OPEN_INDEX_RETRY_TTL_MINUTES = 10
+OPEN_INDEX_KEYS = {'KR': ('kospi', 'kosdaq'), 'US': ('sp500', 'nasdaq100')}
+
+
+def open_market_index_lagging(snapshot: dict[str, Any], generated_at: datetime) -> bool:
+    signals = snapshot.get('signals') or {}
+    for market, keys in OPEN_INDEX_KEYS.items():
+        session = market_session_context(generated_at, market) or {}
+        if session.get('phase') != 'open':
+            continue
+        for key in keys:
+            observed = parse_utc_datetime((signals.get(key) or {}).get('dataAsOf'))
+            if observed is None or (generated_at - observed).total_seconds() > OPEN_INDEX_LAG_MINUTES * 60:
+                return True
+    return False
+
+
 def public_market_ttl_minutes(snapshot: dict[str, Any]) -> int:
     generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
     if generated_at is not None:
-        return recommended_market_ttl_minutes(generated_at)
+        ttl = recommended_market_ttl_minutes(generated_at)
+        if open_market_index_lagging(snapshot, generated_at):
+            return min(ttl, OPEN_INDEX_RETRY_TTL_MINUTES)
+        return ttl
     return int(snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes())
 
 
