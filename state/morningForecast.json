@@ -14,7 +14,6 @@
     "ko": "밤사이 미국장이 쉬어서 예보가 없어요"
    }
   },
-  "inputs": null,
   "issuedAt": null,
   "noForecastReason": "us_market_closed",
   "origin": "live",
@@ -28,7 +27,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-26T22:16:41Z",
+ "generatedAt": "2026-11-26T22:31:14Z",
  "ledger": [
   {
    "actual": {
