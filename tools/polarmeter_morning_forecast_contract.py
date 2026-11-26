@@ -368,6 +368,26 @@ def check_case5_holidays() -> None:
     assert abs(cur['inputs']['spyPct'] - round((1.0005 ** 3 - 1) * 100, 2)) < 1e-9, cur['inputs']  # compounded, not summed
 
 
+def check_kr_holiday_notice() -> None:
+    """형 2026-11-27: on a KR weekday holiday the card says so for the day; the notice is never a ledger row."""
+    before = run('2026-09-23T20:00:00')
+    block = run('2026-09-24T10:00:00', before)
+    cur = block['current']
+    assert cur['targetSession'] == '2026-09-24' and cur['state'] == 'no_forecast', cur
+    assert cur['noForecastReason'] == 'kr_holiday' and cur['origin'] == 'live' and cur['predicted'] is None
+    assert cur['copy']['title']['ko'] == '오늘 한국장은 추석 연휴 휴장이라 쉬어요', cur['copy']['title']
+    assert cur['copy']['title']['en'] == 'Korea market closed today (holiday)'
+    assert block['phase'] in ('kr_closed', 'us_open') and block['status'] == 'ok'
+    assert '2026-09-24' not in {r['targetSession'] for r in block['ledger']}, 'the notice is not a ledger row'
+    assert block['scorecard'] == before['scorecard']
+    assert run('2026-09-25T07:00:00', block)['current']['noForecastReason'] == 'kr_holiday'
+    weekend = run('2026-09-26T06:00:00', block)
+    assert weekend['current']['targetSession'] == '2026-09-28' and weekend['current']['state'] == 'issued', \
+        'once the next forecast is out it is shown'
+    assert mf.kr_holiday_name(date(2026, 9, 26)) is None, 'weekends get no notice'
+    assert mf.kr_holiday_name(date(2026, 12, 25)), 'Christmas is a KRX holiday'
+
+
 def check_case6_friday_to_monday() -> None:
     # Fri 2026-10-30 US session, issued Sat 10-31 for Mon 11-02 (EDT still: the clocks change on 11-01).
     assert run('2026-10-31T05:30:00')['current'] is None
@@ -900,6 +920,7 @@ def main() -> None:
     check_case3_no_issue_while_us_trades()
     check_case4_missed_window()
     check_case5_holidays()
+    check_kr_holiday_notice()
     check_case6_friday_to_monday()
     check_case7_scoring()
     check_case8_scorecard()

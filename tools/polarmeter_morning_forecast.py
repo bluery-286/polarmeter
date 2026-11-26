@@ -227,7 +227,7 @@ US_FEED_GRACE_MINUTES = 45         # `last_completed_session_date(.., 'US')` rep
 
 STATES = ('pending', 'issued', 'open_scored', 'closed_scored', 'no_forecast', 'void')
 SCORED_STATES = ('open_scored', 'closed_scored')
-NO_FORECAST_REASONS = ('us_market_closed', 'missed_window', 'inputs_suspect', 'data_unavailable')
+NO_FORECAST_REASONS = ('us_market_closed', 'missed_window', 'inputs_suspect', 'data_unavailable', 'kr_holiday')
 STATUSES = ('ok', 'paused', 'unavailable')
 PHASES = ('pre_open', 'kr_open', 'kr_closed', 'us_open', 'off')
 DISCLAIMER = {'ko': '과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다.',
@@ -284,6 +284,21 @@ def trading_days_back(day: date, count: int) -> list[date]:
     except ForecastUnavailable:
         pass
     return out
+
+
+def kr_holiday_name(day: date) -> str | None:
+    """The KRX holiday name ('추석 연휴') on a weekday the market is closed; None on open days and weekends."""
+    if day.weekday() >= 5 or day.year not in cal.KR_CALENDAR_YEARS:
+        return None
+    reason = cal.kr_market_closed_reason(datetime.combine(day, time(12), KST))
+    if reason is None:
+        return None
+    return reason[reason.find('(') + 1:reason.rfind(')')] if '(' in reason else '공휴일'
+
+
+def kr_holiday_row(day: date) -> dict[str, Any]:
+    """A notice row for a KR weekday holiday. Shown as `current` only; never stored in the ledger."""
+    return make_no_forecast(new_row(day.isoformat(), kr_day_before(day).isoformat(), 'live'), 'kr_holiday', [])
 
 
 def target_session_for(now: datetime) -> date:
@@ -715,6 +730,9 @@ def title_copy(row: Mapping[str, Any], today: date) -> dict[str, str]:
     ko_day, en_day = day_words(row['targetSession'], today)
     prefix = '' if en_day == 'today' else f'{en_day}: '
     if row['state'] == 'no_forecast':
+        if row.get('noForecastReason') == 'kr_holiday':
+            name = kr_holiday_name(date.fromisoformat(row['targetSession'])) or '공휴일'
+            return {'ko': f'오늘 한국장은 {name} 휴장이라 쉬어요', 'en': 'Korea market closed today (holiday)'}
         if row.get('noForecastReason') == 'us_market_closed':
             return {'ko': '밤사이 미국장이 쉬어서 예보가 없어요', 'en': 'No forecast: US markets were closed'}
         return {'ko': f'자료가 덜 들어와 {ko_day} 예보를 내지 못했어요', 'en': 'No forecast: data arrived too late'}
@@ -1121,14 +1139,22 @@ def compute_block(previous_public: Mapping[str, Any] | None, series: Mapping[str
     live_rows = [r for r in rows.values() if r.get('origin') == 'live' and r['state'] != 'pending']
     current_row = max(live_rows, key=lambda r: r['targetSession']) if live_rows else None
     current = None
+    status = 'paused' if current_row is not None and current_row.get('paused') else 'ok'
+    phase = phase_for(current_row, now)
+    if kr_holiday_name(today) and (current_row is None or current_row['targetSession'] < today.isoformat()):
+        # a KR weekday holiday: a notice for the day (not in `rows`, so the ledger and scorecard stay as they were),
+        # unless the next session's forecast is already out
+        current_row = kr_holiday_row(today)
+        status = 'ok'
+        phase = 'us_open' if phase == 'us_open' else 'kr_closed'
     if current_row is not None:
         current = ordered_row({**current_row, 'copy': build_copy(current_row, today, model)})
     return {
         'schemaVersion': SCHEMA_VERSION,
         'modelVersion': model.get('modelVersion'),
         'generatedAt': iso_utc(now),
-        'status': 'paused' if current_row is not None and current_row.get('paused') else 'ok',
-        'phase': phase_for(current_row, now),
+        'status': status,
+        'phase': phase,
         'current': current,
         'ledger': [ordered_row(public_row(rows[key])) for key in sorted(rows)],
         'scorecard': scorecard,

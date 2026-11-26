@@ -150,6 +150,34 @@ def check_rest_and_missed() -> None:
     assert rows['current']['restReason'] == 'data_unavailable'
 
 
+def check_us_holiday_notice() -> None:
+    """2026-11-26 Thanksgiving: a notice card from 21:00 KST to 16:00 KST the next day, never stored in the ledger."""
+    data, _ = sample_data()
+    base = sample_evening_block()
+    at = lambda d, h, m=0: datetime.combine(d, time(h, m), KST)
+    thanksgiving, friday = date(2026, 11, 26), date(2026, 11, 27)
+    before = eb.compute_block({'eveningBrief': base}, data, at(thanksgiving, 20, 30), MODEL, [])
+    assert before['current']['restReason'] != 'us_holiday', 'no notice before 21:00 KST'
+    night = eb.compute_block({'eveningBrief': base}, data, at(thanksgiving, 21, 30), MODEL, [])
+    cur = night['current']
+    assert cur['restReason'] == 'us_holiday' and cur['state'] == 'rest' and cur['targetSession'] == '2026-11-26'
+    assert cur['origin'] == 'live' and cur['call'] is None and cur['issuedAt'] == '2026-11-26T12:00:00Z'
+    assert '추수감사절 휴장' in cur['copy']['title']['ko'] and 'Thanksgiving' in cur['copy']['title']['en']
+    assert '11월 27일(금) 밤 9시' in cur['copy']['note']['ko'] and '오후 1시' in cur['copy']['note']['ko']
+    assert night['phase'] == 'evening'
+    assert '2026-11-26' not in {r['targetSession'] for r in night['ledger']}, 'the notice is not a ledger row'
+    assert night['scorecard'] == before['scorecard']
+    eb.assert_public_evening_brief(night)
+    late = eb.compute_block({'eveningBrief': night}, data, at(friday, 15, 55), MODEL, [])
+    assert late['current']['restReason'] == 'us_holiday' and late['phase'] == 'scored'
+    over = eb.compute_block({'eveningBrief': late}, data, at(friday, 16, 5), MODEL, [])
+    assert over['current']['restReason'] != 'us_holiday', 'the notice ends at 16:00 KST'
+    weekend = eb.compute_block({'eveningBrief': over}, data, at(date(2026, 11, 28), 21, 30), MODEL, [])
+    assert weekend['current']['restReason'] != 'us_holiday', 'weekends get no notice'
+    assert eb.us_holiday_on(date(2026, 12, 25)) == ('크리스마스', 'Christmas')
+    assert eb.us_holiday_on(date(2026, 11, 27)) is None
+
+
 def check_unavailable_keeps_ledger() -> None:
     data, target = sample_data()
     block = eb.compute_block(None, data, datetime.combine(target, time(20, 0), KST), MODEL, [])
@@ -182,6 +210,7 @@ def main() -> int:
     check_issue_freeze_and_score()
     check_outcomes()
     check_rest_and_missed()
+    check_us_holiday_notice()
     check_unavailable_keeps_ledger()
     check_model()
     print('PolarMeter evening brief contract: PASS')

@@ -50,7 +50,7 @@ SUSPECT_ABS_PCT = 8.0
 STATES = ('pending', 'issued', 'scored', 'rest', 'void')
 CALLS = ('up', 'down', 'none')
 OUTCOMES = ('held', 'flat', 'flipped')
-REST_REASONS = ('fomc', 'futures_roll', 'missed_window', 'data_unavailable', 'inputs_suspect')
+REST_REASONS = ('fomc', 'futures_roll', 'missed_window', 'data_unavailable', 'inputs_suspect', 'us_holiday')
 PHASES = ('evening', 'us_open', 'scored', 'off')
 ROW_KEYS = ('targetSession', 'prevSession', 'origin', 'state', 'issuedAt', 'restReason', 'call',
             'inputs', 'stats', 'actual', 'outcome')
@@ -426,7 +426,62 @@ REST_COPY = {
 }
 
 
+HOLIDAY_NAMES = {  # polarmeter_market_calendar reason text -> (ko, en)
+    "New Year's Day": ('새해 첫날', "New Year's Day"), 'MLK Day': ('마틴 루서 킹 데이', 'MLK Day'),
+    "Presidents' Day": ('대통령의 날', "Presidents' Day"), 'Good Friday': ('성금요일', 'Good Friday'),
+    'Memorial Day': ('메모리얼 데이', 'Memorial Day'), 'Juneteenth': ('준틴스', 'Juneteenth'),
+    'Independence Day': ('독립기념일', 'Independence Day'), 'Labor Day': ('노동절', 'Labor Day'),
+    'Thanksgiving': ('추수감사절', 'Thanksgiving'), 'Christmas': ('크리스마스', 'Christmas'),
+}
+WEEKDAYS_KO = '월화수목금토일'
+
+
+def us_holiday_on(day: date) -> tuple[str, str] | None:
+    """(ko, en) holiday name when the US market is closed on this weekday; None on open days and weekends."""
+    if day.weekday() >= 5:
+        return None
+    reason = cal.us_market_closed_reason(datetime.combine(day, time(12), NY))
+    if reason is None:
+        return None
+    name = reason[reason.find('(') + 1:reason.rfind(')')] if '(' in reason else ''
+    return HOLIDAY_NAMES.get(name, (name or '미국 공휴일', name or 'US holiday'))
+
+
+def holiday_evening(now: datetime) -> date | None:
+    """The US holiday whose evening card is up now: from 21:00 KST that day to 16:00 KST the next day."""
+    local = now.astimezone(KST)
+    day = local.date() if local.time() >= ISSUE_FROM_KST else local.date() - timedelta(days=1)
+    if us_holiday_on(day) is None:
+        return None
+    if now >= datetime.combine(day + timedelta(days=1), time(16), KST):
+        return None
+    return day
+
+
+def holiday_row(day: date) -> dict[str, Any]:
+    """A notice row for a US holiday evening. Shown as `current` only; never stored in the ledger."""
+    row = new_row(day.isoformat(), us_day_before(day).isoformat(), 'live')
+    row.update({'state': 'rest', 'restReason': 'us_holiday', 'issuedAt': iso_utc(issue_from(day))})
+    return row
+
+
+def holiday_copy(row: Mapping[str, Any]) -> dict[str, Any]:
+    day = date.fromisoformat(row['targetSession'])
+    name_ko, name_en = us_holiday_on(day) or ('미국 공휴일', 'US holiday')
+    nxt = us_day_after(day)
+    when_ko = f'{nxt.month}월 {nxt.day}일({WEEKDAYS_KO[nxt.weekday()]}) 밤 9시'
+    when_en = f"{nxt.strftime('%a %b')} {nxt.day}, 21:00 KST"
+    early_ko = ' 그날 미국장은 오후 1시(뉴욕)에 일찍 끝나요.' if close_at(nxt).time() != time(16) else ''
+    early_en = ' That session closes early at 13:00 New York.' if early_ko else ''
+    return {'events': [],
+            'title': {'ko': f'미국장은 {name_ko} 휴장이라 쉬어요', 'en': f'US market closed ({name_en})'},
+            'note': {'ko': f'다음 저녁 브리핑은 {when_ko}에 나와요.{early_ko}',
+                     'en': f'The next evening brief comes {when_en}.{early_en}'}}
+
+
 def build_copy(row: Mapping[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
+    if row.get('restReason') == 'us_holiday':
+        return holiday_copy(row)
     copy: dict[str, Any] = {'events': events}
     if row['state'] == 'rest':
         ko, en, why_ko, why_en = REST_COPY.get(row.get('restReason') or '', REST_COPY['data_unavailable'])
@@ -528,14 +583,20 @@ def compute_block(previous_public: Mapping[str, Any] | None, data: Mapping[str, 
     live = [r for r in rows.values() if r.get('origin') == 'live' and r['state'] != 'pending']
     current_row = max(live, key=lambda r: r['targetSession']) if live else None
     current = None
-    if current_row is not None:
+    phase = phase_for(current_row, now)
+    holiday = holiday_evening(now)
+    if holiday is not None and (current_row is None or current_row['targetSession'] < holiday.isoformat()):
+        current_row = holiday_row(holiday)  # a notice only: not in `rows`, so the ledger and scorecard stay as they were
+        phase = 'evening' if now < open_at(holiday) else 'scored'
+        current = ordered_row({**current_row, 'copy': build_copy(current_row, [])})
+    elif current_row is not None:
         current = ordered_row({**current_row, 'copy': build_copy(current_row, events_tonight(events, current_row, now))})
     return {
         'schemaVersion': SCHEMA_VERSION,
         'modelVersion': model.get('modelVersion'),
         'generatedAt': iso_utc(now),
         'status': 'ok',
-        'phase': phase_for(current_row, now),
+        'phase': phase,
         'current': current,
         'ledger': [ordered_row(rows[k]) for k in sorted(rows)],
         'scorecard': build_scorecard(rows, carried),

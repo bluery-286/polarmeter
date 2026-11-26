@@ -117,6 +117,21 @@ def check_weekend_and_holiday_send_nothing() -> None:
     assert po.build_items(snapshot(current_row('down', target='2031-03-04')), at('2031-03-04T06:00:00')) == []
 
 
+def check_holiday_guard() -> None:
+    """형 2026-11-27 "휴장일땐 푸쉬 알람들 꺼주고": an item whose send day is a closed day is never listed."""
+    base = {'kind': 'kr_forecast', 'open': {'targetSession': '2026-11-06'}}
+    assert not po.holiday_send({**base, 'sendAfter': '2026-11-05T23:05:00Z'})        # Fri 11-06 08:05 KST: open
+    assert po.holiday_send({**base, 'sendAfter': '2026-12-24T23:05:00Z'})            # Fri 12-25 08:05 KST: KRX shut
+    assert po.holiday_send({**base, 'kind': 'kr_result', 'sendAfter': '2026-11-07T06:50:00Z'})   # Saturday
+    assert po.holiday_send({'kind': 'us_evening', 'open': {'targetSession': '2026-11-26'}, 'sendAfter': 'x'})
+    assert not po.holiday_send({'kind': 'us_evening', 'open': {'targetSession': '2026-11-27'}, 'sendAfter': 'x'})
+    # the Thanksgiving notice card makes no evening notification
+    night = ebc.eb.compute_block({'eveningBrief': ebc.sample_evening_block()}, ebc.sample_data()[0],
+                                 datetime(2026, 11, 26, 21, 30, tzinfo=KST), ebc.MODEL, [])
+    assert night['current']['restReason'] == 'us_holiday'
+    assert po.build_items({'eveningBrief': night}, datetime(2026, 11, 26, 21, 30, tzinfo=KST)) == []
+
+
 def check_saturday_built_monday() -> None:
     # Fri 2026-11-06 US session -> the Monday forecast is issued on Saturday morning; the alert goes out Monday 08:05 like
     # every trading day (형 2026-11-23 "앞당기자"; the Worker adds the weekend futures move when it sends).
@@ -572,6 +587,7 @@ def main() -> None:
     args = parser.parse_args()
     check_send_time_ignores_daylight_saving()
     check_weekend_and_holiday_send_nothing()
+    check_holiday_guard()
     check_saturday_built_monday()
     check_expiry()
     check_topics()
