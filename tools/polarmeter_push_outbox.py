@@ -393,6 +393,15 @@ def evening_item(snapshot: Mapping[str, Any], now: datetime) -> dict[str, Any] |
             'open': {'screen': 'home', 'focus': 'evening', 'targetSession': day.isoformat()}}
 
 
+def holiday_send(item: Mapping[str, Any]) -> bool:
+    """형 2026-11-27 "휴장일땐 푸쉬 알람들 꺼주고": nothing is sent on a day its market is closed (weekends included)."""
+    if item['kind'] == 'us_evening':
+        day = date.fromisoformat(item['open']['targetSession'])
+        return cal.us_market_closed_reason(datetime.combine(day, time(12), cal.NY_ZONE)) is not None
+    send_day = datetime.fromisoformat(item['sendAfter'].replace('Z', '+00:00')).astimezone(cal.KST_ZONE)
+    return cal.kr_market_closed_reason(send_day) is not None
+
+
 def limit_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Earliest send time first, at most MAX_ITEMS."""
     return sorted(items, key=lambda item: (item['sendAfter'], item['id']))[:MAX_ITEMS]
@@ -414,7 +423,7 @@ def build_items(snapshot: Mapping[str, Any], now: datetime, fetch: Any = None) -
         item = evening_item(snapshot, now)
         if item is not None and not item_problems(item):
             items.append(item)
-    return limit_items(items)
+    return limit_items([item for item in items if not holiday_send(item)])
 
 
 # ---------------------------------------------------------------- copy rules (SPEC §6.5, run time)
