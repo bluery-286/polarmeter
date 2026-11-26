@@ -1,183 +1,34 @@
 {
  "current": {
-  "actual": {
-   "closePct": 0.29,
-   "intradayPct": -0.71,
-   "openPct": 1.01,
-   "source": "naver_index_price"
-  },
-  "analog": {
-   "bucket": "open_ge_1.0",
-   "closeSame": 50,
-   "days": 57,
-   "openSame": 54,
-   "period": "2023-12 ~ 2026-11",
-   "widened": false
-  },
-  "basisKrSession": "2026-11-25",
+  "actual": null,
+  "analog": null,
+  "basisKrSession": "2026-11-26",
   "copy": {
    "badge": {
-    "en": "Strong signal",
-    "ko": "신호 뚜렷",
-    "tone": "plus"
-   },
-   "chips": [
-    {
-     "en": "S&P 500 −0.3%",
-     "ko": "S&P500 −0.3%",
-     "tone": "neutral"
-    },
-    {
-     "en": "US chips −0.5%",
-     "ko": "미국 반도체 −0.5%",
-     "tone": "minus"
-    },
-    {
-     "en": "Korea ETF vs KOSPI +5.0pp",
-     "ko": "한국 ETF 코스피 대비 +5.0%p",
-     "tone": "plus"
-    }
-   ],
-   "closeNote": {
-    "en": "Started like this, closed above (57 days)",
-    "ko": "이만큼 올라 시작해 플러스 마감 (57일 기준)"
-   },
-   "closeStat": {
-    "en": "50 of 57 days",
-    "ko": "57일 중 50일"
-   },
-   "openRange": {
-    "en": "Likely −1.5% to +3.5%",
-    "ko": "예상 범위 −1.5 ~ +3.5%"
-   },
-   "openRangeNote": {
-    "en": "7 of 10 opens fell inside in the last year",
-    "ko": "최근 1년 10번 중 7번은 이 범위 안"
-   },
-   "openResult": {
-    "en": "Open +1.0%: call was right",
-    "ko": "시가 +1.0%, 예보 적중"
-   },
-   "openStat": {
-    "en": "around +1%",
-    "ko": "+1% 안팎"
-   },
-   "past": {
-    "en": "About 9 in 10 of the days with an overnight signal this positive opened higher (57 days since Dec 2023).",
-    "ko": "밤사이 신호가 이만큼 좋았던 날은 열에 아홉쯤 상승 출발했어요. (57일, 2023년 12월부터)"
-   },
-   "resultBadge": {
-    "en": "Direction right",
-    "ko": "방향 적중",
-    "tone": "plus"
-   },
-   "resultHeadline": {
-    "en": "Nov 26 went as forecast",
-    "ko": "11월 26일은 예보대로였어요"
-   },
-   "resultRows": [
-    {
-     "actual": {
-      "en": "+1.0%",
-      "ko": "+1.0%"
-     },
-     "forecast": {
-      "en": "Higher",
-      "ko": "상승"
-     },
-     "hit": true,
-     "key": "open",
-     "label": {
-      "en": "Open direction",
-      "ko": "시가 방향"
-     }
-    },
-    {
-     "actual": {
-      "en": "+1.0%",
-      "ko": "+1.0%"
-     },
-     "forecast": {
-      "en": "around +1%",
-      "ko": "+1% 안팎"
-     },
-     "hit": true,
-     "key": "open_size",
-     "label": {
-      "en": "Open size",
-      "ko": "시가 크기"
-     }
-    },
-    {
-     "actual": {
-      "en": "+0.3%",
-      "ko": "+0.3%"
-     },
-     "forecast": {
-      "en": "Not forecast",
-      "ko": "예보 안 함"
-     },
-     "hit": null,
-     "key": "close",
-     "label": {
-      "en": "Close direction",
-      "ko": "종가 방향"
-     }
-    }
-   ],
-   "resultTitle": {
-    "en": "Nov 26 forecast result",
-    "ko": "11월 26일 예보 결과"
-   },
-   "say": {
-    "en": "Nov 26 went as forecast. The open was 1.0%, inside the expected range.",
-    "id": "H7",
-    "ko": "11월 26일은 예보대로였어요. 시가 1.0%, 예상 범위 안이에요."
+    "en": "No forecast",
+    "ko": "예보 없음",
+    "tone": "neutral"
    },
    "title": {
-    "en": "Nov 26: Korea is likely to open higher",
-    "ko": "11월 26일 한국장, 올라서 시작할 가능성이 높아요"
+    "en": "No forecast: US markets were closed",
+    "ko": "밤사이 미국장이 쉬어서 예보가 없어요"
    }
   },
-  "inputs": {
-   "ewyExcessPct": 5.0,
-   "ewyPct": -1.16,
-   "kospiPrevPct": -6.16,
-   "soxxPct": -0.5,
-   "spyPct": -0.29
-  },
-  "issuedAt": "2026-11-25T22:16:48Z",
-  "modelVersion": "kospi-overnight-v1",
-  "noForecastReason": null,
+  "inputs": null,
+  "issuedAt": null,
+  "noForecastReason": "us_market_closed",
   "origin": "live",
-  "predicted": {
-   "closeCall": "up",
-   "closePct": 1.51,
-   "openBand": [
-    -1.22,
-    3.22
-   ],
-   "openCall": "up",
-   "openPct": 1.0,
-   "strength": "strong",
-   "topDriver": "ewyExcessPct"
-  },
-  "result": {
-   "closeHit": true,
-   "openHit": true,
-   "openInBand": true
-  },
-  "state": "closed_scored",
-  "targetSession": "2026-11-26",
-  "usSessions": [
-   "2026-11-25"
-  ]
+  "predicted": null,
+  "result": null,
+  "state": "no_forecast",
+  "targetSession": "2026-11-27",
+  "usSessions": []
  },
  "disclaimer": {
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-26T15:02:04Z",
+ "generatedAt": "2026-11-26T22:16:41Z",
  "ledger": [
   {
    "actual": {
@@ -1613,11 +1464,24 @@
    "usSessions": [
     "2026-11-25"
    ]
+  },
+  {
+   "actual": null,
+   "analog": null,
+   "basisKrSession": "2026-11-26",
+   "issuedAt": null,
+   "noForecastReason": "us_market_closed",
+   "origin": "live",
+   "predicted": null,
+   "result": null,
+   "state": "no_forecast",
+   "targetSession": "2026-11-27",
+   "usSessions": []
   }
  ],
  "modelVersion": "kospi-overnight-v1",
- "nextIssueAt": "2026-11-26T21:45:00Z",
- "phase": "kr_closed",
+ "nextIssueAt": "2026-11-27T18:45:00Z",
+ "phase": "pre_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
@@ -1639,17 +1503,16 @@
    "since": "2026-11-09"
   },
   "recent": {
-   "calls": 18,
+   "calls": 17,
    "closeCalls": 17,
    "closeHits": 13,
-   "liveSessions": 14,
+   "liveSessions": 15,
    "marks": [
     "hit",
     "hit",
     "hit",
     "hit",
     "hit",
-    "hit",
     "miss",
     "hit",
     "hit",
@@ -1663,23 +1526,23 @@
     "hit",
     "hit",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
-   "openHits": 16,
+   "openHits": 15,
    "sessions": 20
   },
   "recentBacktest": {
-   "calls": 6,
+   "calls": 5,
    "marks": [
-    "hit",
     "hit",
     "hit",
     "hit",
     "hit",
     "hit"
    ],
-   "openHits": 6,
-   "sessions": 6
+   "openHits": 5,
+   "sessions": 5
   },
   "recentLive": {
    "calls": 12,
@@ -1697,10 +1560,11 @@
     "hit",
     "hit",
     "hit",
-    "hit"
+    "hit",
+    "none"
    ],
    "openHits": 10,
-   "sessions": 14
+   "sessions": 15
   }
  },
  "status": "ok"
