@@ -7,7 +7,10 @@ on:
     # market confirmation crons below still force builds around open/close.
     - cron: '7 * * * 1-5'
     # Korea market confirmation points:
-    # 09:30/10:00 KST after open, 15:45/16:30 KST after close/final delayed data.
+    # 09:22 KST: first delayed KR bars (about 20 min behind) replace yesterday's
+    # move as soon as they exist (2026-11-24~26 the app showed the previous
+    # session until 09:43). 09:35/10:05 KST after open, 15:50/16:35 KST after close.
+    - cron: '22 0 * * 1-5'
     - cron: '35 0 * * 1-5'
     - cron: '5 1 * * 1-5'
     - cron: '50 6 * * 1-5'
@@ -56,6 +59,7 @@ jobs:
           event_schedule = os.environ.get('GITHUB_EVENT_SCHEDULE', '')
           threshold = float(os.environ.get('MIN_MINUTES_BEFORE_NEXT_REFRESH', '10'))
           critical_market_schedules = {
+              '22 0 * * 1-5',
               '35 0 * * 1-5',
               '5 1 * * 1-5',
               '50 6 * * 1-5',
