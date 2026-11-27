@@ -112,7 +112,9 @@ def check_morning_issue() -> dict:
     wo.assert_public_week_outlook(block)
     kr, us = block['markets']['kr'], block['markets']['us']
     assert (kr['target'], kr['slot'], kr['basisSession']) == ('2026-11-27', '0650', '2026-11-26')
-    assert kr['open'] is not None and kr['close'] is not None and kr['close']['basis'] == 'us_session'
+    # 11-26 was Thanksgiving: the last US close (11-25) was already in the Korean 11-26 session, so 06:50 says nothing.
+    assert kr['open']['call'] == 'none' and kr['close']['call'] == 'none', 'no call from a two-day-old US session'
+    assert kr['open']['basis'] == kr['close']['basis'] == 'us_closed'
     assert [row['closed'] for row in kr['days']] == [False, True, True, False, False, False, False]
     assert kr['days'][1]['closedReason'] and [row['sessionsAhead'] for row in kr['days'] if not row['closed']] == [0, 1, 2, 3, 4]
     assert (us['target'], us['slot']) == ('2026-11-27', 'close') and us['close'] is None, 'no US call before 21:10'
@@ -120,6 +122,16 @@ def check_morning_issue() -> dict:
     published = sanitize_public_snapshot({'generatedAt': '2026-11-26T21:55:00Z', 'weekOutlook': block})
     assert published['weekOutlook'] == block, 'sanitize_public_snapshot must pass weekOutlook through unchanged'
     return block
+
+
+def check_morning_after_us_session() -> None:
+    # A normal morning (the US traded the night before) still gives the 06:50 call from the US session.
+    now = kst(2026, 11, 26, 6, 55)
+    block = wo.apply_week_outlook({}, None, now, FakeYahoo(date(2026, 11, 25), date(2026, 11, 25), now))['weekOutlook']
+    wo.assert_public_week_outlook(block)
+    kr = block['markets']['kr']
+    assert (kr['target'], kr['slot'], kr['basisSession']) == ('2026-11-26', '0650', '2026-11-25')
+    assert kr['open']['basis'] == 'us_session' and kr['close']['basis'] == 'us_session'
 
 
 def check_carry_and_reissue(block: dict) -> None:
@@ -243,6 +255,7 @@ def main() -> int:
     check_bar_dates()
     check_no_lookahead()
     block = check_morning_issue()
+    check_morning_after_us_session()
     check_carry_and_reissue(deepcopy(block))
     check_never_raises()
     check_tiers()
