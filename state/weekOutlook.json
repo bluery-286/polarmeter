@@ -1,6 +1,6 @@
 {
  "disclaimer": "과거 기록으로 계산한 예보이며 결과를 보장하지 않습니다. 투자 권유가 아닙니다.",
- "generatedAt": "2026-11-27T12:16:50Z",
+ "generatedAt": "2026-11-27T15:17:05Z",
  "markets": {
   "kr": {
    "basisSession": "2026-11-27",
@@ -299,10 +299,10 @@
  },
  "regime": {
   "kr": {
-   "recentPct": 4.09,
+   "recentPct": 4.26,
    "state": "rougher",
    "through": "2026-11-27",
-   "usualPct": 2.89
+   "usualPct": 2.64
   },
   "us": {
    "recentPct": 2.24,
@@ -312,7 +312,7 @@
   }
  },
  "schemaVersion": "polarmeter-week-outlook-v1",
- "status": "ready",
+ "status": "partial",
  "track": {
   "dayLog": {
    "kr": {
@@ -423,5 +423,7 @@
    }
   }
  },
- "waiting": null
+ "waiting": {
+  "kr": "kr_basis_bar_missing"
+ }
 }
