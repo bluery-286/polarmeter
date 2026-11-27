@@ -24,6 +24,17 @@ def main() -> int:
     missing = snap('2026-11-25T00:37:34Z', '2026-11-25T00:16:50Z')
     missing['signals']['kosdaq'] = {}
     cases[2] = ('KR open, KOSDAQ missing a time', missing, 10)
+    # 2026-11-27: KOSDAQ +4.08% at the build, +5.68% 44 minutes later. A big-move day builds every 15 minutes.
+    big = snap('2026-11-27T01:16:05Z', '2026-11-27T01:10:00Z')
+    big['signals']['kosdaq']['changePct'] = 4.08
+    calm = snap('2026-11-27T01:16:05Z', '2026-11-27T01:10:00Z')
+    calm['signals']['kospi']['changePct'] = -1.2
+    shut = snap('2026-11-27T12:00:00Z', '2026-11-27T06:35:00Z')
+    shut['signals']['kospi']['changePct'] = -4.6
+    drop = snap('2026-11-27T01:16:05Z', '2026-11-27T01:10:00Z')
+    drop['signals']['kospi']['changePct'] = -2.0
+    cases += [('KR open, KOSDAQ +4.08%', big, 15), ('KR open, KOSPI -1.2%', calm, base),
+              ('KR closed, KOSPI -4.6%', shut, base), ('KR open, KOSPI -2.0%', drop, 15)]
     for name, snapshot, want in cases:
         got = worker.public_market_ttl_minutes(snapshot)
         if got != min(want, base):
