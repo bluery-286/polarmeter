@@ -1,33 +1,64 @@
 {
  "current": {
-  "actual": null,
-  "call": null,
+  "actual": {
+   "afterOpenPct": 1.73,
+   "closePct": -0.25,
+   "source": "yahoo_gspc"
+  },
+  "call": "down",
   "copy": {
+   "caveat": {
+    "en": "After the open it is about a coin flip (56%). Not a signal to chase.",
+    "ko": "다만 장이 열린 뒤 더 내릴지는 반반이에요(56%). 따라 사거나 팔라는 신호가 아니에요."
+   },
    "events": [],
-   "note": {
-    "en": "The next evening brief comes Fri Nov 27, 21:00 KST. That session closes early at 13:00 New York.",
-    "ko": "다음 저녁 브리핑은 11월 27일(금) 밤 9시에 나와요. 그날 미국장은 오후 1시(뉴욕)에 일찍 끝나요."
+   "hold": {
+    "en": "Of 55 days with futures this far behind, 42 still closed below the previous close (6 flat).",
+    "ko": "선물이 이만큼 밀린 날 55번 중 42번은 그 마이너스가 마감까지 남았어요 (보합 6번)."
+   },
+   "kospi": {
+    "en": "Overnight chips and Korea ETF moves feed tomorrow's 8:05 morning forecast.",
+    "ko": "밤사이 반도체와 한국 관련 ETF 흐름은 내일 아침 8:05 꽁치 예보에 이어서 반영돼요."
+   },
+   "result": {
+    "en": "S&P 500 closed −0.25% · start held",
+    "ko": "S&P 500 −0.25% 마감 · 출발 방향을 지켰어요"
+   },
+   "start": {
+    "en": "S&P futures −1.86% · Nasdaq futures −2.86% (21:17 KST, vs previous close)",
+    "ko": "S&P 선물 −1.86% · 나스닥 선물 −2.86% (21:17 기준, 전날 마감 대비)"
    },
    "title": {
-    "en": "US market closed (Thanksgiving)",
-    "ko": "미국장은 추수감사절 휴장이라 쉬어요"
+    "en": "US tonight: starting weak",
+    "ko": "오늘 밤 미국장, 약세 출발 구간이에요"
    }
   },
-  "inputs": null,
-  "issuedAt": "2026-11-26T12:00:00Z",
+  "inputs": {
+   "esPct": -1.86,
+   "nqPct": -2.86
+  },
+  "issuedAt": "2026-11-25T12:17:06Z",
   "origin": "live",
-  "outcome": null,
-  "prevSession": "2026-11-25",
-  "restReason": "us_holiday",
-  "state": "rest",
-  "stats": null,
-  "targetSession": "2026-11-26"
+  "outcome": "held",
+  "prevSession": "2026-11-24",
+  "restReason": null,
+  "state": "scored",
+  "stats": {
+   "afterOpenSameShare": 0.555,
+   "band": "0.8+",
+   "days": 55,
+   "flat": 6,
+   "flipped": 7,
+   "held": 42,
+   "period": "2024-06 ~ 2026-11"
+  },
+  "targetSession": "2026-11-25"
  },
  "disclaimer": {
   "en": "Past record only; it does not promise future results. Not a trading recommendation.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 매매 권유가 아닙니다."
  },
- "generatedAt": "2026-11-26T15:56:59Z",
+ "generatedAt": "2026-11-27T07:17:08Z",
  "ledger": [
   {
    "actual": {
