@@ -1188,16 +1188,16 @@
   },
   {
    "date": "2026-11-27",
-   "fetchedAt": "2026-11-27T09:37:46.729789Z",
+   "fetchedAt": "2026-11-27T10:16:58.134010Z",
    "kosdaq": {
-    "foreign": 3008.0,
-    "institution": 5880.0,
-    "personal": -8864.0
+    "foreign": 2985.0,
+    "institution": 5881.0,
+    "personal": -8844.0
    },
    "kospi": {
-    "foreign": 11636.0,
-    "institution": 2295.0,
-    "personal": -18027.0
+    "foreign": 11607.0,
+    "institution": 2194.0,
+    "personal": -17902.0
    },
    "settled": true
   }
@@ -1206,6 +1206,6 @@
  "sourceLabel": "네이버 증권 (지연)",
  "status": "ok",
  "unit": "KRW_100M",
- "updatedAt": "2026-11-27T09:37:46.729789Z",
+ "updatedAt": "2026-11-27T10:16:58.134010Z",
  "version": "investor-flows-v1"
 }
