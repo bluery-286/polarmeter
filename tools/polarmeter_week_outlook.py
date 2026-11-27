@@ -329,6 +329,11 @@ def call_from(score: float, magnitude: float, part: Mapping[str, Any], basis: st
             'hitPct': part['hitPct'].get(tier), 'sampleDays': part.get('sampleDays')}
 
 
+def no_call(basis: str) -> dict[str, Any]:
+    """A slot that gives no direction on purpose; `basis` says why."""
+    return {'call': 'none', 'tier': 'none', 'lean': None, 'basis': basis, 'hitPct': None, 'sampleDays': None}
+
+
 # ---------------------------------------------------------------- one market
 
 def band_multiplier(book: Book, key: str, part: Mapping[str, Any], extra: Callable[[date], dict[str, float] | None] | None,
@@ -412,11 +417,18 @@ def kr_entry(target: date, slot: str, book: Book, futures: list[tuple[int, float
         values = kr_direction_features(book, target)
         if values is None:
             raise OutlookUnavailable('direction_inputs_missing')
-        overnight = overnight_features(values)
-        gap = linear(part['open'], values)
-        entry['open'] = call_from(gap, abs(gap), part['open'], 'us_session')
-        score = linear(part['close'], values)
-        entry['close'] = call_from(score, abs(score), part['close'], 'us_session')
+        if expected < basis:
+            # The US market was shut the night before (e.g. Thanksgiving): its last close was already priced into the
+            # Korean basis session, so nothing new came in overnight. The morning card says the same and gives no call;
+            # the week outlook must not quietly reuse a two-day-old US session as if it were last night's.
+            entry['open'] = no_call('us_closed')
+            entry['close'] = no_call('us_closed')
+        else:
+            overnight = overnight_features(values)
+            gap = linear(part['open'], values)
+            entry['open'] = call_from(gap, abs(gap), part['open'], 'us_session')
+            score = linear(part['close'], values)
+            entry['close'] = call_from(score, abs(score), part['close'], 'us_session')
         if slot == '0905':
             today_bar, prev_bar = book.on('kr', target), book.before('kr', target)
             if today_bar is None or prev_bar is None:
