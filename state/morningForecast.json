@@ -1,38 +1,112 @@
 {
  "current": {
-  "actual": {
-   "closePct": 4.34,
-   "intradayPct": 3.95,
-   "openPct": 0.37,
-   "source": "naver_index_price"
+  "actual": null,
+  "afterUsHoliday": true,
+  "analog": {
+   "bucket": "open_ge_1.0",
+   "closeSame": 50,
+   "days": 57,
+   "openSame": 54,
+   "period": "2023-12 ~ 2026-11",
+   "widened": false
   },
-  "analog": null,
-  "basisKrSession": "2026-11-26",
+  "basisKrSession": "2026-11-27",
   "copy": {
    "badge": {
-    "en": "No forecast",
-    "ko": "예보 없음",
-    "tone": "neutral"
+    "en": "Strong signal",
+    "ko": "신호 뚜렷",
+    "tone": "plus"
+   },
+   "chips": [
+    {
+     "en": "S&P 500 +1.6%",
+     "ko": "S&P500 +1.6%",
+     "tone": "plus"
+    },
+    {
+     "en": "US chips +4.8%",
+     "ko": "미국 반도체 +4.8%",
+     "tone": "plus"
+    },
+    {
+     "en": "Korea ETF vs KOSPI +0.5pp",
+     "ko": "한국 ETF 코스피 대비 +0.5%p",
+     "tone": "plus"
+    }
+   ],
+   "closeNote": {
+    "en": "Started like this, closed above (57 days)",
+    "ko": "이만큼 올라 시작해 플러스 마감 (57일 기준)"
+   },
+   "closeStat": {
+    "en": "50 of 57 days",
+    "ko": "57일 중 50일"
+   },
+   "issuedNote": {
+    "en": "As of Sat morning (weekend news not included)",
+    "ko": "토요일 아침 기준(주말 소식 반영 전)"
+   },
+   "openRange": {
+    "en": "Likely −1.5% to +3.5%",
+    "ko": "예상 범위 −1.5 ~ +3.5%"
+   },
+   "openRangeNote": {
+    "en": "7 of 10 opens fell inside in the last year · As of Sat morning (weekend news not included)",
+    "ko": "최근 1년 10번 중 7번은 이 범위 안 · 토요일 아침 기준(주말 소식 반영 전)"
+   },
+   "openStat": {
+    "en": "around +1%",
+    "ko": "+1% 안팎"
+   },
+   "past": {
+    "en": "About 9 in 10 of the days with an overnight signal this positive opened higher (57 days since Dec 2023).",
+    "ko": "밤사이 신호가 이만큼 좋았던 날은 열에 아홉쯤 상승 출발했어요. (57일, 2023년 12월부터)"
+   },
+   "say": {
+    "en": "After a sharp gap up the index rose further 52% of the time. I do not call direction once the market opens.",
+    "id": "H2",
+    "ko": "급등 출발 뒤 더 오른 날은 과거 52%, 반반이에요. 장이 열린 뒤 방향은 예보하지 않아요."
    },
    "title": {
-    "en": "No forecast: US markets were closed",
-    "ko": "밤사이 미국장이 쉬어서 예보가 없어요"
+    "en": "Monday: Korea is likely to open higher",
+    "ko": "월요일 한국장, 올라서 시작할 가능성이 높아요"
    }
   },
-  "issuedAt": null,
-  "noForecastReason": "us_market_closed",
+  "inputs": {
+   "ewyExcessPct": 0.52,
+   "ewyPct": 5.16,
+   "kospiPrevPct": 4.64,
+   "soxxPct": 4.76,
+   "spyPct": 1.62
+  },
+  "issuedAt": "2026-11-27T18:47:27Z",
+  "modelVersion": "kospi-overnight-v1",
+  "noForecastReason": null,
   "origin": "live",
-  "predicted": null,
+  "predicted": {
+   "closeCall": "up",
+   "closePct": 1.01,
+   "openBand": [
+    -1.16,
+    3.28
+   ],
+   "openCall": "up",
+   "openPct": 1.06,
+   "strength": "strong",
+   "topDriver": "soxxPct"
+  },
   "result": null,
-  "state": "no_forecast",
-  "targetSession": "2026-11-27",
-  "usSessions": []
+  "state": "issued",
+  "targetSession": "2026-11-30",
+  "usSessions": [
+   "2026-11-27"
+  ]
  },
  "disclaimer": {
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-27T06:51:56Z",
+ "generatedAt": "2026-11-27T18:47:27Z",
  "ledger": [
   {
    "actual": {
@@ -1486,11 +1560,46 @@
    "state": "no_forecast",
    "targetSession": "2026-11-27",
    "usSessions": []
+  },
+  {
+   "actual": null,
+   "afterUsHoliday": true,
+   "analog": {
+    "bucket": "open_ge_1.0",
+    "closeSame": 50,
+    "days": 57,
+    "openSame": 54,
+    "period": "2023-12 ~ 2026-11",
+    "widened": false
+   },
+   "basisKrSession": "2026-11-27",
+   "issuedAt": "2026-11-27T18:47:27Z",
+   "modelVersion": "kospi-overnight-v1",
+   "noForecastReason": null,
+   "origin": "live",
+   "predicted": {
+    "closeCall": "up",
+    "closePct": 1.01,
+    "openBand": [
+     -1.16,
+     3.28
+    ],
+    "openCall": "up",
+    "openPct": 1.06,
+    "strength": "strong",
+    "topDriver": "soxxPct"
+   },
+   "result": null,
+   "state": "issued",
+   "targetSession": "2026-11-30",
+   "usSessions": [
+    "2026-11-27"
+   ]
   }
  ],
  "modelVersion": "kospi-overnight-v1",
- "nextIssueAt": "2026-11-27T18:45:00Z",
- "phase": "kr_closed",
+ "nextIssueAt": "2026-11-30T21:45:00Z",
+ "phase": "pre_open",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {
