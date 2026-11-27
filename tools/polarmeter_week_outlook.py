@@ -34,6 +34,7 @@ from __future__ import annotations
 import math
 import urllib.parse
 from bisect import bisect_left, bisect_right
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -474,10 +475,23 @@ def previous_entry(previous_public: Mapping[str, Any] | None, market: str) -> di
 
 def compute_block(previous_public: Mapping[str, Any] | None, now: datetime, model: Mapping[str, Any],
                   load: Callable[[], tuple[Book, list[tuple[int, float]]]]) -> dict[str, Any]:
+    block, book, fresh = _compute_markets(previous_public, now, model, load)
+    old = (previous_public or {}).get('weekOutlook')
+    old_track = old.get('track') if isinstance(old, Mapping) else None
+    old_regime = old.get('regime') if isinstance(old, Mapping) else None
+    block['track'] = update_track(old_track, previous_public, block['markets'], fresh, book, now)
+    block['regime'] = regime_of(book, block['markets'], old_regime)
+    return block
+
+
+def _compute_markets(previous_public: Mapping[str, Any] | None, now: datetime, model: Mapping[str, Any],
+                     load: Callable[[], tuple[Book, list[tuple[int, float]]]]
+                     ) -> tuple[dict[str, Any], Book | None, set[str]]:
     """Recompute only the markets whose (target, slot) changed; `load` is called at most once and only then."""
     wanted = {'kr': kr_slot(now), 'us': us_slot(now)}
     markets: dict[str, Any] = {}
     waiting: dict[str, str] = {}
+    fresh: set[str] = set()
     data: tuple[Book, list[tuple[int, float]]] | None = None
     for market, (target, slot) in wanted.items():
         old = previous_entry(previous_public, market)
@@ -489,6 +503,7 @@ def compute_block(previous_public: Mapping[str, Any] | None, now: datetime, mode
                 data = load()
             build = kr_entry if market == 'kr' else us_entry
             markets[market] = build(target, slot, data[0], data[1], model, now)
+            fresh.add(market)
         except OutlookUnavailable as error:
             # Not ready yet (a bar has not arrived): keep what was issued and try again on the next run.
             waiting[market] = str(error)
@@ -498,13 +513,151 @@ def compute_block(previous_public: Mapping[str, Any] | None, now: datetime, mode
         raise OutlookUnavailable(next(iter(waiting.values()), 'no_market'))
     return {'schemaVersion': SCHEMA_VERSION, 'modelVersion': MODEL_VERSION, 'generatedAt': iso_utc(now),
             'status': 'ready' if not waiting else 'partial', 'waiting': waiting or None, 'markets': markets,
-            'record': model['record'], 'disclaimer': DISCLAIMER}
+            'record': model['record'], 'disclaimer': DISCLAIMER}, (data[0] if data else None), fresh
+
+
+# ---------------------------------------------------------------- live track: what was said, what happened, what changed
+
+TRACK_ROWS_PER_MARKET = 40
+TRACK_REVISIONS = 40
+SETTLE_AFTER_CLOSE = timedelta(hours=2)      # a daily bar read right at the bell can still move
+BOOK_KEY = {'kr': 'kr', 'us': 'spx'}
+REGIME_RECENT, REGIME_USUAL = 5, 20
+
+
+def _call_label(call: Mapping[str, Any] | None) -> str | None:
+    """'up:clear', 'down:lean', 'none', or None when nothing was said at that slot."""
+    if not call:
+        return None
+    return 'none' if call['call'] == 'none' else f"{call['call']}:{call['tier']}"
+
+
+def _close_at(market: str, day: date) -> datetime:
+    return datetime.combine(day, time(15, 30), KST) if market == 'kr' else us_close_at(day)
+
+
+def _hit(label: str | None, pct: float) -> bool | None:
+    """True/False for a said direction; None when nothing was said or the session ended flat."""
+    if not label or label == 'none' or pct == 0:
+        return None
+    return (label.split(':')[0] == 'up') == (pct > 0)
+
+
+def update_track(old: Any, previous_public: Mapping[str, Any] | None, markets: Mapping[str, Any], fresh: set[str],
+                 book: Book | None, now: datetime) -> dict[str, Any]:
+    """The live ledger carried inside the block: each issue as it was made, the result once the session has settled,
+    and every change between two issues. Nothing here is recomputed afterwards — an issue is written once."""
+    track = deepcopy(dict(old)) if isinstance(old, Mapping) and old.get('rows') is not None else {
+        'since': now.astimezone(KST).date().isoformat(), 'rows': [], 'revisions': [], 'dayLog': {}}
+    rows: list[dict[str, Any]] = track['rows']
+    revisions: list[dict[str, Any]] = track['revisions']
+    day_log: dict[str, dict[str, int]] = track.setdefault('dayLog', {})
+    stamp = iso_utc(now)
+    # Every market, not only the ones rebuilt in this run: an entry carried from before the ledger existed is
+    # logged once too (the slot check below keeps it to one issue per slot).
+    for market in sorted(markets):
+        entry = markets[market]
+        first = entry['days'][0]
+        issue = {'slot': entry['slot'], 'at': entry['issuedAt'], 'open': _call_label(entry['open']),
+                 'close': _call_label(entry['close']), 'stage': first['swingStage'], 'rangePct': first['rangePct']}
+        row = next((r for r in rows if r['market'] == market and r['target'] == entry['target']), None)
+        if row is None:
+            row = {'market': market, 'target': entry['target'], 'issues': [], 'actual': None}
+            rows.append(row)
+        last = row['issues'][-1] if row['issues'] else None
+        if last and last['slot'] == issue['slot']:
+            continue
+        if last:
+            for kind in ('open', 'close'):
+                # A direction that was said and is now said differently (the first time it is said is not a change).
+                if last[kind] is not None and issue[kind] is not None and last[kind] != issue[kind]:
+                    revisions.append({'market': market, 'date': entry['target'], 'at': stamp, 'slot': issue['slot'],
+                                      'kind': kind, 'from': last[kind], 'to': issue[kind]})
+        row['issues'].append(issue)
+        seen = day_log.setdefault(market, {})
+        for day in entry['days']:
+            if day['closed']:
+                continue
+            before = seen.get(day['date'])
+            if before is not None and before != day['swingStage']:
+                revisions.append({'market': market, 'date': day['date'], 'at': stamp, 'slot': issue['slot'],
+                                  'kind': 'swing', 'from': before, 'to': day['swingStage']})
+            seen[day['date']] = day['swingStage']
+        for stale in [d for d in seen if d < entry['target']]:
+            del seen[stale]
+    if book is not None:
+        for row in rows:
+            entry = markets.get(row['market'])
+            if row['actual'] is not None or entry is None or row['target'] >= entry['target']:
+                continue
+            day = date.fromisoformat(row['target'])
+            key = BOOK_KEY[row['market']]
+            bar, prev = book.on(key, day), book.before(key, day)
+            if bar is None or prev is None or now < _close_at(row['market'], day) + SETTLE_AFTER_CLOSE:
+                continue
+            open_pct = round((bar[0] / prev[3] - 1) * 100, 2)
+            close_pct = round((bar[3] / prev[3] - 1) * 100, 2)
+            row['actual'] = {'openPct': open_pct, 'closePct': close_pct}
+            for issue in row['issues']:
+                issue['closeHit'] = _hit(issue['close'], close_pct)
+                # Only a forecast made before the bell is scored for the open (09:05 already carries the real open).
+                issue['openHit'] = _hit(issue['open'], open_pct) if issue['slot'] != '0905' else None
+            row['rangeInside'] = abs(close_pct) <= row['issues'][-1]['rangePct'] if row['issues'] else None
+    for market in SLOTS:
+        mine = [r for r in rows if r['market'] == market]
+        for extra in mine[:-TRACK_ROWS_PER_MARKET]:
+            rows.remove(extra)
+    del revisions[:-TRACK_REVISIONS]
+    track['totals'] = track_totals(rows)
+    return track
+
+
+def track_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Per market: range days and, per slot, how many said directions there were and how many were right."""
+    totals: dict[str, Any] = {}
+    for market in SLOTS:
+        scored = [r for r in rows if r['market'] == market and r['actual'] is not None]
+        slots: dict[str, dict[str, int]] = {}
+        for row in scored:
+            for issue in row['issues']:
+                cell = slots.setdefault(issue['slot'], {'closeCalls': 0, 'closeHits': 0, 'openCalls': 0, 'openHits': 0})
+                for kind in ('close', 'open'):
+                    hit = issue.get(f'{kind}Hit')
+                    if hit is not None:
+                        cell[f'{kind}Calls'] += 1
+                        cell[f'{kind}Hits'] += int(hit)
+        ranged = [r for r in scored if r.get('rangeInside') is not None]
+        totals[market] = {'sessions': len(scored), 'rangeDays': len(ranged),
+                          'rangeInside': sum(1 for r in ranged if r['rangeInside']), 'slots': slots}
+    return totals
+
+
+def regime_of(book: Book | None, markets: Mapping[str, Any], old: Any) -> dict[str, Any] | None:
+    """How much each index moved a day over its last five sessions against the twenty before them."""
+    result = dict(old) if isinstance(old, Mapping) else {}
+    if book is None:
+        return result or None
+    for market, entry in markets.items():
+        key = BOOK_KEY[market]
+        bars = book.window(key, date.fromisoformat(entry['target']), REGIME_RECENT + REGIME_USUAL + 1)
+        if not bars:
+            continue
+        moves = [abs(bars[i][3] / bars[i - 1][3] - 1) * 100 for i in range(1, len(bars))]
+        recent = sum(moves[-REGIME_RECENT:]) / REGIME_RECENT
+        usual = sum(moves[:REGIME_USUAL]) / REGIME_USUAL
+        if usual <= 0:
+            continue
+        ratio = recent / usual
+        result[market] = {'recentPct': round(recent, 2), 'usualPct': round(usual, 2), 'through': entry['basisSession'],
+                          'state': 'rougher' if ratio >= 1.25 else 'calmer' if ratio <= 0.8 else 'same'}
+    return result or None
 
 
 def unavailable_block(now: datetime, error: BaseException) -> dict[str, Any]:
     reason = str(error) if isinstance(error, OutlookUnavailable) else type(error).__name__
     return {'schemaVersion': SCHEMA_VERSION, 'modelVersion': MODEL_VERSION, 'generatedAt': iso_utc(now),
-            'status': 'unavailable', 'reason': reason, 'waiting': None, 'markets': {}, 'record': None, 'disclaimer': DISCLAIMER}
+            'status': 'unavailable', 'reason': reason, 'waiting': None, 'markets': {}, 'record': None, 'disclaimer': DISCLAIMER,
+            'track': None, 'regime': None}
 
 
 def apply_week_outlook(snapshot: dict[str, Any], previous_public: Mapping[str, Any] | None, now: datetime | None = None,
@@ -523,6 +676,8 @@ def apply_week_outlook(snapshot: dict[str, Any], previous_public: Mapping[str, A
     except Exception as error:   # the outlook layer must never stop a publish
         old = (previous_public or {}).get('weekOutlook')
         block = unavailable_block(now, error)
+        if isinstance(old, Mapping) and isinstance(old.get('track'), Mapping):
+            block['track'] = old['track']      # the ledger outlives a model change or an outage
         if isinstance(old, Mapping) and old.get('modelVersion') == MODEL_VERSION and old.get('markets'):
             block = {**dict(old), 'generatedAt': iso_utc(now), 'status': 'stale', 'reason': block['reason']}
     snapshot['weekOutlook'] = block
@@ -531,7 +686,11 @@ def apply_week_outlook(snapshot: dict[str, Any], previous_public: Mapping[str, A
 
 # ---------------------------------------------------------------- public-shape check
 
-BLOCK_KEYS = {'schemaVersion', 'modelVersion', 'generatedAt', 'status', 'waiting', 'markets', 'record', 'disclaimer', 'reason'}
+BLOCK_KEYS = {'schemaVersion', 'modelVersion', 'generatedAt', 'status', 'waiting', 'markets', 'record', 'disclaimer', 'reason',
+              'track', 'regime'}
+TRACK_KEYS = {'since', 'rows', 'revisions', 'dayLog', 'totals'}
+ISSUE_KEYS = {'slot', 'at', 'open', 'close', 'stage', 'rangePct', 'closeHit', 'openHit'}
+CALL_LABELS = {None, 'none', 'up:clear', 'up:lean', 'down:clear', 'down:lean'}
 ENTRY_KEYS = {'target', 'slot', 'issuedAt', 'basisSession', 'open', 'close', 'days'}
 CALL_KEYS = {'call', 'tier', 'lean', 'basis', 'hitPct', 'sampleDays', 'futuresPct', 'actualPct'}
 OPEN_DAY_KEYS = {'date', 'weekday', 'closed', 'sessionsAhead', 'swingStage', 'rangePct', 'conePct', 'stageRecord'}
@@ -563,6 +722,23 @@ def assert_public_week_outlook(block: Any) -> None:
             assert row['conePct'] >= cone, 'the cone never narrows further out'
             cone = row['conePct']
         assert sum(1 for row in days if not row['closed']) <= HORIZONS
+    track = block.get('track')
+    if track is not None:
+        assert set(track) == TRACK_KEYS, 'weekOutlook.track: unexpected keys'
+        for row in track['rows']:
+            assert row['market'] in SLOTS and set(row) <= {'market', 'target', 'issues', 'actual', 'rangeInside'}
+            for issue in row['issues']:
+                assert set(issue) <= ISSUE_KEYS and issue['slot'] in SLOTS[row['market']]
+                assert issue['open'] in CALL_LABELS and issue['close'] in CALL_LABELS
+                if row['actual'] is None:
+                    assert 'closeHit' not in issue, 'an unsettled session carries no result'
+        for change in track['revisions']:
+            assert set(change) == {'market', 'date', 'at', 'slot', 'kind', 'from', 'to'}
+            assert change['kind'] in {'open', 'close', 'swing'} and change['from'] != change['to']
+    regime = block.get('regime')
+    if regime is not None:
+        for market, row in regime.items():
+            assert market in SLOTS and row['state'] in {'rougher', 'same', 'calmer'} and row['usualPct'] > 0
 
 
 def assert_public_week_outlook_if_present(snapshot: Mapping[str, Any]) -> None:
