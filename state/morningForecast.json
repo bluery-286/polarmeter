@@ -1,8 +1,8 @@
 {
  "current": {
   "actual": {
-   "closePct": null,
-   "intradayPct": null,
+   "closePct": 4.34,
+   "intradayPct": 3.95,
    "openPct": 0.37,
    "source": "naver_index_price"
   },
@@ -32,7 +32,7 @@
   "en": "Past record only; it does not guarantee future results. This is not investment advice.",
   "ko": "과거 기록이며 앞으로의 결과를 보장하지 않습니다. 투자 권유가 아닙니다."
  },
- "generatedAt": "2026-11-27T00:16:10Z",
+ "generatedAt": "2026-11-27T06:51:56Z",
  "ledger": [
   {
    "actual": {
@@ -1471,8 +1471,8 @@
   },
   {
    "actual": {
-    "closePct": null,
-    "intradayPct": null,
+    "closePct": 4.34,
+    "intradayPct": 3.95,
     "openPct": 0.37,
     "source": "naver_index_price"
    },
@@ -1490,7 +1490,7 @@
  ],
  "modelVersion": "kospi-overnight-v1",
  "nextIssueAt": "2026-11-27T18:45:00Z",
- "phase": "kr_open",
+ "phase": "kr_closed",
  "schemaVersion": "polarmeter-morning-forecast-v1",
  "scorecard": {
   "backtest": {

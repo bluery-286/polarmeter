@@ -1,27 +1,72 @@
 {
  "disclaimer": "과거 기록으로 계산한 예보이며 결과를 보장하지 않습니다. 투자 권유가 아닙니다.",
- "generatedAt": "2026-11-27T04:16:30Z",
+ "generatedAt": "2026-11-27T06:51:56Z",
  "markets": {
   "kr": {
-   "basisSession": "2026-11-26",
-   "close": {
-    "basis": "actual_open",
-    "call": "up",
-    "hitPct": 76.0,
-    "lean": "up",
-    "sampleDays": 3620,
-    "tier": "lean"
-   },
+   "basisSession": "2026-11-27",
+   "close": null,
    "days": [
     {
      "closed": false,
-     "conePct": 3.58,
-     "date": "2026-11-27",
-     "rangePct": 1.93,
+     "conePct": 7.29,
+     "date": "2026-11-30",
+     "rangePct": 4.25,
      "sessionsAhead": 0,
      "stageRecord": {
-      "meanAbsPct": 1.82,
-      "over2Pct": 30.5
+      "meanAbsPct": 1.77,
+      "over2Pct": 29.1
+     },
+     "swingStage": 4,
+     "weekday": 0
+    },
+    {
+     "closed": false,
+     "conePct": 10.25,
+     "date": "2026-12-01",
+     "rangePct": 4.2,
+     "sessionsAhead": 1,
+     "stageRecord": {
+      "meanAbsPct": 1.76,
+      "over2Pct": 28.4
+     },
+     "swingStage": 4,
+     "weekday": 1
+    },
+    {
+     "closed": false,
+     "conePct": 13.03,
+     "date": "2026-12-02",
+     "rangePct": 4.69,
+     "sessionsAhead": 2,
+     "stageRecord": {
+      "meanAbsPct": 1.74,
+      "over2Pct": 27.8
+     },
+     "swingStage": 4,
+     "weekday": 2
+    },
+    {
+     "closed": false,
+     "conePct": 15.08,
+     "date": "2026-12-03",
+     "rangePct": 4.43,
+     "sessionsAhead": 3,
+     "stageRecord": {
+      "meanAbsPct": 1.72,
+      "over2Pct": 27.2
+     },
+     "swingStage": 4,
+     "weekday": 3
+    },
+    {
+     "closed": false,
+     "conePct": 17.04,
+     "date": "2026-12-04",
+     "rangePct": 4.62,
+     "sessionsAhead": 4,
+     "stageRecord": {
+      "meanAbsPct": 1.7,
+      "over2Pct": 26.8
      },
      "swingStage": 4,
      "weekday": 4
@@ -29,80 +74,20 @@
     {
      "closed": true,
      "closedReason": "한국장 주말 휴장",
-     "date": "2026-11-28",
+     "date": "2026-12-05",
      "weekday": 5
     },
     {
      "closed": true,
      "closedReason": "한국장 주말 휴장",
-     "date": "2026-11-29",
+     "date": "2026-12-06",
      "weekday": 6
-    },
-    {
-     "closed": false,
-     "conePct": 7.07,
-     "date": "2026-11-30",
-     "rangePct": 3.52,
-     "sessionsAhead": 1,
-     "stageRecord": {
-      "meanAbsPct": 1.76,
-      "over2Pct": 28.4
-     },
-     "swingStage": 4,
-     "weekday": 0
-    },
-    {
-     "closed": false,
-     "conePct": 10.24,
-     "date": "2026-12-01",
-     "rangePct": 4.27,
-     "sessionsAhead": 2,
-     "stageRecord": {
-      "meanAbsPct": 1.74,
-      "over2Pct": 27.8
-     },
-     "swingStage": 4,
-     "weekday": 1
-    },
-    {
-     "closed": false,
-     "conePct": 12.32,
-     "date": "2026-12-02",
-     "rangePct": 3.96,
-     "sessionsAhead": 3,
-     "stageRecord": {
-      "meanAbsPct": 1.72,
-      "over2Pct": 27.2
-     },
-     "swingStage": 4,
-     "weekday": 2
-    },
-    {
-     "closed": false,
-     "conePct": 14.38,
-     "date": "2026-12-03",
-     "rangePct": 4.28,
-     "sessionsAhead": 4,
-     "stageRecord": {
-      "meanAbsPct": 1.7,
-      "over2Pct": 26.8
-     },
-     "swingStage": 4,
-     "weekday": 3
     }
    ],
-   "issuedAt": "2026-11-27T03:43:05Z",
-   "open": {
-    "actualPct": 0.37,
-    "basis": "us_session",
-    "call": "up",
-    "hitPct": 86.2,
-    "lean": "up",
-    "sampleDays": 2620,
-    "tier": "lean"
-   },
-   "slot": "0905",
-   "target": "2026-11-27"
+   "issuedAt": "2026-11-27T06:51:56Z",
+   "open": null,
+   "slot": "close",
+   "target": "2026-11-30"
   },
   "us": {
    "basisSession": "2026-11-25",
@@ -296,17 +281,30 @@
    "sampleDays": 2706
   }
  },
- "regime": null,
+ "regime": {
+  "kr": {
+   "recentPct": 4.09,
+   "state": "rougher",
+   "through": "2026-11-27",
+   "usualPct": 2.89
+  },
+  "us": {
+   "recentPct": 2.24,
+   "state": "rougher",
+   "through": "2026-11-25",
+   "usualPct": 1.03
+  }
+ },
  "schemaVersion": "polarmeter-week-outlook-v1",
  "status": "ready",
  "track": {
   "dayLog": {
    "kr": {
-    "2026-11-27": 4,
     "2026-11-30": 4,
     "2026-12-01": 4,
     "2026-12-02": 4,
-    "2026-12-03": 4
+    "2026-12-03": 4,
+    "2026-12-04": 4
    },
    "us": {
     "2026-11-27": 4,
@@ -347,6 +345,21 @@
     ],
     "market": "us",
     "target": "2026-11-27"
+   },
+   {
+    "actual": null,
+    "issues": [
+     {
+      "at": "2026-11-27T06:51:56Z",
+      "close": null,
+      "open": null,
+      "rangePct": 4.25,
+      "slot": "close",
+      "stage": 4
+     }
+    ],
+    "market": "kr",
+    "target": "2026-11-30"
    }
   ],
   "since": "2026-11-27",
