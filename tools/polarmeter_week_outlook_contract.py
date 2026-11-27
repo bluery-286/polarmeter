@@ -175,6 +175,69 @@ def check_tiers() -> None:
     assert all(76 <= v <= 84 for v in record['krSwing']['rangeInsidePct'] + record['usSwing']['rangeInsidePct']), '8 in 10 means 8 in 10'
 
 
+def check_track() -> None:
+    """The live ledger: an issue is written once per slot, a changed direction is logged as a revision, and a
+    session is scored only after it has settled — from the real bar, never from a later forecast."""
+    now = kst(2026, 11, 27, 6, 55)
+    yahoo = FakeYahoo(date(2026, 11, 26), date(2026, 11, 25), now)
+    first = wo.apply_week_outlook({}, None, now, yahoo)['weekOutlook']
+    track = first['track']
+    assert track['since'] == '2026-11-27' and track['revisions'] == []
+    kr = next(r for r in track['rows'] if r['market'] == 'kr')
+    assert kr['target'] == '2026-11-27' and [i['slot'] for i in kr['issues']] == ['0650'] and kr['actual'] is None
+    assert first['regime']['kr']['state'] in {'rougher', 'same', 'calmer'} and first['regime']['kr']['through'] == '2026-11-26'
+
+    # Same slot again: nothing fetched, nothing added.
+    same = wo.apply_week_outlook({}, {'weekOutlook': first}, kst(2026, 11, 27, 8, 0), boom)['weekOutlook']
+    assert same['track']['rows'] == track['rows'] and same['regime'] == first['regime']
+
+    # A direction said at 06:50 and said differently at 09:05 becomes a revision; an unchanged one does not.
+    forced = deepcopy(first)
+    said = next(r for r in forced['track']['rows'] if r['market'] == 'kr')['issues'][0]
+    said['close'] = 'down:clear'
+    now2 = kst(2026, 11, 27, 9, 6)
+    second = wo.apply_week_outlook({}, {'weekOutlook': forced}, now2, FakeYahoo(date(2026, 11, 27), date(2026, 11, 25), now2))['weekOutlook']
+    kr2 = next(r for r in second['track']['rows'] if r['market'] == 'kr')
+    assert [i['slot'] for i in kr2['issues']] == ['0650', '0905'] and kr2['actual'] is None
+    new_close = kr2['issues'][1]['close']
+    changes = [c for c in second['track']['revisions'] if c['kind'] == 'close']
+    assert (len(changes) == 1 and changes[0]['from'] == 'down:clear' and changes[0]['to'] == new_close) or new_close == 'down:clear'
+
+    # A day whose swing stage was logged differently yesterday shows up as a swing revision.
+    forced2 = deepcopy(second)
+    monday = next(d for d in forced2['markets']['kr']['days'] if not d['closed'] and d['sessionsAhead'] == 1)
+    forced2['track']['dayLog']['kr'][monday['date']] = 1 if monday['swingStage'] != 1 else 2
+    now3 = kst(2026, 11, 27, 15, 40)
+    third = wo.apply_week_outlook({}, {'weekOutlook': forced2}, now3, FakeYahoo(date(2026, 11, 27), date(2026, 11, 25), now3))['weekOutlook']
+    assert third['markets']['kr']['target'] == '2026-11-30' and third['markets']['kr']['slot'] == 'close'
+    assert any(c['kind'] == 'swing' and c['date'] == monday['date'] for c in third['track']['revisions'])
+    friday = next(r for r in third['track']['rows'] if r['market'] == 'kr' and r['target'] == '2026-11-27')
+    assert friday['actual'] is None, 'ten minutes after the bell the bar is not settled yet'
+
+    # Sunday night: Friday has settled, so its issues get their results and the totals count them.
+    now4 = kst(2026, 11, 29, 21, 12)
+    fourth = wo.apply_week_outlook({}, {'weekOutlook': third}, now4, FakeYahoo(date(2026, 11, 27), date(2026, 11, 27), now4))['weekOutlook']
+    friday = next(r for r in fourth['track']['rows'] if r['market'] == 'kr' and r['target'] == '2026-11-27')
+    assert friday['actual'] is not None and isinstance(friday['rangeInside'], bool)
+    close_pct = friday['actual']['closePct']
+    for issue in friday['issues']:
+        label = issue['close']
+        expected = None if label in (None, 'none') or close_pct == 0 else (label.startswith('up') == (close_pct > 0))
+        assert issue['closeHit'] is expected
+    assert friday['issues'][1]['openHit'] is None, 'the 09:05 issue already knew the open'
+    totals = fourth['track']['totals']['kr']
+    assert totals['sessions'] == 1 and totals['rangeDays'] == 1
+    assert sum(cell['closeCalls'] for cell in totals['slots'].values()) == sum(1 for i in friday['issues'] if i['closeHit'] is not None)
+    wo.assert_public_week_outlook(fourth)
+
+    # An outage keeps the ledger.
+    def down(url: str):
+        raise OSError('network down')
+    after = wo.apply_week_outlook({}, {'weekOutlook': fourth}, kst(2026, 11, 30, 6, 55), down)['weekOutlook']
+    assert after['status'] == 'stale', (after['status'], after.get('reason'))
+    assert after['track'] == fourth['track']
+
+
 def main() -> int:
     check_slots()
     check_bar_dates()
@@ -183,6 +246,7 @@ def main() -> int:
     check_carry_and_reissue(deepcopy(block))
     check_never_raises()
     check_tiers()
+    check_track()
     print('week outlook contract: ok')
     return 0
 
