@@ -30,6 +30,7 @@ import polarmeter_cache_snapshot as cache_policy
 import polarmeter_coach_brief as coach_brief
 import polarmeter_evening_brief as evening_brief
 import polarmeter_morning_forecast as morning_forecast
+import polarmeter_week_outlook as week_outlook
 import polarmeter_push_outbox as push_outbox
 from polarmeter_free_provider_probe import REQUIRED_SIGNALS
 
@@ -499,6 +500,7 @@ def assert_pages_contract(output_dir: Path, summary: dict[str, Any]) -> None:
         raise AssertionError('manifest must expose ready temperatureHistoryStatus')
     morning_forecast.assert_public_forecast_if_present(snapshot, manifest)
     evening_brief.assert_public_evening_if_present(snapshot)
+    week_outlook.assert_public_week_outlook_if_present(snapshot)
     coach_brief.assert_public_coach_brief_if_present(snapshot)
     push_outbox.assert_public_push_outbox_if_present(snapshot)
     if not isinstance(manifest.get('newsTtlMinutes'), int) or not manifest.get('newsNextRefreshAt'):

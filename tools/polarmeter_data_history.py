@@ -11,7 +11,7 @@ Pages workflow commits to the orphan branch `data-history` (append-only, never f
   forecast/ledger.jsonl         every live morning-forecast and evening-brief row ever published,
                                 one line per (kind, targetSession); the issued row keeps its inputs
   state/<key>.json              the last published block of each ledger the worker carries forward
-                                (morningForecast, eveningBrief, temperatureHistory, investorFlows),
+                                (morningForecast, eveningBrief, weekOutlook, temperatureHistory, investorFlows),
                                 rewritten only when its rows change
 
 restore() puts a state block back when the previous public snapshot could not be read, so a missed
@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 KST = timezone(timedelta(hours=9))
-STATE_KEYS = ('morningForecast', 'eveningBrief', 'temperatureHistory', 'investorFlows')
+STATE_KEYS = ('morningForecast', 'eveningBrief', 'weekOutlook', 'temperatureHistory', 'investorFlows')
 VOLATILE_KEYS = {'generatedAt', 'updatedAt', 'nextIssueAt', 'phase'}
 NEWS_FIELDS = ('headline', 'originalHeadline', 'displayHeadline', 'sourceName', 'publishedAt', 'url', 'impactTarget',
                'impactTone', 'category', 'critical', 'criticalReason', 'marketImpactScore', 'qualityScore',
