@@ -1,6 +1,6 @@
 {
  "disclaimer": "과거 기록으로 계산한 예보이며 결과를 보장하지 않습니다. 투자 권유가 아닙니다.",
- "generatedAt": "2026-11-27T18:12:39Z",
+ "generatedAt": "2026-11-27T20:02:15Z",
  "markets": {
   "kr": {
    "basisSession": "2026-11-27",
@@ -346,12 +346,17 @@
     "target": "2026-11-27"
    },
    {
-    "actual": null,
+    "actual": {
+     "closePct": 1.6,
+     "openPct": 1.11
+    },
     "issues": [
      {
       "at": "2026-11-27T03:43:05Z",
       "close": null,
+      "closeHit": null,
       "open": null,
+      "openHit": null,
       "rangePct": 2.68,
       "slot": "close",
       "stage": 4
@@ -359,13 +364,16 @@
      {
       "at": "2026-11-27T12:16:50Z",
       "close": "up:clear",
+      "closeHit": true,
       "open": null,
+      "openHit": null,
       "rangePct": 2.68,
       "slot": "2110",
       "stage": 4
      }
     ],
     "market": "us",
+    "rangeInside": true,
     "target": "2026-11-27"
    },
    {
@@ -423,10 +431,23 @@
     }
    },
    "us": {
-    "rangeDays": 0,
-    "rangeInside": 0,
-    "sessions": 0,
-    "slots": {}
+    "rangeDays": 1,
+    "rangeInside": 1,
+    "sessions": 1,
+    "slots": {
+     "2110": {
+      "closeCalls": 1,
+      "closeHits": 1,
+      "openCalls": 0,
+      "openHits": 0
+     },
+     "close": {
+      "closeCalls": 0,
+      "closeHits": 0,
+      "openCalls": 0,
+      "openHits": 0
+     }
+    }
    }
   }
  },

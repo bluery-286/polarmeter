@@ -115,22 +115,22 @@
    "usSettled": true
   },
   {
-   "asOf": "2026-11-27T19:47:28.782884Z",
+   "asOf": "2026-11-27T20:02:12.879773Z",
    "dateKst": "2026-11-28",
    "inputPolicyVersion": "last-close-session-v1",
-   "krAsOf": "2026-11-27T19:47:28.782884Z",
+   "krAsOf": "2026-11-27T20:02:12.879773Z",
    "krLabel": "온기 · 긍정 우위",
    "krScore": 65,
    "krSettled": true,
    "sessionType": "weekend",
    "source": "score_core_v2_normal_freshness",
-   "usAsOf": "2026-11-27T19:47:28.782884Z",
+   "usAsOf": "2026-11-27T20:02:12.879773Z",
    "usLabel": "온기 · 긍정 우위",
    "usScore": 62,
    "usSettled": true
   }
  ],
  "retentionDays": 7,
- "updatedAt": "2026-11-27T19:47:28.782884Z",
+ "updatedAt": "2026-11-27T20:02:12.879773Z",
  "version": "temperature-history-v1"
 }
