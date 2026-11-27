@@ -1,0 +1,302 @@
+{
+ "disclaimer": "과거 기록으로 계산한 예보이며 결과를 보장하지 않습니다. 투자 권유가 아닙니다.",
+ "generatedAt": "2026-11-27T03:43:05Z",
+ "markets": {
+  "kr": {
+   "basisSession": "2026-11-26",
+   "close": {
+    "basis": "actual_open",
+    "call": "up",
+    "hitPct": 76.0,
+    "lean": "up",
+    "sampleDays": 3620,
+    "tier": "lean"
+   },
+   "days": [
+    {
+     "closed": false,
+     "conePct": 3.58,
+     "date": "2026-11-27",
+     "rangePct": 1.93,
+     "sessionsAhead": 0,
+     "stageRecord": {
+      "meanAbsPct": 1.82,
+      "over2Pct": 30.5
+     },
+     "swingStage": 4,
+     "weekday": 4
+    },
+    {
+     "closed": true,
+     "closedReason": "한국장 주말 휴장",
+     "date": "2026-11-28",
+     "weekday": 5
+    },
+    {
+     "closed": true,
+     "closedReason": "한국장 주말 휴장",
+     "date": "2026-11-29",
+     "weekday": 6
+    },
+    {
+     "closed": false,
+     "conePct": 7.07,
+     "date": "2026-11-30",
+     "rangePct": 3.52,
+     "sessionsAhead": 1,
+     "stageRecord": {
+      "meanAbsPct": 1.76,
+      "over2Pct": 28.4
+     },
+     "swingStage": 4,
+     "weekday": 0
+    },
+    {
+     "closed": false,
+     "conePct": 10.24,
+     "date": "2026-12-01",
+     "rangePct": 4.27,
+     "sessionsAhead": 2,
+     "stageRecord": {
+      "meanAbsPct": 1.74,
+      "over2Pct": 27.8
+     },
+     "swingStage": 4,
+     "weekday": 1
+    },
+    {
+     "closed": false,
+     "conePct": 12.32,
+     "date": "2026-12-02",
+     "rangePct": 3.96,
+     "sessionsAhead": 3,
+     "stageRecord": {
+      "meanAbsPct": 1.72,
+      "over2Pct": 27.2
+     },
+     "swingStage": 4,
+     "weekday": 2
+    },
+    {
+     "closed": false,
+     "conePct": 14.38,
+     "date": "2026-12-03",
+     "rangePct": 4.28,
+     "sessionsAhead": 4,
+     "stageRecord": {
+      "meanAbsPct": 1.7,
+      "over2Pct": 26.8
+     },
+     "swingStage": 4,
+     "weekday": 3
+    }
+   ],
+   "issuedAt": "2026-11-27T03:43:05Z",
+   "open": {
+    "actualPct": 0.37,
+    "basis": "us_session",
+    "call": "up",
+    "hitPct": 86.2,
+    "lean": "up",
+    "sampleDays": 2620,
+    "tier": "lean"
+   },
+   "slot": "0905",
+   "target": "2026-11-27"
+  },
+  "us": {
+   "basisSession": "2026-11-25",
+   "close": null,
+   "days": [
+    {
+     "closed": false,
+     "conePct": 3.44,
+     "date": "2026-11-27",
+     "rangePct": 2.68,
+     "sessionsAhead": 0,
+     "stageRecord": {
+      "meanAbsPct": 1.27,
+      "over2Pct": 16.6
+     },
+     "swingStage": 4,
+     "weekday": 4
+    },
+    {
+     "closed": true,
+     "closedReason": "미국장 주말 휴장",
+     "date": "2026-11-28",
+     "weekday": 5
+    },
+    {
+     "closed": true,
+     "closedReason": "미국장 주말 휴장",
+     "date": "2026-11-29",
+     "weekday": 6
+    },
+    {
+     "closed": false,
+     "conePct": 4.79,
+     "date": "2026-11-30",
+     "rangePct": 2.6,
+     "sessionsAhead": 1,
+     "stageRecord": {
+      "meanAbsPct": 1.25,
+      "over2Pct": 16.4
+     },
+     "swingStage": 4,
+     "weekday": 0
+    },
+    {
+     "closed": false,
+     "conePct": 5.76,
+     "date": "2026-12-01",
+     "rangePct": 2.49,
+     "sessionsAhead": 2,
+     "stageRecord": {
+      "meanAbsPct": 1.25,
+      "over2Pct": 16.8
+     },
+     "swingStage": 4,
+     "weekday": 1
+    },
+    {
+     "closed": false,
+     "conePct": 6.55,
+     "date": "2026-12-02",
+     "rangePct": 2.44,
+     "sessionsAhead": 3,
+     "stageRecord": {
+      "meanAbsPct": 1.21,
+      "over2Pct": 16.3
+     },
+     "swingStage": 4,
+     "weekday": 2
+    },
+    {
+     "closed": false,
+     "conePct": 7.25,
+     "date": "2026-12-03",
+     "rangePct": 2.41,
+     "sessionsAhead": 4,
+     "stageRecord": {
+      "meanAbsPct": 1.18,
+      "over2Pct": 15.2
+     },
+     "swingStage": 4,
+     "weekday": 3
+    }
+   ],
+   "issuedAt": "2026-11-27T03:43:05Z",
+   "open": null,
+   "slot": "close",
+   "target": "2026-11-27"
+  }
+ },
+ "modelVersion": "week-outlook-v1",
+ "record": {
+  "krClose": {
+   "allPct": 64.7,
+   "alwaysUpPct": 54.5,
+   "hitPct": {
+    "clear": 81.6,
+    "lean": 67.0,
+    "none": 53.3
+   },
+   "sampleDays": 2620
+  },
+  "krCloseAfterOpen": {
+   "allPct": 71.6,
+   "alwaysUpPct": 53.3,
+   "hitPct": {
+    "clear": 90.2,
+    "lean": 76.0,
+    "none": 57.9
+   },
+   "sampleDays": 3620
+  },
+  "krFutures": {
+   "0010": {
+    "allPct": 63.2,
+    "alwaysUpPct": 57.6,
+    "hitPct": {
+     "clear": 75.3,
+     "lean": 63.8,
+     "none": 56.5
+    },
+    "sampleDays": 443
+   },
+   "2110": {
+    "allPct": 58.0,
+    "alwaysUpPct": 57.6,
+    "hitPct": {
+     "clear": 60.7,
+     "lean": 55.4,
+     "none": 59.3
+    },
+    "sampleDays": 443
+   },
+   "after_us": {
+    "allPct": 64.2,
+    "alwaysUpPct": 57.6,
+    "hitPct": {
+     "clear": 84.5,
+     "lean": 66.2,
+     "none": 51.9
+    },
+    "sampleDays": 578
+   }
+  },
+  "krOpen": {
+   "allPct": 79.8,
+   "alwaysUpPct": 59.5,
+   "hitPct": {
+    "clear": 94.7,
+    "lean": 86.2,
+    "none": 63.2
+   },
+   "sampleDays": 2620
+  },
+  "krSwing": {
+   "bigDays": 124,
+   "bigDaysFlaggedPct": 97.6,
+   "overnightRangeInsidePct": 79.9,
+   "pathInsidePct": 78.4,
+   "rangeInsidePct": [
+    79.5,
+    79.3,
+    78.6,
+    78.9,
+    79.1
+   ],
+   "sampleDays": 2616
+  },
+  "scoredFrom": "2016-03-18",
+  "trainedThrough": "2026-11-27",
+  "usFutures": {
+   "2110": {
+    "allPct": 67.2,
+    "alwaysUpPct": 54.3,
+    "hitPct": {
+     "clear": 80.8,
+     "lean": 70.3,
+     "none": 57.3
+    },
+    "sampleDays": 598
+   }
+  },
+  "usSwing": {
+   "pathInsidePct": 79.6,
+   "rangeInsidePct": [
+    80.2,
+    80.2,
+    80.5,
+    80.4,
+    80.3
+   ],
+   "sampleDays": 2706
+  }
+ },
+ "schemaVersion": "polarmeter-week-outlook-v1",
+ "status": "ready",
+ "waiting": null
+}
