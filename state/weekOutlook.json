@@ -1,16 +1,24 @@
 {
  "disclaimer": "과거 기록으로 계산한 예보이며 결과를 보장하지 않습니다. 투자 권유가 아닙니다.",
- "generatedAt": "2026-11-27T06:51:56Z",
+ "generatedAt": "2026-11-27T12:16:50Z",
  "markets": {
   "kr": {
    "basisSession": "2026-11-27",
-   "close": null,
+   "close": {
+    "basis": "sp_futures_since_kr_close",
+    "call": "none",
+    "futuresPct": 0.0,
+    "hitPct": 59.3,
+    "lean": "down",
+    "sampleDays": 443,
+    "tier": "none"
+   },
    "days": [
     {
      "closed": false,
-     "conePct": 7.29,
+     "conePct": 7.24,
      "date": "2026-11-30",
-     "rangePct": 4.25,
+     "rangePct": 4.22,
      "sessionsAhead": 0,
      "stageRecord": {
       "meanAbsPct": 1.77,
@@ -21,9 +29,9 @@
     },
     {
      "closed": false,
-     "conePct": 10.25,
+     "conePct": 10.18,
      "date": "2026-12-01",
-     "rangePct": 4.2,
+     "rangePct": 4.17,
      "sessionsAhead": 1,
      "stageRecord": {
       "meanAbsPct": 1.76,
@@ -34,9 +42,9 @@
     },
     {
      "closed": false,
-     "conePct": 13.03,
+     "conePct": 12.96,
      "date": "2026-12-02",
-     "rangePct": 4.69,
+     "rangePct": 4.67,
      "sessionsAhead": 2,
      "stageRecord": {
       "meanAbsPct": 1.74,
@@ -47,9 +55,9 @@
     },
     {
      "closed": false,
-     "conePct": 15.08,
+     "conePct": 15.01,
      "date": "2026-12-03",
-     "rangePct": 4.43,
+     "rangePct": 4.41,
      "sessionsAhead": 3,
      "stageRecord": {
       "meanAbsPct": 1.72,
@@ -60,9 +68,9 @@
     },
     {
      "closed": false,
-     "conePct": 17.04,
+     "conePct": 16.96,
      "date": "2026-12-04",
-     "rangePct": 4.62,
+     "rangePct": 4.61,
      "sessionsAhead": 4,
      "stageRecord": {
       "meanAbsPct": 1.7,
@@ -84,14 +92,22 @@
      "weekday": 6
     }
    ],
-   "issuedAt": "2026-11-27T06:51:56Z",
+   "issuedAt": "2026-11-27T12:16:50Z",
    "open": null,
-   "slot": "close",
+   "slot": "2110",
    "target": "2026-11-30"
   },
   "us": {
    "basisSession": "2026-11-25",
-   "close": null,
+   "close": {
+    "basis": "sp_futures_since_us_close",
+    "call": "up",
+    "futuresPct": 0.71,
+    "hitPct": 80.8,
+    "lean": "up",
+    "sampleDays": 598,
+    "tier": "clear"
+   },
    "days": [
     {
      "closed": false,
@@ -171,9 +187,9 @@
      "weekday": 3
     }
    ],
-   "issuedAt": "2026-11-27T03:43:05Z",
+   "issuedAt": "2026-11-27T12:16:50Z",
    "open": null,
-   "slot": "close",
+   "slot": "2110",
    "target": "2026-11-27"
   }
  },
@@ -317,18 +333,24 @@
   "revisions": [],
   "rows": [
    {
-    "actual": null,
+    "actual": {
+     "closePct": 4.34,
+     "openPct": 0.37
+    },
     "issues": [
      {
       "at": "2026-11-27T03:43:05Z",
       "close": "up:lean",
+      "closeHit": true,
       "open": "up:lean",
+      "openHit": null,
       "rangePct": 1.93,
       "slot": "0905",
       "stage": 4
      }
     ],
     "market": "kr",
+    "rangeInside": false,
     "target": "2026-11-27"
    },
    {
@@ -340,6 +362,14 @@
       "open": null,
       "rangePct": 2.68,
       "slot": "close",
+      "stage": 4
+     },
+     {
+      "at": "2026-11-27T12:16:50Z",
+      "close": "up:clear",
+      "open": null,
+      "rangePct": 2.68,
+      "slot": "2110",
       "stage": 4
      }
     ],
@@ -356,6 +386,14 @@
       "rangePct": 4.25,
       "slot": "close",
       "stage": 4
+     },
+     {
+      "at": "2026-11-27T12:16:50Z",
+      "close": "none",
+      "open": null,
+      "rangePct": 4.22,
+      "slot": "2110",
+      "stage": 4
      }
     ],
     "market": "kr",
@@ -365,10 +403,17 @@
   "since": "2026-11-27",
   "totals": {
    "kr": {
-    "rangeDays": 0,
+    "rangeDays": 1,
     "rangeInside": 0,
-    "sessions": 0,
-    "slots": {}
+    "sessions": 1,
+    "slots": {
+     "0905": {
+      "closeCalls": 1,
+      "closeHits": 1,
+      "openCalls": 0,
+      "openHits": 0
+     }
+    }
    },
    "us": {
     "rangeDays": 0,
