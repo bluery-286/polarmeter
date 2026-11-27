@@ -57,12 +57,18 @@ def fit(X: np.ndarray, y: np.ndarray, lam: float = 10.0, logit: bool = False) ->
     return w, mean, scale, float(y.mean())
 
 
-def walk(X: np.ndarray, y: np.ndarray, logit: bool = False) -> np.ndarray:
+def walk(X: np.ndarray, y: np.ndarray, logit: bool = False, embargo: int = 0, floor_q: float | None = None) -> np.ndarray:
+    """Walk-forward predictions. `embargo` drops the last rows of each fit whose target (h sessions ahead) had
+    not happened yet on the first test day. `floor_q` floors each step's predictions at that quantile of the
+    step's own in-sample fit, so the floor never sees later data either."""
     pred = np.full(len(y), np.nan)
     for s in range(START, len(y), STEP):
-        w, mean, scale, b = fit(X[:s], y[:s], logit=logit)
+        fit_end = s - embargo
+        w, mean, scale, b = fit(X[:fit_end], y[:fit_end], logit=logit)
         e = min(s + STEP, len(y))
         pred[s:e] = ((X[s:e] - mean) / scale) @ w + b
+        if floor_q is not None:
+            pred[s:e] = np.maximum(pred[s:e], np.quantile(((X[:fit_end] - mean) / scale) @ w + b, floor_q))
     return pred
 
 
@@ -104,19 +110,22 @@ def rule_part(score: np.ndarray, y: np.ndarray) -> dict:
             **tier_record(score, y, expanding=False)}
 
 
-def swing_part(names, X: np.ndarray, target: np.ndarray) -> tuple[dict, np.ndarray]:
-    """Linear fit of |move| h sessions ahead; returns the part and its walk-forward predictions."""
-    oos = walk(X, target)
+FLOOR_QUANTILE = 0.02
+
+
+def swing_part(names, X: np.ndarray, target: np.ndarray, horizon: int) -> tuple[dict, np.ndarray]:
+    """Linear fit of |move| `horizon` sessions ahead; returns the part and its walk-forward predictions."""
+    oos = walk(X, target, embargo=horizon, floor_q=FLOOR_QUANTILE)
     w, mean, scale, b = fit(X, target)
     final = ((X - mean) / scale) @ w + b
-    floor = float(np.quantile(final, .02))
+    floor = float(np.quantile(final, FLOOR_QUANTILE))
     final = np.maximum(final, floor)
     cuts = [float(np.quantile(final[-2500:], q)) for q in (.25, .5, .75)]
     stage = 1 + sum((final > c).astype(int) for c in cuts)
     record = [{'meanAbsPct': round(float(target[stage == s].mean()) * 100, 2),
                'over2Pct': round(float((target[stage == s] >= .02).mean()) * 100, 1)} for s in range(1, 5)]
     part = {**part_json(names, w, mean, scale, b), 'floor': round(floor, 8), 'stageCuts': [round(c, 8) for c in cuts], 'stageRecord': record}
-    return part, np.maximum(oos, floor)
+    return part, oos
 
 
 def coverage(pred: np.ndarray, actual: np.ndarray) -> float:
@@ -142,14 +151,14 @@ def market_swing(book: wo.Book, key: str, days: list[date], extra: dict[date, di
     X = np.array([[r[n] for n in wo.SWING_FEATURES] for r in rows])
     horizons, preds = [], []
     for h in range(wo.HORIZONS):
-        part, oos = swing_part(wo.SWING_FEATURES, X, np.abs(Y[:, h]))
+        part, oos = swing_part(wo.SWING_FEATURES, X, np.abs(Y[:, h]), h)
         horizons.append(part); preds.append(oos)
     out = {'horizons': horizons}
     record = {'rangeInsidePct': [coverage(preds[h], np.abs(Y[:, h])) for h in range(wo.HORIZONS)], 'sampleDays': len(dates) - EVAL}
     if extra is not None:
         names = wo.SWING_FEATURES + wo.OVERNIGHT_FEATURES
         Xo = np.c_[X, np.array([[extra[d][n] for n in wo.OVERNIGHT_FEATURES] for d in dates])]
-        part, oos = swing_part(names, Xo, np.abs(Y[:, 0]))
+        part, oos = swing_part(names, Xo, np.abs(Y[:, 0]), 0)
         out['overnight'] = part
         record['overnightRangeInsidePct'] = coverage(oos, np.abs(Y[:, 0]))
         big = np.abs(Y[EVAL:, 0]) >= .03
@@ -168,7 +177,7 @@ def market_swing(book: wo.Book, key: str, days: list[date], extra: dict[date, di
 
 def futures_parts(book: wo.Book, hourly: list[tuple[int, float]]) -> tuple[dict, dict]:
     first = datetime.fromtimestamp(hourly[0][0], timezone.utc) + timedelta(days=2)
-    def rows(key: str, since_of, moments) -> dict[str, tuple[list, list]]:
+    def rows(key: str, since_of, moments, next_day_only=()) -> dict[str, tuple[list, list]]:
         out = {name: ([], []) for name in moments}
         dates = book.dates[key]
         for prev, day in zip(dates[:-1], dates[1:]):
@@ -177,12 +186,15 @@ def futures_parts(book: wo.Book, hourly: list[tuple[int, float]]) -> tuple[dict,
                 continue
             y = wo.log_ratio(book.bars[key][day][3], book.bars[key][prev][3])
             for name, at in moments.items():
+                if name in next_day_only and (day - prev).days != 1:
+                    continue   # a night after a closed day is the `after_us` case
                 move = wo.futures_move(hourly, since, at(day))
                 if move is not None:
                     out[name][0].append(move); out[name][1].append(y)
         return out
     kst = lambda day, h, m, back=0: datetime.combine(day - timedelta(days=back), time(h, m), wo.KST)
-    kr = rows('kr', lambda prev: kst(prev, 15, 30), {'2110': lambda d: kst(d, 21, 10, 1), '0010': lambda d: kst(d, 0, 10)})
+    kr = rows('kr', lambda prev: kst(prev, 15, 30), {'2110': lambda d: kst(d, 21, 10, 1), '0010': lambda d: kst(d, 0, 10),
+                                                      'after_us': lambda d: kst(d, 6, 50)}, next_day_only=('2110', '0010'))
     us = rows('spx', wo.us_close_at, {'2110': lambda d: kst(d, 21, 10)})
     make = lambda group: {name: rule_part(np.array(a), np.array(b)) for name, (a, b) in group.items()}
     return make(kr), make(us)

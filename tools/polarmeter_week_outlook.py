@@ -14,6 +14,7 @@ public file shows the forecast as it was issued and the network is only used whe
   KR  close  after the KR close        swing only for the next session
       2110   21:10                     + next-session close call from S&P futures since the KR close
       0010   00:10                     the same, with the US session under way
+      after_us                         a closed day from 06:50, and the night after it: the same from the finished US session
       0650   06:50                     + open and close calls from the finished US session (the main issue)
       0905   09:05                     close call redone from the actual open
   US  close  after the US close        swing only for the next session
@@ -260,19 +261,26 @@ def us_close_at(day: date) -> datetime:
 
 
 def kr_slot(now: datetime) -> tuple[date, str]:
-    """(target KR session, slot) at `now`."""
+    """(target KR session, slot) at `now`.
+
+    A night that follows a closed day (a weekend, a holiday) has no US session of its own under way, so the
+    futures view is the finished one: `after_us`. It is first issued at 06:50 on the closed day, once the last
+    US session has closed, never in the middle of that session.
+    """
     local = now.astimezone(KST)
     today, clock = local.date(), local.time()
-    if closed_reason('kr', today) is None and clock < time(15, 40):
-        if clock >= time(9, 5):
-            return today, '0905'
-        if clock >= time(6, 50):
-            return today, '0650'
-        return today, '0010' if clock >= time(0, 10) else '2110'
-    if closed_reason('kr', today) is None:           # after today's close
+    open_today = closed_reason('kr', today) is None
+    open_yesterday = closed_reason('kr', today - timedelta(days=1)) is None
+    if open_today and clock >= time(15, 40):
         return next_open('kr', today + timedelta(days=1)), '2110' if clock >= time(21, 10) else 'close'
-    # a closed day: the last futures price already holds what happened since the last KR close
-    return next_open('kr', today), '0010'
+    target = today if open_today else next_open('kr', today)
+    if open_today and clock >= time(9, 5):
+        return target, '0905'
+    if open_today and clock >= time(6, 50):
+        return target, '0650'
+    if clock < time(6, 50) and open_yesterday:      # the night after an open day: its US session is under way
+        return target, '0010' if clock >= time(0, 10) else '2110'
+    return target, 'after_us'
 
 
 def us_slot(now: datetime) -> tuple[date, str]:
@@ -415,7 +423,7 @@ def kr_entry(target: date, slot: str, book: Book, futures: list[tuple[int, float
             actual_gap = (today_bar[0] / prev_bar[3] - 1) * 100
             entry['open'] = {**entry['open'], 'actualPct': round(actual_gap, 2)}
             entry['close'] = call_from(actual_gap, abs(actual_gap), part['closeAfterOpen'], 'actual_open')
-    elif slot in ('2110', '0010'):
+    elif slot in ('2110', '0010', 'after_us'):
         since = datetime.combine(basis, time(15, 30), KST)
         move = futures_move(futures, since, now)
         if move is not None:
@@ -528,7 +536,7 @@ ENTRY_KEYS = {'target', 'slot', 'issuedAt', 'basisSession', 'open', 'close', 'da
 CALL_KEYS = {'call', 'tier', 'lean', 'basis', 'hitPct', 'sampleDays', 'futuresPct', 'actualPct'}
 OPEN_DAY_KEYS = {'date', 'weekday', 'closed', 'sessionsAhead', 'swingStage', 'rangePct', 'conePct', 'stageRecord'}
 CLOSED_DAY_KEYS = {'date', 'weekday', 'closed', 'closedReason'}
-SLOTS = {'kr': {'close', '2110', '0010', '0650', '0905'}, 'us': {'close', '2110'}}
+SLOTS = {'kr': {'close', '2110', '0010', 'after_us', '0650', '0905'}, 'us': {'close', '2110'}}
 
 
 def assert_public_week_outlook(block: Any) -> None:

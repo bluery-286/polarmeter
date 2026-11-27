@@ -72,7 +72,11 @@ def check_slots() -> None:
     assert wo.kr_slot(kst(2026, 11, 27, 9, 10)) == (date(2026, 11, 27), '0905')
     assert wo.kr_slot(kst(2026, 11, 27, 16, 0)) == (date(2026, 11, 30), 'close')
     assert wo.kr_slot(kst(2026, 11, 27, 21, 15)) == (date(2026, 11, 30), '2110')
-    assert wo.kr_slot(kst(2026, 11, 28, 10, 0)) == (date(2026, 11, 30), '0010'), 'a weekend keeps the futures view of Monday'
+    assert wo.kr_slot(kst(2026, 11, 28, 0, 30)) == (date(2026, 11, 30), '0010'), 'Friday night: the US session is still under way'
+    assert wo.kr_slot(kst(2026, 11, 28, 10, 0)) == (date(2026, 11, 30), 'after_us'), 'reissued once Friday\'s US session has closed'
+    assert wo.kr_slot(kst(2026, 11, 29, 23, 0)) == (date(2026, 11, 30), 'after_us')
+    assert wo.kr_slot(kst(2026, 11, 30, 0, 30)) == (date(2026, 11, 30), 'after_us'), 'no US session ran on Sunday night'
+    assert wo.kr_slot(kst(2026, 12, 1, 0, 30)) == (date(2026, 12, 1), '0010')
     # US: Thanksgiving (26th) is closed, so the session after the 25th is the 27th, called from 21:10 KST that day
     assert wo.us_slot(kst(2026, 11, 26, 12, 0)) == (date(2026, 11, 27), 'close')
     assert wo.us_slot(kst(2026, 11, 27, 21, 15)) == (date(2026, 11, 27), '2110')
@@ -156,6 +160,7 @@ def check_tiers() -> None:
     assert model['modelVersion'] == wo.MODEL_VERSION
     for part in (model['kr']['close'], model['kr']['open'], model['kr']['closeAfterOpen'], model['us']['futures']['2110']):
         assert part['clearAbove'] > part['leanAbove'] > 0 and part['hitPct']['clear'] > part['hitPct']['lean'] > part['alwaysUpPct']
+    assert set(model['kr']['futures']) == {'2110', '0010', 'after_us'}
     weak = model['kr']['futures']['2110']
     said = wo.call_from(0.5, (weak['leanAbove'] + weak['clearAbove']) / 2, weak, 'x')
     assert weak['hitPct']['lean'] < weak['alwaysUpPct'] + wo.TIER_EDGE_PCT and said['call'] == 'none' and said['tier'] == 'none', \
