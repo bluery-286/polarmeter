@@ -396,12 +396,33 @@ def open_market_index_lagging(snapshot: dict[str, Any], generated_at: datetime) 
     return False
 
 
+# 2026-11-27: KOSDAQ ran from +4.08% to +5.68% in the 44 minutes after a build, and the 60-minute TTL kept the old
+# number up (market watch alert). On a day a core index of an open market has moved this much, build every 15 minutes.
+OPEN_BIG_MOVE_PCT = 2.0
+OPEN_BIG_MOVE_TTL_MINUTES = 15
+
+
+def open_market_big_move(snapshot: dict[str, Any], generated_at: datetime) -> bool:
+    signals = snapshot.get('signals') or {}
+    for market, keys in OPEN_INDEX_KEYS.items():
+        session = market_session_context(generated_at, market) or {}
+        if session.get('phase') != 'open':
+            continue
+        for key in keys:
+            pct = (signals.get(key) or {}).get('changePct')
+            if isinstance(pct, (int, float)) and not isinstance(pct, bool) and abs(pct) >= OPEN_BIG_MOVE_PCT:
+                return True
+    return False
+
+
 def public_market_ttl_minutes(snapshot: dict[str, Any]) -> int:
     generated_at = parse_utc_datetime(snapshot.get('generatedAt'))
     if generated_at is not None:
         ttl = recommended_market_ttl_minutes(generated_at)
         if open_market_index_lagging(snapshot, generated_at):
             return min(ttl, OPEN_INDEX_RETRY_TTL_MINUTES)
+        if open_market_big_move(snapshot, generated_at):
+            return min(ttl, OPEN_BIG_MOVE_TTL_MINUTES)
         return ttl
     return int(snapshot.get('defaultTtlMinutes') or recommended_market_ttl_minutes())
 
